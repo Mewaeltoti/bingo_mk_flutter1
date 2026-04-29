@@ -65,10 +65,16 @@ class BingoCard {
   final String id;
   final List<List<int>> numbers;
   final double price;
+  final String status; // 'pending' or 'registered'
+  final int cardNo;
+  final String sessionId;
 
   BingoCard({
     required this.id,
     required this.numbers,
     required this.price,
+    this.status = 'registered',
+    this.cardNo = 0,
+    this.sessionId = '',
   });
 }

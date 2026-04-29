@@ -14,64 +14,76 @@ class SettingsDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: AppColors.background,
-      child: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(context),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _buildSectionTitle('PREFERENCES'),
-                  _buildToggleItem(
-                    Icons.volume_up,
-                    'Sound Effects',
-                    true,
-                    (val) {},
-                  ),
-                  _buildToggleItem(
-                    Icons.dark_mode,
-                    'Dark Mode',
-                    true,
-                    (val) {},
-                  ),
-                  _buildLanguageItem(),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('ACCOUNT'),
-                  _buildActionItem(Icons.person, 'Profile', () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => BlocProvider.value(
-                          value: context.read<WalletCubit>(),
-                          child: const ProfilePage(),
+      backgroundColor: Colors.transparent,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF1E88E5), Color(0xFF8E24AA)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _buildSectionTitle('PREFERENCES'),
+                    _buildToggleItem(
+                      Icons.volume_up,
+                      'Sound Effects',
+                      true,
+                      (val) {},
+                    ),
+                    _buildToggleItem(
+                      Icons.dark_mode,
+                      'Dark Mode',
+                      true,
+                      (val) {},
+                    ),
+                    _buildLanguageItem(),
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('ACCOUNT'),
+                    _buildActionItem(Icons.person, 'Profile', () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BlocProvider.value(
+                            value: context.read<WalletCubit>(),
+                            child: const ProfilePage(),
+                          ),
                         ),
-                      ),
-                    );
-                  }),
-                  _buildActionItem(Icons.leaderboard, 'Leaderboard', () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const LeaderboardPage(),
-                      ),
-                    );
-                  }),
-                  _buildActionItem(Icons.help_outline, 'Support', () {}),
-                  const SizedBox(height: 24),
-                  _buildLogoutButton(context),
-                ],
+                      );
+                    }),
+                    _buildActionItem(Icons.leaderboard, 'Leaderboard', () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LeaderboardPage(),
+                        ),
+                      );
+                    }),
+                    _buildActionItem(Icons.help_outline, 'Support', () {}),
+                    const SizedBox(height: 24),
+                    _buildLogoutButton(context),
+                  ],
+                ),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text(
-                'v1.0.0 (Bingo Ethio)',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'v1.0.0 (Bingo Ethio)',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -109,7 +121,7 @@ class SettingsDrawer extends StatelessWidget {
         style: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
-          color: AppColors.primary,
+          color: Colors.white70,
           letterSpacing: 1,
         ),
       ),
@@ -124,7 +136,7 @@ class SettingsDrawer extends StatelessWidget {
   ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: AppColors.textSecondary, size: 20),
+      leading: Icon(icon, color: Colors.white70, size: 20),
       title: Text(
         label,
         style: const TextStyle(fontSize: 14, color: Colors.white),
@@ -140,11 +152,7 @@ class SettingsDrawer extends StatelessWidget {
   Widget _buildLanguageItem() {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(
-        Icons.language,
-        color: AppColors.textSecondary,
-        size: 20,
-      ),
+      leading: const Icon(Icons.language, color: Colors.white70, size: 20),
       title: const Text(
         'Language',
         style: TextStyle(fontSize: 14, color: Colors.white),
@@ -172,14 +180,14 @@ class SettingsDrawer extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: AppColors.textSecondary, size: 20),
+      leading: Icon(icon, color: Colors.white70, size: 20),
       title: Text(
         label,
         style: const TextStyle(fontSize: 14, color: Colors.white),
       ),
       trailing: const Icon(
         Icons.chevron_right,
-        color: AppColors.textSecondary,
+        color: Colors.white70,
         size: 20,
       ),
     );

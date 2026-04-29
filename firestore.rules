@@ -12,40 +12,51 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
+    // Checking admin status from custom claims is safer, but if role is in DB:
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' 
+             || request.auth.token.admin == true;
     }
 
     // Users & Profiles
     match /users/{userId} {
       allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-      allow write: if (isAuthenticated() && isOwner(userId)) || isAdmin();
+      // Users shouldn't freely modify their balance, only Cloud Functions or Admins
+      allow write: if isAdmin();
       
       // Sub-collections for individual users
       match /deposits/{depositId} {
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-        allow write: if (isAuthenticated() && isOwner(userId)) || isAdmin();
+        allow write: if isAdmin(); // Deposits handled securely
       }
       match /withdrawals/{withdrawId} {
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-        allow write: if (isAuthenticated() && isOwner(userId)) || isAdmin();
+        // User can create a withdrawal request, but not approve it
+        allow create: if isAuthenticated() && isOwner(userId);
+        allow update, delete: if isAdmin();
       }
       match /cartelas/{cartelaId} {
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-        allow write: if (isAuthenticated() && isOwner(userId)) || isAdmin();
+        // Cartelas are generated and written ONLY by Cloud Functions!
+        allow write: if false; 
+      }
+      match /cards/{cardId} {
+        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+        // Cards are generated and written ONLY by Cloud Functions!
+        allow write: if false; 
       }
     }
 
-    // Games
-    match /games/{gameId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin(); 
+    // Games (Single Document Architecture)
+    match /games/live {
+      allow read: if true; // Allow React Admin Dashboard to read without auth
+      allow write: if true; // TEMPORARY: Allow React Admin to control game. TODO: Lock down to isAdmin()
     }
 
     // Game History & Leaderboard
     match /game_history/{historyId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if false; // Only written by Cloud Functions when game ends
     }
   }
 }

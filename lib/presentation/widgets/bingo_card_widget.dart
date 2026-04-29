@@ -10,6 +10,7 @@ class BingoCardWidget extends StatelessWidget {
   final VoidCallback? onRemove;
   final VoidCallback? onBingoClaim;
   final bool isBlocked;
+  final bool isUnregistered;
   final String? label;
   final bool selected;
   final int? lastDrawn;
@@ -24,6 +25,7 @@ class BingoCardWidget extends StatelessWidget {
     this.onRemove,
     this.onBingoClaim,
     this.isBlocked = false,
+    this.isUnregistered = false,
     this.label,
     this.selected = false,
     this.lastDrawn,
@@ -31,6 +33,23 @@ class BingoCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Validate card.numbers is a 5x5 grid
+    final bool validGrid = card.numbers.length == 5 && card.numbers.every((row) => row.length == 5);
+    if (!validGrid) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          'Invalid Bingo Card: Expected 5x5 grid, got ${card.numbers.length} rows and row lengths: '
+          '${card.numbers.map((r) => r.length).toList()}',
+          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final double availableWidth = constraints.maxWidth;
@@ -60,7 +79,7 @@ class BingoCardWidget extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: const BoxDecoration(
-                      color: Color(0xFF3B82F6),
+                      color: Color(0xFF1976D2),
                       borderRadius: BorderRadius.vertical(
                         top: Radius.circular(16),
                       ),
@@ -97,28 +116,46 @@ class BingoCardWidget extends StatelessWidget {
                     ),
                   ),
 
+                  // Unregistered Status Bar
+                  if (isUnregistered)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade100,
+                        border: Border.all(color: Colors.red.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Unregistered',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+
                   // Register Card Bar
-                  if (onRegister != null)
-                    GestureDetector(
-                      onTap: onRegister,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF60A5FA),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Register Card',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                  if (onRegister != null && !isUnregistered)
+                    Center(
+                      child: GestureDetector(
+                        onTap: onRegister,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF60A5FA),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Register Card',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                         ),
                       ),
@@ -126,29 +163,19 @@ class BingoCardWidget extends StatelessWidget {
 
                   // BINGO Claim Bar (Active Game)
                   if (onBingoClaim != null && !isBlocked)
-                    GestureDetector(
-                      onTap: onBingoClaim,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.red],
+                    Center(
+                      child: GestureDetector(
+                        onTap: onBingoClaim,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF81C784), // Light Green
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'BINGO',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            letterSpacing: 2,
+                          child: const Text(
+                            'Bingo',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                         ),
                       ),
@@ -205,11 +232,11 @@ class BingoCardWidget extends StatelessWidget {
   Widget _buildHeader(double cellSize) {
     const letters = ['B', 'I', 'N', 'G', 'O'];
     final colors = [
-      const Color(0xFF10B981), // B - Green
-      const Color(0xFFEF4444), // I - Red
-      const Color(0xFF06B6D4), // N - Cyan
-      const Color(0xFF3B82F6), // G - Blue
-      const Color(0xFFF59E0B), // O - Orange
+      const Color(0xFF4CAF50), // B - Green
+      const Color(0xFFF44336), // I - Red
+      const Color(0xFF00BCD4), // N - Cyan
+      const Color(0xFF2196F3), // G - Blue
+      const Color(0xFFFF9800), // O - Orange
     ];
 
     return Row(
@@ -217,18 +244,18 @@ class BingoCardWidget extends StatelessWidget {
       children: List.generate(5, (i) {
         return Container(
           width: cellSize,
-          height: cellSize * 0.8,
+          height: cellSize * 0.6,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: colors[i],
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
             letters[i],
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: cellSize * 0.45,
+              fontSize: cellSize * 0.4,
             ),
           ),
         );
@@ -248,40 +275,59 @@ class BingoCardWidget extends StatelessWidget {
             final isMarked = isFree || markedCells.contains(cellKey);
             final isDrawn = drawnNumbers.contains(number);
 
+            // 3 visual states:
+            // 1. Free → Green
+            // 2. Marked → Red with soft shadow
+            // 3. Not marked → Plain white
+            Color bgColor;
+            Color borderColor;
+            Color textColor;
+
+            if (isFree) {
+              bgColor = const Color(0xFF4CAF50);
+              borderColor = const Color(0xFF388E3C);
+              textColor = Colors.white;
+            } else if (isMarked) {
+              bgColor = const Color(0xFFFF5252);
+              borderColor = const Color(0xFFE53935);
+              textColor = Colors.white;
+            } else {
+              bgColor = Colors.white;
+              borderColor = Colors.grey.shade300;
+              textColor = Colors.black87;
+            }
+
             return GestureDetector(
               onTap: () {
-                if (!isFree && isDrawn && onMarkCell != null) {
+                if (!isFree && onMarkCell != null) {
                   onMarkCell!(row, col);
                 }
               },
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
                 width: cellSize,
                 height: cellSize,
                 margin: const EdgeInsets.symmetric(vertical: 2),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isFree
-                      ? const Color(0xFF10B981)
-                      : isMarked
-                      ? const Color(0xFF10B981)
-                      : Colors.white,
-                  border: Border.all(color: Colors.grey.shade300, width: 1),
+                  color: bgColor,
+                  border: Border.all(color: borderColor, width: 1.0),
                   boxShadow: [
-                    if (!isMarked && !isFree)
+                    if (isMarked && !isFree)
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
+                        color: const Color(0xFFFF5252).withOpacity(0.5),
+                        blurRadius: 8,
+                        spreadRadius: 2,
                       ),
                   ],
                 ),
                 child: Text(
                   isFree ? 'F' : '$number',
                   style: TextStyle(
-                    fontSize: cellSize * 0.4,
+                    fontSize: cellSize * 0.38,
                     fontWeight: FontWeight.bold,
-                    color: (isMarked || isFree) ? Colors.white : Colors.black87,
+                    color: textColor,
                   ),
                 ),
               ),

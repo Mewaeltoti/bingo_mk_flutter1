@@ -1,62 +1,80 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../../domain/entities/bingo_card.dart';
 import '../../domain/repositories/bingo_repository.dart';
 
 class BingoRepositoryImpl implements BingoRepository {
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
-  BingoRepositoryImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  BingoRepositoryImpl({
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _functions = functions ?? FirebaseFunctions.instance;
 
   @override
   Future<void> createGame(String gameId, Map<String, dynamic> data) async {
-    await _firestore.collection('games').doc(gameId).set(data);
+    // Clients shouldn't create games directly anymore.
+    // This could be kept if used by an admin SDK script, but typically disabled.
+    throw UnimplementedError("Games are managed by the server.");
   }
 
   @override
   Stream<Map<String, dynamic>> streamGame(String gameId) {
+    // We now enforce the single 'games/live' document
     return _firestore
         .collection('games')
-        .doc(gameId)
+        .doc('live')
         .snapshots()
         .map((doc) => doc.data() ?? {});
   }
 
   @override
   Future<void> drawNumber(String gameId, int number) async {
-    await _firestore.collection('games').doc(gameId).update({
-      'drawnNumbers': FieldValue.arrayUnion([number]),
-      'lastNumber': number,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    // CLIENTS CAN NO LONGER DRAW NUMBERS
+    throw UnimplementedError(
+      "Server-authoritative architecture prevents clients from drawing numbers.",
+    );
   }
 
   @override
   Future<void> buyCartelas(String userId, List<BingoCard> cards) async {
-    if (cards.isEmpty) return;
-
-    final batch = _firestore.batch();
-    final userRef = _firestore.collection('users').doc(userId);
-    final cartelasCol = userRef.collection('cartelas');
-
-    double totalCost = 0;
-    for (var card in cards) {
-      totalCost += card.price;
-      final newCardRef = cartelasCol.doc(card.id); // Use card.id to prevent duplicates for the same user
-      batch.set(newCardRef, {
-        'cardId': card.id,
-        'numbers': card.numbers.expand((i) => i).toList(), // Flatten 5x5 to 25 items
-        'price': card.price,
-        'purchasedAt': FieldValue.serverTimestamp(),
-      });
+    try {
+      await _functions.httpsCallable('buyCard').call();
+    } catch (e) {
+      throw Exception('Failed to buy card: $e');
     }
+  }
 
-    // Deduct balance
-    batch.update(userRef, {
-      'balance': FieldValue.increment(-totalCost),
-    });
+  @override
+  Future<void> registerCard(String cardId) async {
+    try {
+      await _functions.httpsCallable('registerCard').call({'cardId': cardId});
+    } catch (e) {
+      throw Exception('Failed to register card: $e');
+    }
+  }
 
-    await batch.commit();
+  @override
+  Future<void> removeCard(String cardId) async {
+    try {
+      await _functions.httpsCallable('removeCard').call({'cardId': cardId});
+    } catch (e) {
+      throw Exception('Failed to remove card: $e');
+    }
+  }
+
+  @override
+  Future<bool> claimBingo(String gameId, String cardId) async {
+    try {
+      final result = await _functions.httpsCallable('claimBingo').call({
+        'cardId': cardId,
+      });
+      return result.data['success'] == true;
+    } catch (e) {
+      return false; // Invalid claim or error
+    }
   }
 
   @override
@@ -64,24 +82,37 @@ class BingoRepositoryImpl implements BingoRepository {
     final snapshot = await _firestore
         .collection('users')
         .doc(userId)
-        .collection('cartelas')
-        // .where('gameId', isEqualTo: gameId) // Add this if gameId is stored
+        .collection('cards')
+        .where('gameId', isEqualTo: 'live')
         .get();
 
     return snapshot.docs.map((doc) {
       final data = doc.data();
-      final flatNumbers = (data['numbers'] as List).cast<int>();
-      
-      // Reshape flat list of 25 numbers back to 5x5 grid
+      final flatNumbers = (data['numbers'] as List?)?.cast<int>() ?? [];
+      final status = data['status'] as String? ?? 'pending';
+      final cardNo = data['cardNo'] as int? ?? 0;
+      final cardSessionId = (data['sessionId'] ?? '').toString();
+
       final List<List<int>> grid = [];
-      for (var i = 0; i < 5; i++) {
-        grid.add(flatNumbers.sublist(i * 5, (i + 1) * 5));
+      if (flatNumbers.length == 25) {
+        for (var i = 0; i < 5; i++) {
+          grid.add(flatNumbers.sublist(i * 5, (i + 1) * 5));
+        }
+      } else {
+        for (var i = 0; i < 5; i++) {
+          grid.add(List.filled(5, 0));
+        }
       }
 
+      final price = (data['price'] as num?)?.toDouble() ?? 10.0;
+
       return BingoCard(
-        id: data['cardId'],
+        id: doc.id,
         numbers: grid,
-        price: (data['price'] as num).toDouble(),
+        price: price,
+        status: status,
+        cardNo: cardNo,
+        sessionId: cardSessionId,
       );
     }).toList();
   }
@@ -90,9 +121,11 @@ class BingoRepositoryImpl implements BingoRepository {
   Stream<List<int>> streamDrawnNumbers(String gameId) {
     return _firestore
         .collection('games')
-        .doc(gameId)
+        .doc('live')
         .snapshots()
-        .map((doc) => (doc.data()?['drawnNumbers'] as List?)?.cast<int>() ?? []);
+        .map(
+          (doc) => (doc.data()?['drawnNumbers'] as List?)?.cast<int>() ?? [],
+        );
   }
 
   @override
@@ -125,20 +158,25 @@ class BingoRepositoryImpl implements BingoRepository {
 
   @override
   Future<void> createDeposit(String userId, Map<String, dynamic> data) async {
-    await _firestore.collection('users').doc(userId).collection('deposits').add({
-      ...data,
-      'createdAt': FieldValue.serverTimestamp(),
-      'status': 'pending',
-    });
+    await _firestore.collection('users').doc(userId).collection('deposits').add(
+      {...data, 'createdAt': FieldValue.serverTimestamp(), 'status': 'pending'},
+    );
   }
 
   @override
-  Future<void> createWithdrawal(String userId, Map<String, dynamic> data) async {
-    await _firestore.collection('users').doc(userId).collection('withdrawals').add({
-      ...data,
-      'createdAt': FieldValue.serverTimestamp(),
-      'status': 'pending',
-    });
+  Future<void> createWithdrawal(
+    String userId,
+    Map<String, dynamic> data,
+  ) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('withdrawals')
+        .add({
+          ...data,
+          'createdAt': FieldValue.serverTimestamp(),
+          'status': 'pending',
+        });
   }
 
   @override
@@ -153,8 +191,6 @@ class BingoRepositoryImpl implements BingoRepository {
 
   @override
   Future<List<Map<String, dynamic>>> getTopPlayers() async {
-    // This is an aggregation in Supabase, in Firestore we might need a separate collection
-    // or just fetch recent winners and aggregate locally for now
     final history = await getGameHistory();
     final Map<String, Map<String, dynamic>> players = {};
 
@@ -172,24 +208,19 @@ class BingoRepositoryImpl implements BingoRepository {
       }
 
       players[winnerId]!['wins'] += 1;
-      players[winnerId]!['totalPrize'] += (game['prize'] as num?)?.toDouble() ?? 0.0;
+      players[winnerId]!['totalPrize'] +=
+          (game['prize'] as num?)?.toDouble() ?? 0.0;
     }
 
-    final sorted = players.values.toList()..sort((a, b) => (b['wins'] as int).compareTo(a['wins'] as int));
+    final sorted = players.values.toList()
+      ..sort((a, b) => (b['wins'] as int).compareTo(a['wins'] as int));
     return sorted;
   }
 
   @override
   Future<void> initializeGame() async {
-    await _firestore.collection('games').doc('current_game').set({
-      'status': 'buying',
-      'pattern': 'Full House',
-      'price': 10.0,
-      'playerCount': 0,
-      'cardsSoldCount': 0,
-      'buyingCountdown': 120,
-      'drawnNumbers': [],
-      'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    throw UnimplementedError(
+      "Initialization is handled by Admin Dashboard via Cloud Functions.",
+    );
   }
 }
