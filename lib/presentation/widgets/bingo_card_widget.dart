@@ -14,6 +14,7 @@ class BingoCardWidget extends StatelessWidget {
   final String? label;
   final bool selected;
   final int? lastDrawn;
+  final bool isWinner;
 
   const BingoCardWidget({
     super.key,
@@ -29,6 +30,7 @@ class BingoCardWidget extends StatelessWidget {
     this.label,
     this.selected = false,
     this.lastDrawn,
+    this.isWinner = false,
   });
 
   @override
@@ -217,6 +219,42 @@ class BingoCardWidget extends StatelessWidget {
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (isWinner)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.5),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: const Text(
+                        'WON',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 22,
                         ),
                       ),
                     ),

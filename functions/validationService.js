@@ -31,13 +31,25 @@ exports.claimBingo = onCall({ cors: true }, async (request) => {
             const drawnNumbers = game.drawnNumbers || [];
 
             // SERVER-SIDE VALIDATION
-            const isWinner = validateBingoPattern(cardNumbers, drawnNumbers, game.gamePattern);
+            const pattern = game.gamePattern || 'full_house';
+            const isWinner = validateBingoPattern(cardNumbers, drawnNumbers, pattern);
 
             if (isWinner) {
+                // Update user's balance
+                const userRef = db.collection('users').doc(userId);
+                const userDoc = await transaction.get(userRef);
+                const currentBalance = userDoc.data().balance || 0;
+                const newBalance = currentBalance + (game.prizePool || 0);
+                transaction.update(userRef, { balance: newBalance });
+
+                const cardNo = cardDoc.data().cardNo;
+
                 const historyRef = db.collection('game_history').doc();
                 transaction.set(historyRef, {
                     sessionId: game.sessionId || 'N/A',
                     winnerId: userId,
+                    winningCardNo: cardNo,
+                    winningCardNumbers: cardNumbers,
                     prize: game.prizePool || 0,
                     drawnNumbers: drawnNumbers,
                     gamePattern: game.gamePattern,
@@ -47,6 +59,8 @@ exports.claimBingo = onCall({ cors: true }, async (request) => {
                 transaction.update(gameRef, {
                     status: 'won',
                     winnerId: userId,
+                    winningCardNo: cardNo,
+                    winningCardNumbers: cardNumbers,
                     endTime: admin.firestore.FieldValue.serverTimestamp()
                 });
                 return { success: true, message: "Bingo confirmed!" };

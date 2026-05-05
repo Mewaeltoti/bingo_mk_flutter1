@@ -21,6 +21,9 @@ class GameLoaded extends GameState {
   final Set<String> blockedCardIds;
   final List<String> winners;
 
+  final int? winningCardNo;
+  final List<int>? winningCardNumbers;
+
   final String sessionId;
   final bool isPaused;
   final String gamePattern;
@@ -37,12 +40,16 @@ class GameLoaded extends GameState {
   final DateTime? startTime;
   final String statusStr;
 
+  final bool isActionLoading;
+
   GameLoaded({
     required this.drawnNumbers,
     required this.markedCells,
     required this.userCards,
     this.blockedCardIds = const {},
     this.winners = const [],
+    this.winningCardNo,
+    this.winningCardNumbers,
     this.sessionId = '',
     this.isPaused = false,
     this.gamePattern = 'Full House',
@@ -56,6 +63,7 @@ class GameLoaded extends GameState {
     this.cardsSoldCount = 0,
     this.startTime,
     this.statusStr = 'Playing',
+    this.isActionLoading = false,
   });
 
   List<int> get lastDrawnNumbers {
@@ -70,6 +78,8 @@ class GameLoaded extends GameState {
     userCards,
     blockedCardIds,
     winners,
+    winningCardNo,
+    winningCardNumbers,
     sessionId,
     isPaused,
     gamePattern,
@@ -83,6 +93,7 @@ class GameLoaded extends GameState {
     cardsSoldCount,
     startTime,
     statusStr,
+    isActionLoading,
   ];
 
   GameLoaded copyWith({
@@ -91,6 +102,8 @@ class GameLoaded extends GameState {
     List<BingoCard>? userCards,
     Set<String>? blockedCardIds,
     List<String>? winners,
+    int? winningCardNo,
+    List<int>? winningCardNumbers,
     String? sessionId,
     bool? isPaused,
     String? gamePattern,
@@ -104,6 +117,7 @@ class GameLoaded extends GameState {
     int? cardsSoldCount,
     DateTime? startTime,
     String? statusStr,
+    bool? isActionLoading,
   }) {
     return GameLoaded(
       drawnNumbers: drawnNumbers ?? this.drawnNumbers,
@@ -111,6 +125,8 @@ class GameLoaded extends GameState {
       userCards: userCards ?? this.userCards,
       blockedCardIds: blockedCardIds ?? this.blockedCardIds,
       winners: winners ?? this.winners,
+      winningCardNo: winningCardNo ?? this.winningCardNo,
+      winningCardNumbers: winningCardNumbers ?? this.winningCardNumbers,
       sessionId: sessionId ?? this.sessionId,
       isPaused: isPaused ?? this.isPaused,
       gamePattern: gamePattern ?? this.gamePattern,
@@ -124,6 +140,7 @@ class GameLoaded extends GameState {
       cardsSoldCount: cardsSoldCount ?? this.cardsSoldCount,
       startTime: startTime ?? this.startTime,
       statusStr: statusStr ?? this.statusStr,
+      isActionLoading: isActionLoading ?? this.isActionLoading,
     );
   }
 }
@@ -203,6 +220,10 @@ class GameCubit extends Cubit<GameState> {
           winners: List<String>.from(gameData['winners'] ?? []),
           cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
           winnerId: gameData['winnerId'] ?? current.winnerId,
+          winningCardNo: gameData['winningCardNo'] ?? current.winningCardNo,
+          winningCardNumbers: gameData['winningCardNumbers'] != null 
+              ? List<int>.from(gameData['winningCardNumbers'])
+              : current.winningCardNumbers,
           hasWon: newStatus == GameStatus.won && gameData['winnerId'] == userId,
           startTime: gameData['createdAt'] != null 
               ? (gameData['createdAt'] as dynamic).toDate() 
@@ -228,50 +249,93 @@ class GameCubit extends Cubit<GameState> {
   void markCell(String cardId, int row, int col) {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-    final map = Map<String, Set<String>>.from(current.markedCells);
-    final cells = Set<String>.from(map[cardId] ?? {});
-    final key = '$row-$col';
 
-    if (cells.contains(key)) {
-      cells.remove(key);
-    } else {
-      cells.add(key);
+    // Find the tapped card to get the number
+    final tappedCardIndex = current.userCards.indexWhere((c) => c.id == cardId);
+    if (tappedCardIndex == -1) return;
+
+    final tappedCard = current.userCards[tappedCardIndex];
+    if (row == 2 && col == 2) return; // Free space, usually auto-marked
+
+    final tappedNumber = tappedCard.numbers[row][col];
+    final map = Map<String, Set<String>>.from(current.markedCells);
+
+    // Determine if we are marking or unmarking based on the tapped cell
+    final isCurrentlyMarked = (map[cardId] ?? {}).contains('$row-$col');
+    final isMarking = !isCurrentlyMarked;
+
+    // Iterate through all user cards to find this number
+    for (var card in current.userCards) {
+      // Sync across all cards (or just registered ones, but syncing all is fine)
+      final cells = Set<String>.from(map[card.id] ?? {});
+
+      for (var r = 0; r < 5; r++) {
+        for (var c = 0; c < 5; c++) {
+          if (r == 2 && c == 2) continue; // Skip free space
+          if (card.numbers[r][c] == tappedNumber) {
+            final key = '$r-$c';
+            if (isMarking) {
+              cells.add(key);
+            } else {
+              cells.remove(key);
+            }
+          }
+        }
+      }
+      map[card.id] = cells;
     }
 
-    map[cardId] = cells;
     emit(current.copyWith(markedCells: map));
   }
 
   /// GET PENDING CARD (Previously Buy)
   Future<void> buyCard() async {
     if (state is! GameLoaded) return;
+    final current = state as GameLoaded;
+    emit(current.copyWith(isActionLoading: true));
     try {
       await _bingoRepository.buyCartelas(userId, []);
       await refreshCards();
     } catch (e) {
       print("Failed to buy card: $e");
+    } finally {
+      if (state is GameLoaded) {
+        emit((state as GameLoaded).copyWith(isActionLoading: false));
+      }
     }
   }
 
   /// REGISTER PENDING CARD
   Future<void> registerCard(String cardId) async {
     if (state is! GameLoaded) return;
+    final current = state as GameLoaded;
+    emit(current.copyWith(isActionLoading: true));
     try {
       await _bingoRepository.registerCard(cardId);
       await refreshCards();
     } catch (e) {
       print("Failed to register card: $e");
+    } finally {
+      if (state is GameLoaded) {
+        emit((state as GameLoaded).copyWith(isActionLoading: false));
+      }
     }
   }
 
   /// REMOVE PENDING CARD
   Future<void> removeCard(String cardId) async {
     if (state is! GameLoaded) return;
+    final current = state as GameLoaded;
+    emit(current.copyWith(isActionLoading: true));
     try {
       await _bingoRepository.removeCard(cardId);
       await refreshCards();
     } catch (e) {
       print("Failed to remove card: $e");
+    } finally {
+      if (state is GameLoaded) {
+        emit((state as GameLoaded).copyWith(isActionLoading: false));
+      }
     }
   }
 
@@ -279,12 +343,21 @@ class GameCubit extends Cubit<GameState> {
   Future<void> claimBingo(String cardId) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
+    emit(current.copyWith(isActionLoading: true));
 
-    final success = await _bingoRepository.claimBingo('live', cardId);
+    try {
+      final success = await _bingoRepository.claimBingo('live', cardId);
 
-    if (!success) {
-      final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
-      emit(current.copyWith(blockedCardIds: blocked));
+      if (!success) {
+        final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
+        emit(current.copyWith(blockedCardIds: blocked));
+      }
+    } catch (e) {
+      print("Failed to claim bingo: $e");
+    } finally {
+      if (state is GameLoaded) {
+        emit((state as GameLoaded).copyWith(isActionLoading: false));
+      }
     }
   }
 }

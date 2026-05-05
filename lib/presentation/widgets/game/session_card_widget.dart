@@ -1,10 +1,32 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../blocs/game_cubit.dart';
 
-class SessionCardWidget extends StatelessWidget {
+class SessionCardWidget extends StatefulWidget {
   final GameLoaded state;
 
   const SessionCardWidget({super.key, required this.state});
+
+  @override
+  State<SessionCardWidget> createState() => _SessionCardWidgetState();
+}
+
+class _SessionCardWidgetState extends State<SessionCardWidget> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   String _safeId(String id) {
     if (id.isEmpty) return "N/A";
@@ -12,9 +34,9 @@ class SessionCardWidget extends StatelessWidget {
   }
 
   String _formatTime() {
-    if (state.startTime == null) return "N/A";
-    final h = state.startTime!.hour.toString().padLeft(2, '0');
-    final m = state.startTime!.minute.toString().padLeft(2, '0');
+    if (widget.state.startTime == null) return "00:00";
+    final h = widget.state.startTime!.hour.toString().padLeft(2, '0');
+    final m = widget.state.startTime!.minute.toString().padLeft(2, '0');
     return "$h:$m";
   }
 
@@ -46,6 +68,7 @@ class SessionCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(

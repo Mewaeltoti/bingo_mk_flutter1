@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
 // Runs every 1 minute, loops internally for 60 seconds (5 sec intervals)
@@ -13,6 +13,57 @@ exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun(asyn
         if (!gameDoc.exists) break;
 
         const game = gameDoc.data();
+
+        // Check if game has ended and needs a reset
+        if (game.status === 'won' || game.status === 'finished') {
+            if (game.endTime) {
+                const end = game.endTime.toDate().getTime();
+                // Reset after 60 seconds
+                if (Date.now() - end >= 60 * 1000) {
+                    const counterRef = db.collection('metadata').doc('counters');
+                    const counterDoc = await counterRef.get();
+                    let sessionNum = 1000;
+                    if (counterDoc.exists) {
+                        sessionNum = (counterDoc.data().currentSessionId || 1000) + 1;
+                    }
+                    await counterRef.set({ currentSessionId: sessionNum }, { merge: true });
+
+                    // Unregister all registered cards (set back to pending)
+                    const registeredCards = await db.collectionGroup('cards').where('status', '==', 'registered').get();
+                    if (!registeredCards.empty) {
+                        let batch = db.batch();
+                        let count = 0;
+                        for (const doc of registeredCards.docs) {
+                            batch.update(doc.ref, { status: 'pending' });
+                            count++;
+                            if (count % 400 === 0) {
+                                await batch.commit();
+                                batch = db.batch();
+                            }
+                        }
+                        if (count % 400 !== 0) {
+                            await batch.commit();
+                        }
+                    }
+
+                    await gameDoc.ref.update({
+                        status: 'waiting',
+                        sessionId: sessionNum,
+                        drawnNumbers: [],
+                        winners: [],
+                        winnerId: null,
+                        cardsSold: 0,
+                        playersCount: 0,
+                        isPaused: false
+                        // Note: prizePool, cardPrice, and gamePattern are preserved for the admin to configure.
+                    });
+                }
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            continue;
+        }
+
         if (game.status !== 'active') {
             await new Promise(resolve => setTimeout(resolve, 5000));
             continue; // Wait if not active
@@ -25,7 +76,10 @@ exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun(asyn
             .filter(n => !drawnNumbers.includes(n));
 
         if (availableNumbers.length === 0) {
-            await gameDoc.ref.update({ status: 'finished' });
+            await gameDoc.ref.update({ 
+                status: 'finished',
+                endTime: admin.firestore.FieldValue.serverTimestamp()
+            });
         } else {
             // Draw random number safely without duplicates
             const randomIndex = Math.floor(Math.random() * availableNumbers.length);

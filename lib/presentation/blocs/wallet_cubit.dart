@@ -13,15 +13,31 @@ class WalletLoaded extends WalletState {
   final double balance;
   final List<Map<String, dynamic>> deposits;
   final List<Map<String, dynamic>> withdrawals;
+  final bool isActionLoading;
 
   WalletLoaded({
     required this.balance,
     required this.deposits,
     required this.withdrawals,
+    this.isActionLoading = false,
   });
 
   @override
-  List<Object?> get props => [balance, deposits, withdrawals];
+  List<Object?> get props => [balance, deposits, withdrawals, isActionLoading];
+
+  WalletLoaded copyWith({
+    double? balance,
+    List<Map<String, dynamic>>? deposits,
+    List<Map<String, dynamic>>? withdrawals,
+    bool? isActionLoading,
+  }) {
+    return WalletLoaded(
+      balance: balance ?? this.balance,
+      deposits: deposits ?? this.deposits,
+      withdrawals: withdrawals ?? this.withdrawals,
+      isActionLoading: isActionLoading ?? this.isActionLoading,
+    );
+  }
 }
 class WalletError extends WalletState {
   final String message;
@@ -54,6 +70,10 @@ class WalletCubit extends Cubit<WalletState> {
   }
 
   Future<void> deposit(double amount, String bank, String reference) async {
+    final current = state;
+    if (current is WalletLoaded) {
+      emit(current.copyWith(isActionLoading: true));
+    }
     try {
       await _bingoRepository.createDeposit(userId, {
         'amount': amount,
@@ -63,10 +83,18 @@ class WalletCubit extends Cubit<WalletState> {
       await loadWallet();
     } catch (e) {
       emit(WalletError(e.toString()));
+    } finally {
+      if (state is WalletLoaded) {
+        emit((state as WalletLoaded).copyWith(isActionLoading: false));
+      }
     }
   }
 
   Future<void> withdraw(double amount, String bank, String accountNumber) async {
+    final current = state;
+    if (current is WalletLoaded) {
+      emit(current.copyWith(isActionLoading: true));
+    }
     try {
       await _bingoRepository.createWithdrawal(userId, {
         'amount': amount,
@@ -76,6 +104,10 @@ class WalletCubit extends Cubit<WalletState> {
       await loadWallet();
     } catch (e) {
       emit(WalletError(e.toString()));
+    } finally {
+      if (state is WalletLoaded) {
+        emit((state as WalletLoaded).copyWith(isActionLoading: false));
+      }
     }
   }
 }

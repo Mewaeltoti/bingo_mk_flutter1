@@ -10,6 +10,7 @@ class CardsGridWidget extends StatelessWidget {
   final Set<String> blockedCards;
   final List<int> drawnNumbers;
   final GameStatus status;
+  final int? winningCardNo;
 
   const CardsGridWidget({
     super.key,
@@ -18,6 +19,7 @@ class CardsGridWidget extends StatelessWidget {
     required this.blockedCards,
     required this.drawnNumbers,
     required this.status,
+    this.winningCardNo,
   });
 
   @override
@@ -61,6 +63,7 @@ class CardsGridWidget extends StatelessWidget {
           markedCells: markedCells[card.id] ?? {},
           isBlocked: isBlocked,
           isUnregistered: isUnregistered,
+          isWinner: winningCardNo != null && card.cardNo == winningCardNo,
           // Tapping a cell only works during active game on a registered card
           onMarkCell: (!isPending && !isBlocked)
               ? (r, c) => context.read<GameCubit>().markCell(card.id, r, c)

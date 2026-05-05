@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 class LiveBoardWidget extends StatelessWidget {
   final List<int> drawnNumbers;
 
-  const LiveBoardWidget({
-    super.key,
-    required this.drawnNumbers,
-  });
+  const LiveBoardWidget({super.key, required this.drawnNumbers});
 
   Color _getColor(String letter) {
     switch (letter) {
@@ -46,7 +43,7 @@ class LiveBoardWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          
+
           // Grid
           Column(
             children: List.generate(5, (row) {
@@ -108,11 +105,16 @@ class LiveBoardWidget extends StatelessWidget {
                             child: AspectRatio(
                               aspectRatio: 1.0,
                               child: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 1.5,
+                                ),
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
                                   color: bgColor,
-                                  border: Border.all(color: borderColor, width: 1.0),
+                                  border: Border.all(
+                                    color: borderColor,
+                                    width: 1.0,
+                                  ),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: FittedBox(

@@ -84,22 +84,24 @@ exports.registerCard = onCall({ cors: true }, async (request) => {
 });
 
 exports.startNewGame = onCall({ cors: true }, async (request) => {
+    const { prizePool, cardPrice, gamePattern } = request.data || {};
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
     const counterRef = db.collection('metadata').doc('counters');
 
     try {
         const result = await db.runTransaction(async (transaction) => {
-            let sessionNum = 1000;
             const counterDoc = await transaction.get(counterRef);
-            
+            const gameDoc = await transaction.get(gameRef);
+
+            let sessionNum = 1000;
             if (counterDoc.exists) {
                 sessionNum = (counterDoc.data().currentSessionId || 1000) + 1;
             }
             
             transaction.set(counterRef, { currentSessionId: sessionNum }, { merge: true });
             
-            transaction.update(gameRef, {
+            const gameUpdate = {
                 status: 'buying',
                 sessionId: sessionNum,
                 drawnNumbers: [],
@@ -108,11 +110,43 @@ exports.startNewGame = onCall({ cors: true }, async (request) => {
                 cardsSold: 0,
                 playersCount: 0,
                 isPaused: false,
+                prizePool: prizePool || 250,
+                cardPrice: cardPrice || 10,
+                gamePattern: gamePattern || 'full_house',
                 startTime: admin.firestore.FieldValue.serverTimestamp()
-            });
+            };
+
+            if (!gameDoc.exists) {
+                transaction.set(gameRef, gameUpdate);
+            } else {
+                transaction.update(gameRef, gameUpdate);
+            }
 
             return { success: true, sessionId: sessionNum };
         });
+
+        // Unregister all 'registered' cards for the new session
+        const registeredCardsSnapshot = await db.collectionGroup('cards')
+            .where('status', '==', 'registered')
+            .get();
+
+        if (!registeredCardsSnapshot.empty) {
+            let cardBatch = db.batch();
+            let count = 0;
+            for (const doc of registeredCardsSnapshot.docs) {
+                cardBatch.update(doc.ref, { status: 'pending' });
+                count++;
+                if (count === 400) {
+                    await cardBatch.commit();
+                    cardBatch = db.batch();
+                    count = 0;
+                }
+            }
+            if (count > 0) {
+                await cardBatch.commit();
+            }
+        }
+
         return result;
     } catch (error) {
         console.error("StartNewGame Error:", error);
@@ -219,6 +253,29 @@ exports.cancelGame = onCall({ cors: true }, async (request) => {
 
             return { success: true, oldSession: game.sessionId, newSession: nextSession };
         });
+
+        // Unregister all 'registered' cards for the new session
+        const registeredCardsSnapshot = await db.collectionGroup('cards')
+            .where('status', '==', 'registered')
+            .get();
+
+        if (!registeredCardsSnapshot.empty) {
+            let cardBatch = db.batch();
+            let count = 0;
+            for (const doc of registeredCardsSnapshot.docs) {
+                cardBatch.update(doc.ref, { status: 'pending' });
+                count++;
+                if (count === 400) {
+                    await cardBatch.commit();
+                    cardBatch = db.batch();
+                    count = 0;
+                }
+            }
+            if (count > 0) {
+                await cardBatch.commit();
+            }
+        }
+
         return result;
     } catch (error) {
         console.error("CancelGame Error:", error);
@@ -239,16 +296,17 @@ exports.removeCard = onCall({ cors: true }, async (request) => {
     try {
         const cardDoc = await cardRef.get();
         if (!cardDoc.exists) {
-            throw new Error("Card not found.");
+            throw new HttpsError('not-found', "Card not found.");
         }
 
         if (cardDoc.data().status !== 'pending') {
-            throw new Error("Only pending cards can be removed.");
+            throw new HttpsError('failed-precondition', "Only pending cards can be removed.");
         }
 
         await cardRef.delete();
         return { success: true };
     } catch (error) {
+        if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', error.message);
     }
 });

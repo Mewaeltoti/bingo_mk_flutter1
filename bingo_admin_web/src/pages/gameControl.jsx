@@ -71,7 +71,7 @@ function GameControl() {
     setIsSeeding(true);
     try {
       const startFunc = httpsCallable(functions, 'startNewGame');
-      await startFunc();
+      await startFunc(settings);
     } catch (error) {
       console.error(error);
       alert("Error starting game: " + error.message);

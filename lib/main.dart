@@ -16,6 +16,8 @@ import 'domain/repositories/bingo_repository.dart';
 
 import 'presentation/pages/dashboard_page.dart';
 import 'presentation/pages/main_container.dart';
+import 'presentation/pages/splash_page.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,22 +72,37 @@ class BingoApp extends StatelessWidget {
   }
 }
 
+
+
 /// ============================
 /// 🔥 CLEAN ROUTING LAYER
 /// ============================
-class AppRouter extends StatelessWidget {
+class AppRouter extends StatefulWidget {
   const AppRouter({super.key});
 
   @override
+  State<AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends State<AppRouter> {
+  bool _showSplash = true;
+
+  @override
   Widget build(BuildContext context) {
+    if (_showSplash) {
+      return SplashPage(
+        onFinish: () {
+          setState(() {
+            _showSplash = false;
+          });
+        },
+      );
+    }
+
     return BlocBuilder<AuthCubit, AuthState>(
       builder: (context, state) {
-        final bingoRepository =
-            RepositoryProvider.of<BingoRepository>(context);
+        final bingoRepository = RepositoryProvider.of<BingoRepository>(context);
 
-        // =========================
-        // 🎮 USER FLOW (MAIN APP)
-        // =========================
         if (state is AuthAuthenticated) {
           return MultiBlocProvider(
             providers: [
@@ -106,9 +123,6 @@ class AppRouter extends StatelessWidget {
           );
         }
 
-        // =========================
-        // 🔓 NOT LOGGED IN
-        // =========================
         return const DashboardPage();
       },
     );

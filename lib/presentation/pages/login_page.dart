@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
+import '../widgets/loading_dialog.dart';
 import '../../core/theme/app_theme.dart';
 import 'signup_page.dart';
 
@@ -17,20 +18,31 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildHero(),
-                const SizedBox(height: 48),
-                _buildForm(),
-                const SizedBox(height: 32),
-                _buildActionButtons(context),
-              ],
+    return BlocListener<AuthCubit, AuthState>(
+      listenWhen: (previous, current) =>
+          (previous is AuthLoading) != (current is AuthLoading),
+      listener: (context, state) {
+        if (state is AuthLoading) {
+          LoadingDialog.show(context);
+        } else {
+          LoadingDialog.hide(context);
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildHero(),
+                  const SizedBox(height: 48),
+                  _buildForm(),
+                  const SizedBox(height: 32),
+                  _buildActionButtons(context),
+                ],
+              ),
             ),
           ),
         ),
@@ -130,9 +142,6 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         BlocBuilder<AuthCubit, AuthState>(
           builder: (context, state) {
-            if (state is AuthLoading) {
-              return const CircularProgressIndicator();
-            }
             return Container(
               width: double.infinity,
               height: 56,
@@ -152,9 +161,9 @@ class _LoginPageState extends State<LoginPage> {
               child: ElevatedButton(
                 onPressed: () {
                   context.read<AuthCubit>().login(
-                    _emailController.text,
-                    _passwordController.text,
-                  );
+                        _emailController.text,
+                        _passwordController.text,
+                      );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
