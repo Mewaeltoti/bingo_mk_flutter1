@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 
-import 'loading_widgets.dart';
+import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 
 class SplashPage extends StatefulWidget {
   final VoidCallback onFinish;
@@ -12,7 +12,8 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
+class _SplashPageState extends State<SplashPage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -26,11 +27,17 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeIn)),
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
+      ),
     );
 
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack)),
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack),
+      ),
     );
 
     _controller.forward();
@@ -59,11 +66,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF1E293B),
-              Color(0xFF0F172A),
-            ],
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0F172A)],
           ),
         ),
         child: AnimatedBuilder(
@@ -128,11 +131,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
         ],
       ),
       child: const Center(
-        child: Icon(
-          Icons.gamepad_rounded,
-          size: 60,
-          color: AppColors.primary,
-        ),
+        child: Icon(Icons.gamepad_rounded, size: 60, color: AppColors.primary),
       ),
     );
   }

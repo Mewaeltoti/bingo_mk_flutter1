@@ -9,9 +9,10 @@ import '../widgets/game/session_card_widget.dart';
 import '../widgets/game/recent_numbers_widget.dart';
 import '../widgets/game/live_board_widget.dart';
 import '../widgets/game/cards_grid_widget.dart';
+import '../widgets/game/horizontal_badge_list.dart';
 import '../../domain/entities/bingo_card.dart';
 import '../widgets/bingo_card_widget.dart';
-import '../widgets/loading_widgets.dart';
+import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 
 class GamePage extends StatefulWidget {
   const GamePage({super.key});
@@ -24,7 +25,7 @@ class _GamePageState extends State<GamePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late ConfettiController _confettiController;
 
-  bool _expanded = false;
+  bool _expanded = true; // Default to expanded to show the board
   bool _shownWinSnack = false;
   bool _shownDialog = false;
 
@@ -71,57 +72,12 @@ class _GamePageState extends State<GamePage> {
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Color(0xFFFF5252),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.credit_card, color: Colors.white),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Card: ${state.winningCardNo}",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (state.drawnNumbers.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        "Last: ${state.drawnNumbers.last}",
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: BingoCardWidget(
-                card: mockCard,
-                drawnNumbers: state.drawnNumbers.toSet(),
-                markedCells: winningMarks,
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
-            ),
-          ],
+        backgroundColor: Colors.transparent,
+        child: BingoCardWidget(
+          card: mockCard,
+          drawnNumbers: state.drawnNumbers.toSet(),
+          markedCells: winningMarks,
+          label: "WINNING CARD",
         ),
       ),
     );
@@ -134,10 +90,8 @@ class _GamePageState extends State<GamePage> {
         if (state is GameLoaded) {
           if (state.status == GameStatus.won) {
             _confettiController.play();
-
             if (state.hasWon && !_shownWinSnack) {
               _shownWinSnack = true;
-
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('🎉 YOU WON!'),
@@ -145,7 +99,6 @@ class _GamePageState extends State<GamePage> {
                 ),
               );
             }
-
             if (!_shownDialog) {
               _shownDialog = true;
               _showWinningCardDialog(context, state);
@@ -162,85 +115,108 @@ class _GamePageState extends State<GamePage> {
           children: [
             Scaffold(
               key: _scaffoldKey,
-              backgroundColor: const Color(0xFFF0F2F5),
+              backgroundColor: const Color(0xFFF8FAFC),
               endDrawer: SettingsDrawer(onClose: () => Navigator.pop(context)),
-
               appBar: AppBar(
                 flexibleSpace: Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Color(0xFF1E88E5), Color(0xFF8E24AA)],
+                      colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
                     ),
                   ),
                 ),
-                title: const Text("Bingo Live"),
+                title: Text(
+                  state is GameLoaded ? "TOTI BINGO" : "Bingo Live",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
                 actions: [
+                  IconButton(icon: const Icon(Icons.undo), onPressed: () {}),
+                  IconButton(icon: const Icon(Icons.redo), onPressed: () {}),
                   IconButton(
                     icon: const Icon(Icons.settings),
                     onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
                   ),
+                  IconButton(icon: const Icon(Icons.apps), onPressed: () {}),
+                  IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
                 ],
               ),
-
               body: state is GameLoaded
                   ? SingleChildScrollView(
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         children: [
-                          // WIN BANNER
-                          if (state.status == GameStatus.won)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: state.hasWon
-                                    ? Colors.green
-                                    : Colors.grey,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          // Session Info Card
+                          SessionCardWidget(state: state),
+
+                          const SizedBox(height: 10),
+
+                          // Toggle Show More/Less (Styled as in image)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: GestureDetector(
+                              onTap: () =>
+                                  setState(() => _expanded = !_expanded),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  Icon(
+                                    _expanded
+                                        ? Icons.keyboard_arrow_up
+                                        : Icons.keyboard_arrow_down,
+                                    color: const Color(0xFFEF4444),
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    state.hasWon ? "YOU WON!" : "GAME OVER",
+                                    _expanded ? "Show Less" : "Show More",
                                     style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFEF4444),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 12,
                                     ),
                                   ),
-
-                                  if (state.winners.isNotEmpty)
-                                    Wrap(
-                                      spacing: 6,
-                                      children: state.winners
-                                          .map(
-                                            (e) =>
-                                                Chip(label: Text(e.toString())),
-                                          )
-                                          .toList(),
-                                    ),
                                 ],
                               ),
                             ),
-
-                          const SizedBox(height: 10),
-
-                          // TOGGLE
-                          GestureDetector(
-                            onTap: () => setState(() => _expanded = !_expanded),
-                            child: Text(_expanded ? "Show Less" : "Show More"),
                           ),
 
-                          const SizedBox(height: 10),
-
                           if (_expanded) ...[
-                            SessionCardWidget(state: state),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 8),
                             LiveBoardWidget(drawnNumbers: state.drawnNumbers),
                           ] else
                             RecentNumbersWidget(numbers: state.drawnNumbers),
 
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
+
+                          // Horizontal Status Badges (Winners, Blocked, etc.)
+                          HorizontalBadgeList(
+                            icon: Icons.check_circle,
+                            color: const Color(0xFF10B981),
+                            label: "WINNERS:",
+                            items: state.winners,
+                          ),
+
+                          HorizontalBadgeList(
+                            icon: Icons.assignment_turned_in,
+                            color: const Color(0xFFF59E0B),
+                            label: "BINGO CLAIMED CARDS:",
+                            items: state.claimedCardIds,
+                          ),
+
+                          HorizontalBadgeList(
+                            icon: Icons.block,
+                            color: const Color(0xFFEF4444),
+                            label: "BLOCKED:",
+                            items: state.blockedCardIds.toList(),
+                            onShowMore: () {},
+                          ),
+
+                          const SizedBox(height: 12),
 
                           CardsGridWidget(
                             cards: state.userCards,
@@ -256,22 +232,25 @@ class _GamePageState extends State<GamePage> {
                       ),
                     )
                   : const GamePageSkeleton(),
-
               floatingActionButton:
                   (state is GameLoaded && state.status == GameStatus.buying)
                   ? FloatingActionButton(
+                      backgroundColor: const Color(0xFFEF4444),
                       onPressed: () => context.read<GameCubit>().buyCard(),
-                      child: const Icon(Icons.add),
+                      child: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 30,
+                      ),
                     )
                   : null,
             ),
-
             Align(
               alignment: Alignment.topCenter,
               child: ConfettiWidget(
                 confettiController: _confettiController,
                 blastDirectionality: BlastDirectionality.explosive,
-                shouldLoop: false, // ✅ FIXED
+                shouldLoop: false,
               ),
             ),
           ],

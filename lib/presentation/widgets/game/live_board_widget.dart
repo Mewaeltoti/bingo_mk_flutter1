@@ -7,16 +7,11 @@ class LiveBoardWidget extends StatelessWidget {
 
   Color _getColor(String letter) {
     switch (letter) {
-      case "B":
-        return Colors.blue;
-      case "I":
-        return Colors.red;
-      case "N":
-        return Colors.green;
-      case "G":
-        return Colors.purple;
-      default:
-        return Colors.orange;
+      case "B": return const Color(0xFF3B82F6); // Blue
+      case "I": return const Color(0xFFEF4444); // Red
+      case "N": return const Color(0xFF10B981); // Green
+      case "G": return const Color(0xFF8B5CF6); // Purple
+      default: return const Color(0xFFF59E0B); // Orange
     }
   }
 
@@ -25,120 +20,108 @@ class LiveBoardWidget extends StatelessWidget {
     final int? lastDrawn = drawnNumbers.isNotEmpty ? drawnNumbers.last : null;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          // "Drawn: X" header
-          Text(
-            "Drawn: ${drawnNumbers.length}",
-            style: const TextStyle(
-              color: Colors.grey,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
+          // Header showing total count as in image
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              "Total Drawn: ${drawnNumbers.length}",
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+              ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
 
-          // Grid
-          Column(
-            children: List.generate(5, (row) {
-              final letter = ["B", "I", "N", "G", "O"][row];
-              final color = _getColor(letter);
+          // 5 Rows for B-I-N-G-O
+          ...List.generate(5, (row) {
+            final letter = ["B", "I", "N", "G", "O"][row];
+            final color = _getColor(letter);
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 6.0),
-                child: Row(
-                  children: [
-                    // Letter box
-                    Container(
-                      width: 24,
-                      height: 24,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.15),
-                        border: Border.all(color: color, width: 1.5),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        letter,
-                        style: TextStyle(
-                          color: color,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13,
-                        ),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2.0),
+              child: Row(
+                children: [
+                  // Letter Badge
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: color, width: 1.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      letter,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Numbers
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: List.generate(15, (i) {
-                          final num = row * 15 + i + 1;
-                          final drawn = drawnNumbers.contains(num);
-                          final isLastDrawn = num == lastDrawn;
+                  ),
+                  const SizedBox(width: 6),
+                  // 15 Number cells
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: List.generate(15, (i) {
+                        final num = row * 15 + i + 1;
+                        final isDrawn = drawnNumbers.contains(num);
+                        final isLast = num == lastDrawn;
 
-                          Color bgColor;
-                          Color textColor;
-                          Color borderColor;
-
-                          if (isLastDrawn) {
-                            bgColor = Colors.black;
-                            textColor = Colors.red;
-                            borderColor = Colors.black;
-                          } else if (drawn) {
-                            bgColor = color;
-                            textColor = Colors.white;
-                            borderColor = color;
-                          } else {
-                            bgColor = Colors.grey.shade100;
-                            textColor = Colors.black87;
-                            borderColor = Colors.grey.shade300;
-                          }
-
-                          return Expanded(
-                            child: AspectRatio(
-                              aspectRatio: 1.0,
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 1.5,
-                                ),
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: bgColor,
-                                  border: Border.all(
-                                    color: borderColor,
-                                    width: 1.0,
-                                  ),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    "$num",
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: textColor,
-                                    ),
+                        return Expanded(
+                          child: Container(
+                            height: 22,
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isLast 
+                                  ? Colors.black 
+                                  : (isDrawn ? color : const Color(0xFFF1F5F9)),
+                              borderRadius: BorderRadius.circular(4),
+                              border: isLast ? Border.all(color: const Color(0xFF10B981), width: 2) : null,
+                            ),
+                            child: FittedBox(
+                              child: Padding(
+                                padding: const EdgeInsets.all(2.0),
+                                child: Text(
+                                  "$num",
+                                  style: TextStyle(
+                                    color: isLast 
+                                        ? const Color(0xFF10B981) 
+                                        : (isDrawn ? Colors.white : const Color(0xFF64748B)),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
                                   ),
                                 ),
                               ),
                             ),
-                          );
-                        }),
-                      ),
+                          ),
+                        );
+                      }),
                     ),
-                  ],
-                ),
-              );
-            }),
-          ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

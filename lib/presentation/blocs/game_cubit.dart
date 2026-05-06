@@ -20,6 +20,7 @@ class GameLoaded extends GameState {
   final List<BingoCard> userCards;
   final Set<String> blockedCardIds;
   final List<String> winners;
+  final List<String> claimedCardIds;
 
   final int? winningCardNo;
   final List<int>? winningCardNumbers;
@@ -48,6 +49,7 @@ class GameLoaded extends GameState {
     required this.userCards,
     this.blockedCardIds = const {},
     this.winners = const [],
+    this.claimedCardIds = const [],
     this.winningCardNo,
     this.winningCardNumbers,
     this.sessionId = '',
@@ -78,6 +80,7 @@ class GameLoaded extends GameState {
     userCards,
     blockedCardIds,
     winners,
+    claimedCardIds,
     winningCardNo,
     winningCardNumbers,
     sessionId,
@@ -102,6 +105,7 @@ class GameLoaded extends GameState {
     List<BingoCard>? userCards,
     Set<String>? blockedCardIds,
     List<String>? winners,
+    List<String>? claimedCardIds,
     int? winningCardNo,
     List<int>? winningCardNumbers,
     String? sessionId,
@@ -125,6 +129,7 @@ class GameLoaded extends GameState {
       userCards: userCards ?? this.userCards,
       blockedCardIds: blockedCardIds ?? this.blockedCardIds,
       winners: winners ?? this.winners,
+      claimedCardIds: claimedCardIds ?? this.claimedCardIds,
       winningCardNo: winningCardNo ?? this.winningCardNo,
       winningCardNumbers: winningCardNumbers ?? this.winningCardNumbers,
       sessionId: sessionId ?? this.sessionId,
@@ -218,6 +223,7 @@ class GameCubit extends Cubit<GameState> {
           prizePool: (gameData['prizePool'] ?? 0).toDouble(),
           gamePrice: (gameData['cardPrice'] ?? 10).toDouble(),
           winners: List<String>.from(gameData['winners'] ?? []),
+          claimedCardIds: List<String>.from(gameData['claims'] ?? []),
           cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
           winnerId: gameData['winnerId'] ?? current.winnerId,
           winningCardNo: gameData['winningCardNo'] ?? current.winningCardNo,

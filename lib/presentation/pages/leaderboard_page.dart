@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/repositories/bingo_repository.dart';
 import '../../core/theme/app_theme.dart';
 
-import 'loading_widgets.dart';
+import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 
 class LeaderboardPage extends StatefulWidget {
   const LeaderboardPage({super.key});
@@ -12,7 +12,8 @@ class LeaderboardPage extends StatefulWidget {
   State<LeaderboardPage> createState() => _LeaderboardPageState();
 }
 
-class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProviderStateMixin {
+class _LeaderboardPageState extends State<LeaderboardPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _isLoading = true;
   List<Map<String, dynamic>> _leaders = [];
@@ -50,7 +51,10 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Leaderboard', style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Leaderboard',
+          style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold),
+        ),
       ),
       body: Column(
         children: [
@@ -64,10 +68,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
                 ? const Center(child: AppSpinner())
                 : TabBarView(
                     controller: _tabController,
-                    children: [
-                      _buildLeadersTab(),
-                      _buildHistoryTab(),
-                    ],
+                    children: [_buildLeadersTab(), _buildHistoryTab()],
                   ),
           ),
         ],
@@ -86,7 +87,9 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
         controller: _tabController,
         indicator: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFFFA500)]),
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+          ),
         ),
         labelColor: Colors.black,
         unselectedLabelColor: AppColors.textSecondary,
@@ -101,7 +104,12 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
 
   Widget _buildLeadersTab() {
     if (_leaders.isEmpty) {
-      return const Center(child: Text('No winners yet.', style: TextStyle(color: AppColors.textSecondary)));
+      return const Center(
+        child: Text(
+          'No winners yet.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -115,7 +123,9 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
           decoration: BoxDecoration(
             color: isTop ? Colors.amber.withOpacity(0.1) : AppColors.card,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: isTop ? Colors.amber.withOpacity(0.3) : AppColors.border),
+            border: Border.all(
+              color: isTop ? Colors.amber.withOpacity(0.3) : AppColors.border,
+            ),
           ),
           child: Row(
             children: [
@@ -127,18 +137,28 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
                   children: [
                     Text(
                       entry['displayName'] ?? 'Anonymous',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                     Text(
                       '${entry['wins']} wins',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
               Text(
                 '${entry['totalPrize']} ETB',
-                style: const TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold, color: AppColors.primary),
+                style: const TextStyle(
+                  fontFamily: 'Orbitron',
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
               ),
             ],
           ),
@@ -148,19 +168,30 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
   }
 
   Widget _buildRankBadge(int index) {
-    if (index == 0) return const Icon(Icons.emoji_events, color: Colors.amber, size: 24);
-    if (index == 1) return const Icon(Icons.emoji_events, color: Colors.grey, size: 24);
-    if (index == 2) return const Icon(Icons.emoji_events, color: Colors.brown, size: 24);
+    if (index == 0)
+      return const Icon(Icons.emoji_events, color: Colors.amber, size: 24);
+    if (index == 1)
+      return const Icon(Icons.emoji_events, color: Colors.grey, size: 24);
+    if (index == 2)
+      return const Icon(Icons.emoji_events, color: Colors.brown, size: 24);
     return CircleAvatar(
       radius: 12,
       backgroundColor: AppColors.background,
-      child: Text('${index + 1}', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+      child: Text(
+        '${index + 1}',
+        style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+      ),
     );
   }
 
   Widget _buildHistoryTab() {
     if (_history.isEmpty) {
-      return const Center(child: Text('No games played yet.', style: TextStyle(color: AppColors.textSecondary)));
+      return const Center(
+        child: Text(
+          'No games played yet.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -181,17 +212,30 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       game['pattern'] ?? 'Full House',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
-                  const Text('12:30 PM', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  const Text(
+                    '12:30 PM',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -199,12 +243,21 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    game['winnerName'] != null ? '🏆 ${game['winnerName']}' : 'No winner',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    game['winnerName'] != null
+                        ? '🏆 ${game['winnerName']}'
+                        : 'No winner',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                   Text(
                     '${game['prize']} ETB',
-                    style: const TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold, color: AppColors.primary),
+                    style: const TextStyle(
+                      fontFamily: 'Orbitron',
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ],
               ),

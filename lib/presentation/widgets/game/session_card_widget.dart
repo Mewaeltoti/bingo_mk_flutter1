@@ -28,11 +28,6 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
     super.dispose();
   }
 
-  String _safeId(String id) {
-    if (id.isEmpty) return "N/A";
-    return id; // Image shows plain number: 92947138
-  }
-
   String _formatTime() {
     if (widget.state.startTime == null) return "00:00";
     final h = widget.state.startTime!.hour.toString().padLeft(2, '0');
@@ -40,25 +35,31 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
     return "$h:$m";
   }
 
-  Widget _buildIconText(
+  Widget _buildInfoRow(
     IconData icon,
     Color iconColor,
     String label,
-    String value, {
-    Color? valueColor,
-  }) {
+    String value,
+    Color valueColor,
+  ) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, color: iconColor, size: 14),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(width: 2),
         Text(
           value,
           style: TextStyle(
-            color: valueColor ?? Colors.black87,
-            fontWeight: FontWeight.bold,
+            color: valueColor,
+            fontWeight: FontWeight.w900,
             fontSize: 11,
           ),
         ),
@@ -70,98 +71,97 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
   Widget build(BuildContext context) {
     final state = widget.state;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: Game
+          // Pattern info
           Row(
             children: [
-              const Icon(Icons.games, color: Colors.blue, size: 18),
+              const Icon(Icons.hub, color: Color(0xFF1E88E5), size: 16),
               const SizedBox(width: 8),
-              const Text(
-                "Game: ",
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
               Expanded(
                 child: Text(
-                  state.gamePattern.toUpperCase().replaceAll('_', ' '),
+                  "GAME: ${state.gamePattern.toUpperCase().replaceAll('_', ' ')}",
                   style: const TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                    color: Color(0xFF1E293B),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
 
-          const SizedBox(height: 12),
-
-          // Row 2: ID, Time, Status
+          // ID, Time, Status
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildIconText(
-                Icons.qr_code_scanner,
+              _buildInfoRow(
+                Icons.qr_code,
                 Colors.grey,
                 "ID:",
-                _safeId(state.sessionId),
+                state.sessionId.substring(
+                  0,
+                  state.sessionId.length.clamp(0, 8),
+                ),
+                const Color(0xFF334155),
               ),
-              _buildIconText(
-                Icons.access_time,
+              _buildInfoRow(
+                Icons.schedule,
                 Colors.grey,
-                "Time:",
+                "TIME:",
                 _formatTime(),
+                const Color(0xFF334155),
               ),
-              _buildIconText(
-                Icons.info_outline,
-                Colors.grey,
-                "Status:",
+              _buildInfoRow(
+                Icons.radio_button_checked,
+                Colors.green,
+                "LIVE:",
                 state.statusStr,
-                valueColor: Colors.green,
+                Colors.green,
               ),
             ],
           ),
 
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1, color: Color(0xFFEEEEEE)),
-          ),
+          const SizedBox(height: 8),
 
-          // Row 3: Price, Games, Prize
+          // Price, Players, Prize
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildIconText(
+              _buildInfoRow(
                 Icons.attach_money,
                 Colors.green,
-                "Price:",
-                "\$${state.gamePrice.toInt()}",
-                valueColor: Colors.green,
+                "PRICE:",
+                "${state.gamePrice.toInt()} ETB",
+                Colors.green,
               ),
-              _buildIconText(
-                Icons.games,
+              _buildInfoRow(
+                Icons.group,
                 Colors.blue,
-                "Games:",
-                "1",
-                valueColor: Colors.blue,
-              ), // Hardcoded 1 games as per image
-              _buildIconText(
+                "PLAYERS:",
+                "${state.playerCount}",
+                Colors.blue,
+              ),
+              _buildInfoRow(
                 Icons.emoji_events,
                 Colors.orange,
-                "Prize:",
-                "\$${state.prizePool.toInt()}",
-                valueColor: Colors.orange,
+                "PRIZE:",
+                "${state.prizePool.toInt()} ETB",
+                Colors.orange,
               ),
             ],
           ),

@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/wallet_cubit.dart';
 import '../../core/theme/app_theme.dart';
 
-import 'loading_widgets.dart';
+import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 
 class PaymentPage extends StatefulWidget {
   const PaymentPage({super.key});

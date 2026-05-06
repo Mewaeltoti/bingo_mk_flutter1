@@ -75,10 +75,8 @@ class CardsGridWidget extends StatelessWidget {
           onBingoClaim: (!isPending && !isBlocked && drawnNumbers.isNotEmpty)
               ? () => context.read<GameCubit>().claimBingo(card.id)
               : null,
-          // Remove button for pending cards
-          onRemove: (isPending && isBuyingPhase)
-              ? () => context.read<GameCubit>().removeCard(card.id)
-              : null,
+          // Remove button always available as requested
+          onRemove: () => context.read<GameCubit>().removeCard(card.id),
         );
       },
     );
