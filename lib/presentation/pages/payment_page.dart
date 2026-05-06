@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/wallet_cubit.dart';
 import '../../core/theme/app_theme.dart';
 
+import 'loading_widgets.dart';
+
 class PaymentPage extends StatefulWidget {
   const PaymentPage({super.key});
 
@@ -44,7 +46,7 @@ class _PaymentPageState extends State<PaymentPage>
       body: BlocBuilder<WalletCubit, WalletState>(
         builder: (context, state) {
           if (state is WalletLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: AppSpinner());
           }
           if (state is WalletLoaded) {
             return RefreshIndicator(

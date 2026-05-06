@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 
+import 'loading_widgets.dart';
+
 class SplashPage extends StatefulWidget {
   final VoidCallback onFinish;
 
@@ -97,10 +99,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                         ),
                       ),
                       const SizedBox(height: 48),
-                      const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondary),
-                        strokeWidth: 2,
-                      ),
+                      const AppSpinner(size: 40, strokeWidth: 3),
                     ],
                   ),
                 ),

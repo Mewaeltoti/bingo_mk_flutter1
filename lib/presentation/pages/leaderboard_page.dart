@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/repositories/bingo_repository.dart';
 import '../../core/theme/app_theme.dart';
 
+import 'loading_widgets.dart';
+
 class LeaderboardPage extends StatefulWidget {
   const LeaderboardPage({super.key});
 
@@ -59,7 +61,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
           const SizedBox(height: 16),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: AppSpinner())
                 : TabBarView(
                     controller: _tabController,
                     children: [
