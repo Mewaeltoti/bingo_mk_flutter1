@@ -6,6 +6,7 @@ class HorizontalBadgeList extends StatelessWidget {
   final String label;
   final List<String> items;
   final VoidCallback? onShowMore;
+  final Function(String)? onItemTap;
 
   const HorizontalBadgeList({
     super.key,
@@ -14,6 +15,7 @@ class HorizontalBadgeList extends StatelessWidget {
     required this.label,
     required this.items,
     this.onShowMore,
+    this.onItemTap,
   });
 
   @override
@@ -52,19 +54,22 @@ class HorizontalBadgeList extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  ...items.map((item) => Container(
-                        margin: const EdgeInsets.only(right: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          item,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
+                  ...items.map((item) => GestureDetector(
+                        onTap: () => onItemTap?.call(item),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            item,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
                           ),
                         ),
                       )),

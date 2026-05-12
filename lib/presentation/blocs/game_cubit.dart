@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/bingo_card.dart';
 import '../../domain/repositories/bingo_repository.dart';
+import '../../core/services/audio_service.dart';
 
 enum GameStatus { buying, active, won, waiting, paused }
 
@@ -40,7 +41,9 @@ class GameLoaded extends GameState {
   final int cardsSoldCount;
   final DateTime? startTime;
   final String statusStr;
-
+  final String? broadcastMessage;
+  final String? statusMessage;
+  final List<String> pendingClaims;
   final bool isActionLoading;
 
   GameLoaded({
@@ -56,7 +59,7 @@ class GameLoaded extends GameState {
     this.isPaused = false,
     this.gamePattern = 'Full House',
     this.gamePrice = 10.0,
-    this.prizePool = 250.0,
+    this.prizePool = 0,
     this.hasWon = false,
     this.winnerId,
     this.status = GameStatus.active,
@@ -65,6 +68,9 @@ class GameLoaded extends GameState {
     this.cardsSoldCount = 0,
     this.startTime,
     this.statusStr = 'Playing',
+    this.broadcastMessage,
+    this.statusMessage,
+    this.pendingClaims = const [],
     this.isActionLoading = false,
   });
 
@@ -96,6 +102,9 @@ class GameLoaded extends GameState {
     cardsSoldCount,
     startTime,
     statusStr,
+    broadcastMessage,
+    statusMessage,
+    pendingClaims,
     isActionLoading,
   ];
 
@@ -121,6 +130,9 @@ class GameLoaded extends GameState {
     int? cardsSoldCount,
     DateTime? startTime,
     String? statusStr,
+    String? broadcastMessage,
+    String? statusMessage,
+    List<String>? pendingClaims,
     bool? isActionLoading,
   }) {
     return GameLoaded(
@@ -145,6 +157,9 @@ class GameLoaded extends GameState {
       cardsSoldCount: cardsSoldCount ?? this.cardsSoldCount,
       startTime: startTime ?? this.startTime,
       statusStr: statusStr ?? this.statusStr,
+      broadcastMessage: broadcastMessage ?? this.broadcastMessage,
+      statusMessage: statusMessage ?? this.statusMessage,
+      pendingClaims: pendingClaims ?? this.pendingClaims,
       isActionLoading: isActionLoading ?? this.isActionLoading,
     );
   }
@@ -157,6 +172,7 @@ class GameCubit extends Cubit<GameState> {
   GameCubit({required BingoRepository bingoRepository, required this.userId})
     : _bingoRepository = bingoRepository,
       super(GameInitial()) {
+    AudioService().init();
     _init();
   }
 
@@ -171,7 +187,7 @@ class GameCubit extends Cubit<GameState> {
         userCards: cards,
         status: GameStatus.buying,
         buyingCountdown: 120,
-        playerCount: 12,
+        playerCount: 0,
         cardsSoldCount: cards.length,
       ),
     );
@@ -181,9 +197,22 @@ class GameCubit extends Cubit<GameState> {
       if (state is! GameLoaded) return;
       final current = state as GameLoaded;
       // Never let the draw-numbers stream overwrite a terminal status
-      final isTerminal = current.status == GameStatus.won ||
+      final isTerminal =
+          current.status == GameStatus.won ||
           current.status == GameStatus.waiting;
-      emit(current.copyWith(drawnNumbers: numbers, status: isTerminal ? current.status : null));
+      // Trigger sound if new number drawn
+      if (numbers.length > current.drawnNumbers.length) {
+        final newNumber = numbers.last;
+        AudioService().callNumber(newNumber);
+        AudioService().playDraw();
+      }
+
+      emit(
+        current.copyWith(
+          drawnNumbers: numbers,
+          status: isTerminal ? current.status : null,
+        ),
+      );
     });
 
     /// GAME SESSION DATA (from games/live)
@@ -212,7 +241,12 @@ class GameCubit extends Cubit<GameState> {
       }
 
       final newSessionId = (gameData['sessionId'] ?? '').toString();
-      final bool sessionChanged = newSessionId != current.sessionId && current.sessionId.isNotEmpty;
+      final bool sessionChanged =
+          newSessionId != current.sessionId && current.sessionId.isNotEmpty;
+
+      if (newStatus == GameStatus.won && !current.hasWon && gameData['winnerId'] == userId) {
+        AudioService().playWin();
+      }
 
       emit(
         current.copyWith(
@@ -225,21 +259,38 @@ class GameCubit extends Cubit<GameState> {
           winners: List<String>.from(gameData['winners'] ?? []),
           claimedCardIds: List<String>.from(gameData['claims'] ?? []),
           cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
+          playerCount: gameData['playersCount'] ?? current.playerCount,
           winnerId: gameData['winnerId'] ?? current.winnerId,
           winningCardNo: gameData['winningCardNo'] ?? current.winningCardNo,
-          winningCardNumbers: gameData['winningCardNumbers'] != null 
+          winningCardNumbers: gameData['winningCardNumbers'] != null
               ? List<int>.from(gameData['winningCardNumbers'])
               : current.winningCardNumbers,
           hasWon: newStatus == GameStatus.won && gameData['winnerId'] == userId,
-          startTime: gameData['createdAt'] != null 
-              ? (gameData['createdAt'] as dynamic).toDate() 
+          startTime: gameData['createdAt'] != null
+              ? (gameData['createdAt'] as dynamic).toDate()
               : null,
           statusStr: statusStr.toUpperCase(),
+          broadcastMessage: gameData['broadcastMessage'],
+          pendingClaims: (gameData['pendingClaims'] as List?)
+                  ?.map((c) => (c['cardNo'] ?? '').toString())
+                  .toList() ??
+              [],
           markedCells: sessionChanged ? {} : null,
           blockedCardIds: sessionChanged ? {} : null,
-          userCards: current.userCards.where((c) => c.sessionId == newSessionId || c.sessionId.isEmpty).toList(),
+          userCards: current.userCards
+              .where((c) =>
+                  c.sessionId == newSessionId ||
+                  c.sessionId.isEmpty ||
+                  c.status == 'pending')
+              .toList(),
         ),
       );
+
+      final bool gameEnded = newStatus == GameStatus.won || newStatus == GameStatus.waiting;
+
+      if (sessionChanged || gameEnded) {
+        refreshCards();
+      }
     });
   }
 
@@ -291,22 +342,24 @@ class GameCubit extends Cubit<GameState> {
       map[card.id] = cells;
     }
 
+    AudioService().playMark();
     emit(current.copyWith(markedCells: map));
   }
 
   /// GET PENDING CARD (Previously Buy)
-  Future<void> buyCard() async {
+  Future<void> buyCard({int count = 1}) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
     emit(current.copyWith(isActionLoading: true));
     try {
-      await _bingoRepository.buyCartelas(userId, []);
+      await _bingoRepository.buyCartelas(userId, count: count);
       await refreshCards();
     } catch (e) {
       print("Failed to buy card: $e");
     } finally {
       if (state is GameLoaded) {
-        emit((state as GameLoaded).copyWith(isActionLoading: false));
+        emit((state as GameLoaded).copyWith(
+            isActionLoading: false, statusMessage: "Cards purchased successfully!"));
       }
     }
   }
@@ -323,7 +376,8 @@ class GameCubit extends Cubit<GameState> {
       print("Failed to register card: $e");
     } finally {
       if (state is GameLoaded) {
-        emit((state as GameLoaded).copyWith(isActionLoading: false));
+        emit((state as GameLoaded).copyWith(
+            isActionLoading: false, statusMessage: "Card registered successfully!"));
       }
     }
   }
@@ -340,7 +394,8 @@ class GameCubit extends Cubit<GameState> {
       print("Failed to remove card: $e");
     } finally {
       if (state is GameLoaded) {
-        emit((state as GameLoaded).copyWith(isActionLoading: false));
+        emit((state as GameLoaded).copyWith(
+            isActionLoading: false, statusMessage: "Card removed successfully!"));
       }
     }
   }
@@ -355,8 +410,13 @@ class GameCubit extends Cubit<GameState> {
       final success = await _bingoRepository.claimBingo('live', cardId);
 
       if (!success) {
+        AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
-        emit(current.copyWith(blockedCardIds: blocked));
+        emit(current.copyWith(
+            blockedCardIds: blocked, statusMessage: "Invalid claim! Card blocked."));
+      } else {
+        emit(current.copyWith(
+            statusMessage: "Bingo claimed! Waiting for admin verification..."));
       }
     } catch (e) {
       print("Failed to claim bingo: $e");

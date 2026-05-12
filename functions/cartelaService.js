@@ -16,24 +16,42 @@ exports.buyCard = onCall({ cors: true }, async (request) => {
             throw new Error("Game is not in buying phase.");
         }
 
-        const randomId = Math.floor(Math.random() * 26000) + 1;
-        const poolDoc = await db.collection('cartelas_pool').doc(randomId.toString()).get();
-        if (!poolDoc.exists) throw new Error("Pool card not found.");
+        const { count = 1 } = request.data || {};
+        const buyCount = Math.min(Math.max(1, count), 50);
+        const sessionId = (gameSnap.data().sessionId || '').toString();
+        const batch = db.batch();
+        const poolPromises = [];
+        const cardIds = [];
 
-        const cardRef = db.collection('users').doc(userId).collection('cards').doc(randomId.toString());
-        
-        const gameData = gameSnap.data();
+        for (let i = 0; i < buyCount; i++) {
+            const randomId = Math.floor(Math.random() * 26000) + 1;
+            poolPromises.push(db.collection('cartelas_pool').doc(randomId.toString()).get());
+            cardIds.push(randomId);
+        }
 
-        await cardRef.set({
-            gameId: 'live',
-            sessionId: (gameData.sessionId || '').toString(),
-            cardNo: randomId,
-            numbers: poolDoc.data().numbers,
-            status: 'pending', // NOT REGISTERED YET
-            purchasedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+        const poolSnaps = await Promise.all(poolPromises);
+        const results = [];
 
-        return { success: true, cardId: randomId.toString() };
+        for (let i = 0; i < poolSnaps.length; i++) {
+            const poolDoc = poolSnaps[i];
+            if (!poolDoc.exists) continue;
+
+            const randomId = cardIds[i];
+            const cardRef = db.collection('users').doc(userId).collection('cards').doc(randomId.toString());
+            
+            batch.set(cardRef, {
+                gameId: 'live',
+                sessionId: sessionId,
+                cardNo: randomId,
+                numbers: poolDoc.data().numbers,
+                status: 'pending',
+                purchasedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            results.push(randomId.toString());
+        }
+
+        await batch.commit();
+        return { success: true, cardIds: results };
     } catch (error) {
         throw new HttpsError('aborted', error.message);
     }
@@ -44,7 +62,7 @@ exports.registerCard = onCall({ cors: true }, async (request) => {
 
     const { cardId } = request.data;
     if (!cardId) throw new HttpsError('invalid-argument', 'cardId is required.');
-    
+
     const userId = request.auth.uid;
     const db = admin.firestore();
 
@@ -71,7 +89,10 @@ exports.registerCard = onCall({ cors: true }, async (request) => {
             if (balance < price) throw new Error("Insufficient balance.");
 
             transaction.update(userRef, { balance: balance - price });
-            transaction.update(cardRef, { status: 'registered' });
+            transaction.update(cardRef, { 
+                status: 'registered',
+                sessionId: (gameDoc.data().sessionId || '').toString()
+            });
             transaction.update(gameRef, { cardsSold: admin.firestore.FieldValue.increment(1) });
 
             return { success: true };
@@ -98,9 +119,9 @@ exports.startNewGame = onCall({ cors: true }, async (request) => {
             if (counterDoc.exists) {
                 sessionNum = (counterDoc.data().currentSessionId || 1000) + 1;
             }
-            
+
             transaction.set(counterRef, { currentSessionId: sessionNum }, { merge: true });
-            
+
             const gameUpdate = {
                 status: 'buying',
                 sessionId: sessionNum,
@@ -113,7 +134,12 @@ exports.startNewGame = onCall({ cors: true }, async (request) => {
                 prizePool: prizePool || 250,
                 cardPrice: cardPrice || 10,
                 gamePattern: gamePattern || 'full_house',
-                startTime: admin.firestore.FieldValue.serverTimestamp()
+                currentNumber: null,
+                lastDrawTime: null,
+                winningCardNo: null,
+                winningCardNumbers: null,
+                startTime: admin.firestore.FieldValue.serverTimestamp(),
+                endTime: null
             };
 
             if (!gameDoc.exists) {
@@ -134,7 +160,7 @@ exports.startNewGame = onCall({ cors: true }, async (request) => {
             let cardBatch = db.batch();
             let count = 0;
             for (const doc of registeredCardsSnapshot.docs) {
-                cardBatch.update(doc.ref, { status: 'pending' });
+                cardBatch.update(doc.ref, { status: 'pending', sessionId: '' });
                 count++;
                 if (count === 400) {
                     await cardBatch.commit();
@@ -158,17 +184,17 @@ exports.startNewGame = onCall({ cors: true }, async (request) => {
 exports.seedPool = onCall({ cors: true, timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
     const db = admin.firestore();
     const { startIndex = 0, count = 5000 } = request.data || {};
-    
+
     try {
         const dataPath = path.join(__dirname, "data.json");
         if (!fs.existsSync(dataPath)) throw new Error("data.json not found in functions folder.");
 
         const rawData = fs.readFileSync(dataPath, "utf8");
         const allCards = JSON.parse(rawData);
-        
+
         // Slice the cards array based on requested chunk
         const cardsChunk = allCards.slice(startIndex, startIndex + count);
-        
+
         const poolRef = db.collection("cartelas_pool");
         let batch = db.batch();
         let processed = 0;
@@ -176,7 +202,7 @@ exports.seedPool = onCall({ cors: true, timeoutSeconds: 540, memory: '1GiB' }, a
         for (const card of cardsChunk) {
             const originalNumbers = card.bingo_numbers;
             const numbers25 = [...originalNumbers];
-            
+
             if (numbers25.length === 24) {
                 numbers25.splice(12, 0, 0);
             }
@@ -198,11 +224,11 @@ exports.seedPool = onCall({ cors: true, timeoutSeconds: 540, memory: '1GiB' }, a
             await batch.commit();
         }
 
-        return { 
-            success: true, 
-            seeded: processed, 
+        return {
+            success: true,
+            seeded: processed,
             nextIndex: startIndex + processed,
-            totalAvailable: allCards.length 
+            totalAvailable: allCards.length
         };
     } catch (error) {
         throw new HttpsError('internal', error.message);
@@ -248,7 +274,13 @@ exports.cancelGame = onCall({ cors: true }, async (request) => {
                 winners: [],
                 winnerId: null,
                 cardsSold: 0,
-                isPaused: false
+                isPaused: false,
+                currentNumber: null,
+                lastDrawTime: null,
+                winningCardNo: null,
+                winningCardNumbers: null,
+                startTime: null,
+                endTime: null
             });
 
             return { success: true, oldSession: game.sessionId, newSession: nextSession };
@@ -263,7 +295,7 @@ exports.cancelGame = onCall({ cors: true }, async (request) => {
             let cardBatch = db.batch();
             let count = 0;
             for (const doc of registeredCardsSnapshot.docs) {
-                cardBatch.update(doc.ref, { status: 'pending' });
+                cardBatch.update(doc.ref, { status: 'pending', sessionId: '' });
                 count++;
                 if (count === 400) {
                     await cardBatch.commit();
@@ -291,22 +323,66 @@ exports.removeCard = onCall({ cors: true }, async (request) => {
 
     const userId = request.auth.uid;
     const db = admin.firestore();
-    const cardRef = db.collection('users').doc(userId).collection('cards').doc(cardId.toString());
+    const userRef = db.collection('users').doc(userId);
+    const gameRef = db.collection('games').doc('live');
+    const cardRef = userRef.collection('cards').doc(cardId.toString());
 
     try {
-        const cardDoc = await cardRef.get();
-        if (!cardDoc.exists) {
-            throw new HttpsError('not-found', "Card not found.");
-        }
+        await db.runTransaction(async (transaction) => {
+            const cardDoc = await transaction.get(cardRef);
+            if (!cardDoc.exists) throw new Error("Card not found.");
+            
+            const cardData = cardDoc.data();
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists) throw new Error("Live game not found.");
+            const gameData = gameDoc.data();
+            
+            if (cardData.status === 'registered') {
+                // Decrement cards sold
+                transaction.update(gameRef, { 
+                    cardsSold: admin.firestore.FieldValue.increment(-1) 
+                });
 
-        if (cardDoc.data().status !== 'pending') {
-            throw new HttpsError('failed-precondition', "Only pending cards can be removed.");
-        }
+                // Refund user if in buying phase
+                if (gameData.status === 'buying') {
+                    const userDoc = await transaction.get(userRef);
+                    if (userDoc.exists) {
+                        const currentBalance = userDoc.data().balance || 0;
+                        const price = gameData.cardPrice || 10;
+                        transaction.update(userRef, { balance: currentBalance + price });
+                    }
+                }
+            }
 
-        await cardRef.delete();
+            transaction.delete(cardRef);
+        });
+
         return { success: true };
     } catch (error) {
-        if (error instanceof HttpsError) throw error;
+        console.error("RemoveCard Error:", error);
         throw new HttpsError('internal', error.message);
     }
 });
+
+exports.resetAllRegisteredCards = async (db) => {
+    const registeredCardsSnapshot = await db.collectionGroup('cards')
+        .where('status', '==', 'registered')
+        .get();
+
+    if (!registeredCardsSnapshot.empty) {
+        let cardBatch = db.batch();
+        let count = 0;
+        for (const doc of registeredCardsSnapshot.docs) {
+            cardBatch.update(doc.ref, { status: 'pending', sessionId: '' });
+            count++;
+            if (count === 400) {
+                await cardBatch.commit();
+                cardBatch = db.batch();
+                count = 0;
+            }
+        }
+        if (count > 0) {
+            await cardBatch.commit();
+        }
+    }
+};

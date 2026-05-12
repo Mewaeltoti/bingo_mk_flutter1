@@ -39,9 +39,9 @@ class BingoRepositoryImpl implements BingoRepository {
   }
 
   @override
-  Future<void> buyCartelas(String userId, List<BingoCard> cards) async {
+  Future<void> buyCartelas(String userId, {int count = 1}) async {
     try {
-      await _functions.httpsCallable('buyCard').call();
+      await _functions.httpsCallable('buyCard').call({'count': count});
     } catch (e) {
       throw Exception('Failed to buy card: $e');
     }
@@ -132,6 +132,15 @@ class BingoRepositoryImpl implements BingoRepository {
   Future<double> getBalance(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
     return (doc.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  @override
+  Stream<double> streamBalance(String userId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .map((doc) => (doc.data()?['balance'] as num?)?.toDouble() ?? 0.0);
   }
 
   @override

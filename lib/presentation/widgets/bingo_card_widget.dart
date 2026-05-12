@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../domain/entities/bingo_card.dart';
 
 class BingoCardWidget extends StatelessWidget {
@@ -249,7 +250,10 @@ class BingoCardWidget extends StatelessWidget {
 
             return GestureDetector(
               onTap: () {
-                if (!isFree && onMarkCell != null) onMarkCell!(row, col);
+                if (!isFree && onMarkCell != null) {
+                  HapticFeedback.lightImpact();
+                  onMarkCell!(row, col);
+                }
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),

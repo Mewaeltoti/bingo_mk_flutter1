@@ -168,12 +168,15 @@ class _LeaderboardPageState extends State<LeaderboardPage>
   }
 
   Widget _buildRankBadge(int index) {
-    if (index == 0)
+    if (index == 0) {
       return const Icon(Icons.emoji_events, color: Colors.amber, size: 24);
-    if (index == 1)
+    }
+    if (index == 1) {
       return const Icon(Icons.emoji_events, color: Colors.grey, size: 24);
-    if (index == 2)
+    }
+    if (index == 2) {
       return const Icon(Icons.emoji_events, color: Colors.brown, size: 24);
+    }
     return CircleAvatar(
       radius: 12,
       backgroundColor: AppColors.background,

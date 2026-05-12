@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../domain/repositories/bingo_repository.dart';
@@ -47,11 +48,30 @@ class WalletError extends WalletState {
 class WalletCubit extends Cubit<WalletState> {
   final BingoRepository _bingoRepository;
   final String userId;
+  StreamSubscription? _balanceSubscription;
 
   WalletCubit({
     required BingoRepository bingoRepository,
     required this.userId,
-  }) : _bingoRepository = bingoRepository, super(WalletInitial());
+  }) : _bingoRepository = bingoRepository, super(WalletInitial()) {
+    _init();
+  }
+
+  void _init() {
+    _balanceSubscription = _bingoRepository.streamBalance(userId).listen((balance) {
+      if (state is WalletLoaded) {
+        emit((state as WalletLoaded).copyWith(balance: balance));
+      } else if (state is WalletInitial) {
+        loadWallet(); // Initially load everything
+      }
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _balanceSubscription?.cancel();
+    return super.close();
+  }
 
   Future<void> loadWallet() async {
     emit(WalletLoading());

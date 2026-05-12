@@ -30,7 +30,9 @@ class _MainContainerState extends State<MainContainer> {
             return previous.isActionLoading != current.isActionLoading;
           },
           listener: (context, state) {
-            if (state is GameLoaded && state.isActionLoading) {
+            if (state is GameLoaded &&
+                state.isActionLoading &&
+                state.status != GameStatus.won) {
               LoadingDialog.show(context);
             } else {
               LoadingDialog.hide(context);

@@ -1,5 +1,6 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const cartelaService = require("./cartelaService");
 
 exports.claimBingo = onCall({ cors: true }, async (request) => {
     if (!request.auth) {
@@ -35,35 +36,25 @@ exports.claimBingo = onCall({ cors: true }, async (request) => {
             const isWinner = validateBingoPattern(cardNumbers, drawnNumbers, pattern);
 
             if (isWinner) {
-                // Update user's balance
-                const userRef = db.collection('users').doc(userId);
-                const userDoc = await transaction.get(userRef);
-                const currentBalance = userDoc.data().balance || 0;
-                const newBalance = currentBalance + (game.prizePool || 0);
-                transaction.update(userRef, { balance: newBalance });
-
                 const cardNo = cardDoc.data().cardNo;
+                
+                // Add to pending claims instead of paying out immediately
+                const pendingClaims = game.pendingClaims || [];
+                if (pendingClaims.find(c => c.cardId === cardId)) {
+                    throw new Error("Already claimed for this card.");
+                }
 
-                const historyRef = db.collection('game_history').doc();
-                transaction.set(historyRef, {
-                    sessionId: game.sessionId || 'N/A',
-                    winnerId: userId,
-                    winningCardNo: cardNo,
-                    winningCardNumbers: cardNumbers,
-                    prize: game.prizePool || 0,
-                    drawnNumbers: drawnNumbers,
-                    gamePattern: game.gamePattern,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                pendingClaims.push({
+                    cardId,
+                    userId,
+                    cardNo,
+                    timestamp: new Date().toISOString()
                 });
 
-                transaction.update(gameRef, {
-                    status: 'won',
-                    winnerId: userId,
-                    winningCardNo: cardNo,
-                    winningCardNumbers: cardNumbers,
-                    endTime: admin.firestore.FieldValue.serverTimestamp()
-                });
-                return { success: true, message: "Bingo confirmed!" };
+                transaction.update(gameRef, { pendingClaims });
+                transaction.update(cardRef, { status: 'claiming' });
+
+                return { success: true, message: "Claim submitted for admin verification!" };
             } else {
                 return { success: false, message: "Invalid claim." };
             }
@@ -228,3 +219,99 @@ function validateBingoPattern(cardNumbers, drawnNumbers, pattern) {
             return false;
     }
 }
+
+exports.confirmBingoClaim = onCall({ cors: true }, async (request) => {
+    // Basic auth check
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
+
+    const { cardId } = request.data;
+    const db = admin.firestore();
+    const gameRef = db.collection('games').doc('live');
+
+    await db.runTransaction(async (transaction) => {
+        const gameDoc = await transaction.get(gameRef);
+        if (!gameDoc.exists) throw new Error("Game not found.");
+
+        const game = gameDoc.data();
+        const pendingClaims = game.pendingClaims || [];
+        const confirmedWinners = game.confirmedWinners || [];
+
+        const claimIndex = pendingClaims.findIndex(c => c.cardId === cardId);
+        if (claimIndex === -1) throw new Error("Claim not found.");
+
+        const claim = pendingClaims[claimIndex];
+        confirmedWinners.push(claim);
+        pendingClaims.splice(claimIndex, 1);
+
+        transaction.update(gameRef, { pendingClaims, confirmedWinners });
+    });
+
+    return { success: true };
+});
+
+exports.rejectBingoClaim = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
+
+    const { cardId, userId } = request.data;
+    const db = admin.firestore();
+    const gameRef = db.collection('games').doc('live');
+    const cardRef = db.collection('users').doc(userId).collection('cards').doc(cardId);
+
+    await db.runTransaction(async (transaction) => {
+        const gameDoc = await transaction.get(gameRef);
+        if (!gameDoc.exists) throw new Error("Game not found.");
+
+        const game = gameDoc.data();
+        const pendingClaims = game.pendingClaims || [];
+        const claimIndex = pendingClaims.findIndex(c => c.cardId === cardId);
+        if (claimIndex !== -1) {
+            pendingClaims.splice(claimIndex, 1);
+            transaction.update(gameRef, { pendingClaims });
+        }
+        transaction.update(cardRef, { status: 'registered' }); // Back to registered
+    });
+
+    return { success: true };
+});
+
+exports.finalizeGameAndPayout = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
+
+    const db = admin.firestore();
+    const gameRef = db.collection('games').doc('live');
+
+    await db.runTransaction(async (transaction) => {
+        const gameDoc = await transaction.get(gameRef);
+        if (!gameDoc.exists) throw new Error("Game not found.");
+
+        const game = gameDoc.data();
+        const winners = game.confirmedWinners || [];
+        if (winners.length === 0) throw new Error("No confirmed winners.");
+
+        const prizePerWinner = (game.prizePool || 0) / winners.length;
+
+        // Pay out each winner
+        for (const winner of winners) {
+            const userRef = db.collection('users').doc(winner.userId);
+            const userDoc = await transaction.get(userRef);
+            const currentBalance = userDoc.data().balance || 0;
+            transaction.update(userRef, { balance: currentBalance + prizePerWinner });
+        }
+
+        // Set game to won
+        transaction.update(gameRef, {
+            status: 'won',
+            winners: winners.map(w => w.cardNo.toString()), // Show card numbers in winners badge
+            winnerId: winners[0].userId, // Primary winner for history
+            winningCardNo: winners[0].cardNo,
+            endTime: admin.firestore.FieldValue.serverTimestamp(),
+            pendingClaims: [],
+            confirmedWinners: []
+        });
+
+        // Reset all cards
+        await cartelaService.resetAllRegisteredCards(db);
+    });
+
+    return { success: true };
+});

@@ -18,7 +18,8 @@ class AppSpinner extends StatefulWidget {
   State<AppSpinner> createState() => _AppSpinnerState();
 }
 
-class _AppSpinnerState extends State<AppSpinner> with SingleTickerProviderStateMixin {
+class _AppSpinnerState extends State<AppSpinner>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
@@ -76,18 +77,14 @@ class _SpinnerPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    
+
     // Background arc (faint)
     paint.color = color.withOpacity(0.1);
     canvas.drawArc(rect, 0, 2 * math.pi, false, paint);
 
     // Foreground gradient arc
     paint.shader = SweepGradient(
-      colors: [
-        color.withOpacity(0.0),
-        color.withOpacity(0.5),
-        color,
-      ],
+      colors: [color.withOpacity(0.0), color.withOpacity(0.5), color],
       stops: const [0.0, 0.5, 1.0],
       transform: const GradientRotation(-math.pi / 2),
     ).createShader(rect);
@@ -105,18 +102,14 @@ class Skeleton extends StatefulWidget {
   final double? height;
   final double borderRadius;
 
-  const Skeleton({
-    super.key,
-    this.width,
-    this.height,
-    this.borderRadius = 8,
-  });
+  const Skeleton({super.key, this.width, this.height, this.borderRadius = 8});
 
   @override
   State<Skeleton> createState() => _SkeletonState();
 }
 
-class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin {
+class _SkeletonState extends State<Skeleton>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -157,12 +150,10 @@ class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin
                 Color(0xFFF4F4F4),
                 Color(0xFFEBEBF4),
               ],
-              stops: [
-                0.1,
-                _animation.value.clamp(0.1, 0.9),
-                0.9,
-              ],
-              transform: _SlidingGradientTransform(slidePercent: _animation.value),
+              stops: [0.1, _animation.value.clamp(0.1, 0.9), 0.9],
+              transform: _SlidingGradientTransform(
+                slidePercent: _animation.value,
+              ),
             ),
           ),
         );
@@ -172,9 +163,7 @@ class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin
 }
 
 class _SlidingGradientTransform extends GradientTransform {
-  const _SlidingGradientTransform({
-    required this.slidePercent,
-  });
+  const _SlidingGradientTransform({required this.slidePercent});
 
   final double slidePercent;
 
@@ -198,7 +187,7 @@ class GamePageSkeleton extends StatelessWidget {
           // Session Card Skeleton
           const Skeleton(height: 140, width: double.infinity, borderRadius: 12),
           const SizedBox(height: 20),
-          
+
           // Recent Numbers / Toggle Skeleton
           const Center(child: Skeleton(height: 20, width: 100)),
           const SizedBox(height: 10),
@@ -220,7 +209,7 @@ class GamePageSkeleton extends StatelessWidget {
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
-            itemBuilder: (_, __) => const Skeleton(borderRadius: 12),
+            itemBuilder: (_, _) => const Skeleton(borderRadius: 12),
           ),
         ],
       ),

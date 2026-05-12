@@ -9,22 +9,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bingo_mk/main.dart';
+import 'package:bingo_mk/data/repositories/auth_repository_impl.dart';
+import 'package:bingo_mk/data/repositories/bingo_repository_impl.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('Smoke test for BingoApp', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const BingoApp());
+    final authRepository = AuthRepositoryImpl();
+    final bingoRepository = BingoRepositoryImpl();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(BingoApp(
+      authRepository: authRepository,
+      bingoRepository: bingoRepository,
+    ));
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Basic assertion to ensure app renders
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

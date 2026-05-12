@@ -18,4 +18,6 @@ exports.registerCard = cartelaService.registerCard;
 exports.startNewGame = cartelaService.startNewGame;
 exports.cancelGame = cartelaService.cancelGame;
 exports.removeCard = cartelaService.removeCard;
-
+exports.confirmBingoClaim = validationService.confirmBingoClaim;
+exports.rejectBingoClaim = validationService.rejectBingoClaim;
+exports.finalizeGameAndPayout = validationService.finalizeGameAndPayout;

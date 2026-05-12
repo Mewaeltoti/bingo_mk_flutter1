@@ -34,7 +34,7 @@ exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun(asyn
                         let batch = db.batch();
                         let count = 0;
                         for (const doc of registeredCards.docs) {
-                            batch.update(doc.ref, { status: 'pending' });
+                            batch.update(doc.ref, { status: 'pending', sessionId: '' });
                             count++;
                             if (count % 400 === 0) {
                                 await batch.commit();
@@ -50,12 +50,11 @@ exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun(asyn
                         status: 'waiting',
                         sessionId: sessionNum,
                         drawnNumbers: [],
-                        winners: [],
-                        winnerId: null,
                         cardsSold: 0,
                         playersCount: 0,
                         isPaused: false
-                        // Note: prizePool, cardPrice, and gamePattern are preserved for the admin to configure.
+                        // Note: winners, winnerId, winningCardNo, and winningCardNumbers are preserved 
+                        // so they can be viewed during the waiting phase. They are cleared in startNewGame.
                     });
                 }
             }

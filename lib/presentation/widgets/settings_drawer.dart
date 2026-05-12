@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
 import '../blocs/wallet_cubit.dart';
 import '../pages/profile_page.dart';
-import '../pages/leaderboard_page.dart';
+
 import '../../core/theme/app_theme.dart';
 
 class SettingsDrawer extends StatelessWidget {
@@ -55,14 +55,6 @@ class SettingsDrawer extends StatelessWidget {
                             value: context.read<WalletCubit>(),
                             child: const ProfilePage(),
                           ),
-                        ),
-                      );
-                    }),
-                    _buildActionItem(Icons.leaderboard, 'Leaderboard', () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const LeaderboardPage(),
                         ),
                       );
                     }),

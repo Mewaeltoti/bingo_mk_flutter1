@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:animate_do/animate_do.dart';
 
 class LiveBoardWidget extends StatelessWidget {
   final List<int> drawnNumbers;
@@ -86,34 +87,38 @@ class LiveBoardWidget extends StatelessWidget {
                         final isDrawn = drawnNumbers.contains(num);
                         final isLast = num == lastDrawn;
 
-                        return Expanded(
-                          child: Container(
-                            height: 22,
-                            margin: const EdgeInsets.symmetric(horizontal: 1),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: isLast 
-                                  ? Colors.black 
-                                  : (isDrawn ? color : const Color(0xFFF1F5F9)),
-                              borderRadius: BorderRadius.circular(4),
-                              border: isLast ? Border.all(color: const Color(0xFF10B981), width: 2) : null,
-                            ),
-                            child: FittedBox(
-                              child: Padding(
-                                padding: const EdgeInsets.all(2.0),
-                                child: Text(
-                                  "$num",
-                                  style: TextStyle(
-                                    color: isLast 
-                                        ? const Color(0xFF10B981) 
-                                        : (isDrawn ? Colors.white : const Color(0xFF64748B)),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10,
-                                  ),
+                        final cell = Container(
+                          height: 22,
+                          margin: const EdgeInsets.symmetric(horizontal: 1),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isLast 
+                                ? Colors.black 
+                                : (isDrawn ? color : const Color(0xFFF1F5F9)),
+                            borderRadius: BorderRadius.circular(4),
+                            border: isLast ? Border.all(color: const Color(0xFF10B981), width: 2) : null,
+                          ),
+                          child: FittedBox(
+                            child: Padding(
+                              padding: const EdgeInsets.all(2.0),
+                              child: Text(
+                                "$num",
+                                style: TextStyle(
+                                  color: isLast 
+                                      ? const Color(0xFF10B981) 
+                                      : (isDrawn ? Colors.white : const Color(0xFF64748B)),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
                                 ),
                               ),
                             ),
                           ),
+                        );
+
+                        return Expanded(
+                          child: isLast 
+                              ? Pulse(infinite: true, duration: const Duration(seconds: 1), child: cell)
+                              : cell,
                         );
                       }),
                     ),
