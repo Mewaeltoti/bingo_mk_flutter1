@@ -12,9 +12,8 @@ class SignupPage extends StatefulWidget {
 }
 
 class _SignupPageState extends State<SignupPage> {
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _displayNameController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -87,15 +86,10 @@ class _SignupPageState extends State<SignupPage> {
     return Column(
       children: [
         _buildTextField(
-          controller: _displayNameController,
-          hint: 'Display Name',
-          icon: Icons.person_outline,
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _emailController,
-          hint: 'Email',
-          icon: Icons.email_outlined,
+          controller: _phoneController,
+          hint: 'Phone Number (e.g., 0912...)',
+          icon: Icons.phone_android_outlined,
+          keyboardType: TextInputType.phone,
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -113,10 +107,12 @@ class _SignupPageState extends State<SignupPage> {
     required String hint,
     required IconData icon,
     bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
   }) {
     return TextField(
       controller: controller,
       obscureText: isPassword,
+      keyboardType: keyboardType,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
@@ -161,9 +157,8 @@ class _SignupPageState extends State<SignupPage> {
               child: ElevatedButton(
                 onPressed: () {
                   context.read<AuthCubit>().signUp(
-                        _emailController.text,
+                        _phoneController.text,
                         _passwordController.text,
-                        _displayNameController.text,
                       );
                 },
                 style: ElevatedButton.styleFrom(

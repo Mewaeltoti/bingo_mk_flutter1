@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../../domain/entities/bingo_card.dart';
 import '../../domain/repositories/bingo_repository.dart';
+import '../../core/services/logger_service.dart';
 
 class BingoRepositoryImpl implements BingoRepository {
   final FirebaseFirestore _firestore;
@@ -73,12 +74,15 @@ class BingoRepositoryImpl implements BingoRepository {
       });
       return result.data['success'] == true;
     } catch (e) {
-      return false; // Invalid claim or error
+      Log.e("Repository claimBingo failed", e);
+      rethrow;
     }
   }
 
   @override
   Future<List<BingoCard>> getUserCartelas(String userId, String gameId) async {
+    // We remove the Firestore-side orderBy to avoid requiring a composite index
+    // and to ensure we don't skip documents that might be missing the timestamp.
     final snapshot = await _firestore
         .collection('users')
         .doc(userId)
@@ -86,12 +90,15 @@ class BingoRepositoryImpl implements BingoRepository {
         .where('gameId', isEqualTo: 'live')
         .get();
 
-    return snapshot.docs.map((doc) {
+    final cards = snapshot.docs.map((doc) {
       final data = doc.data();
       final flatNumbers = (data['numbers'] as List?)?.cast<int>() ?? [];
       final status = data['status'] as String? ?? 'pending';
       final cardNo = data['cardNo'] as int? ?? 0;
       final cardSessionId = (data['sessionId'] ?? '').toString();
+      final createdAt = data['createdAt'] != null
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null;
 
       final List<List<int>> grid = [];
       if (flatNumbers.length == 25) {
@@ -113,8 +120,18 @@ class BingoRepositoryImpl implements BingoRepository {
         status: status,
         cardNo: cardNo,
         sessionId: cardSessionId,
+        createdAt: createdAt,
       );
     }).toList();
+
+    // Sort locally by createdAt (newest first)
+    cards.sort((a, b) {
+      if (a.createdAt == null) return 1;
+      if (b.createdAt == null) return -1;
+      return b.createdAt!.compareTo(a.createdAt!);
+    });
+
+    return cards;
   }
 
   @override

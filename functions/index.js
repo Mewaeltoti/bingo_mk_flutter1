@@ -1,23 +1,25 @@
 const admin = require("firebase-admin");
 
-// Initialize Firebase Admin once
 if (!admin.apps.length) {
     admin.initializeApp();
 }
 
-const gameEngine = require("./gameEngine");
-const cartelaService = require("./cartelaService");
-const validationService = require("./validationService");
+const { onCall } = require("firebase-functions/v2/https");
 
-// Export functions
+// Lazy loading handlers to avoid deployment timeouts during initialization
+exports.claimBingo = onCall({ cors: true }, (request) => require("./validationService").claimBingo(request));
+exports.confirmBingoClaim = onCall({ cors: true }, (request) => require("./validationService").confirmBingoClaim(request));
+exports.rejectBingoClaim = onCall({ cors: true }, (request) => require("./validationService").rejectBingoClaim(request));
+exports.finalizeGameAndPayout = onCall({ cors: true }, (request) => require("./validationService").finalizeGameAndPayout(request));
+
+exports.buyCard = onCall({ cors: true }, (request) => require("./cartelaService").buyCard(request));
+exports.registerCard = onCall({ cors: true }, (request) => require("./cartelaService").registerCard(request));
+exports.startNewGame = onCall({ cors: true }, (request) => require("./cartelaService").startNewGame(request));
+exports.seedPool = onCall({ cors: true }, (request) => require("./cartelaService").seedPool(request));
+exports.cancelGame = onCall({ cors: true }, (request) => require("./cartelaService").cancelGame(request));
+exports.removeCard = onCall({ cors: true }, (request) => require("./cartelaService").removeCard(request));
+
+// Game Engine (v1 triggers/schedule)
+const gameEngine = require("./gameEngine");
+exports.onUserCreated = gameEngine.onUserCreated;
 exports.drawNumberLoop = gameEngine.drawNumberLoop;
-exports.buyCard = cartelaService.buyCard;
-exports.claimBingo = validationService.claimBingo;
-exports.seedPool = cartelaService.seedPool;
-exports.registerCard = cartelaService.registerCard;
-exports.startNewGame = cartelaService.startNewGame;
-exports.cancelGame = cartelaService.cancelGame;
-exports.removeCard = cartelaService.removeCard;
-exports.confirmBingoClaim = validationService.confirmBingoClaim;
-exports.rejectBingoClaim = validationService.rejectBingoClaim;
-exports.finalizeGameAndPayout = validationService.finalizeGameAndPayout;

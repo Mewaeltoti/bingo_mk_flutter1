@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import '../../../core/theme/app_theme.dart';
 
 class LiveBoardWidget extends StatelessWidget {
   final List<int> drawnNumbers;
@@ -8,11 +9,11 @@ class LiveBoardWidget extends StatelessWidget {
 
   Color _getColor(String letter) {
     switch (letter) {
-      case "B": return const Color(0xFF3B82F6); // Blue
-      case "I": return const Color(0xFFEF4444); // Red
-      case "N": return const Color(0xFF10B981); // Green
-      case "G": return const Color(0xFF8B5CF6); // Purple
-      default: return const Color(0xFFF59E0B); // Orange
+      case "B": return AppColors.accent;
+      case "I": return AppColors.danger;
+      case "N": return AppColors.success;
+      case "G": return const Color(0xFF8B5CF6);
+      default: return AppColors.secondary;
     }
   }
 
@@ -21,64 +22,69 @@ class LiveBoardWidget extends StatelessWidget {
     final int? lastDrawn = drawnNumbers.isNotEmpty ? drawnNumbers.last : null;
 
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
+        color: AppColors.darkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white10),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black26,
+            blurRadius: 15,
+            offset: Offset(0, 5),
           ),
         ],
       ),
       child: Column(
         children: [
-          // Header showing total count as in image
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(
-              "Total Drawn: ${drawnNumbers.length}",
-              style: const TextStyle(
-                color: Color(0xFF64748B),
-                fontWeight: FontWeight.w900,
-                fontSize: 14,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.numbers, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                Text(
+                  "TOTAL DRAWN: ${drawnNumbers.length}",
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
+          const Divider(color: Colors.white10, height: 20),
 
-          // 5 Rows for B-I-N-G-O
           ...List.generate(5, (row) {
             final letter = ["B", "I", "N", "G", "O"][row];
             final color = _getColor(letter);
 
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2.0),
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
               child: Row(
                 children: [
-                  // Letter Badge
                   Container(
-                    width: 22,
-                    height: 22,
+                    width: 28,
+                    height: 28,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: color, width: 1.5),
-                      borderRadius: BorderRadius.circular(4),
+                      color: color.withOpacity(0.15),
+                      border: Border.all(color: color, width: 2),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       letter,
                       style: TextStyle(
                         color: color,
                         fontWeight: FontWeight.w900,
-                        fontSize: 12,
+                        fontSize: 14,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  // 15 Number cells
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -88,27 +94,27 @@ class LiveBoardWidget extends StatelessWidget {
                         final isLast = num == lastDrawn;
 
                         final cell = Container(
-                          height: 22,
-                          margin: const EdgeInsets.symmetric(horizontal: 1),
+                          height: 26,
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: isLast 
-                                ? Colors.black 
-                                : (isDrawn ? color : const Color(0xFFF1F5F9)),
-                            borderRadius: BorderRadius.circular(4),
-                            border: isLast ? Border.all(color: const Color(0xFF10B981), width: 2) : null,
+                                ? AppColors.secondary
+                                : (isDrawn ? color.withOpacity(0.8) : Colors.white.withOpacity(0.05)),
+                            borderRadius: BorderRadius.circular(6),
+                            border: isLast ? Border.all(color: Colors.white, width: 1.5) : null,
                           ),
                           child: FittedBox(
                             child: Padding(
-                              padding: const EdgeInsets.all(2.0),
+                              padding: const EdgeInsets.all(3.0),
                               child: Text(
                                 "$num",
                                 style: TextStyle(
                                   color: isLast 
-                                      ? const Color(0xFF10B981) 
-                                      : (isDrawn ? Colors.white : const Color(0xFF64748B)),
+                                      ? Colors.black
+                                      : (isDrawn ? Colors.white : Colors.white24),
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 10,
+                                  fontSize: 11,
                                 ),
                               ),
                             ),

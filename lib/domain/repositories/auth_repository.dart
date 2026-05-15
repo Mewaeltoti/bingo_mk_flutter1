@@ -6,5 +6,5 @@ abstract class AuthRepository {
   Future<void> signOut();
   Stream<User?> get user;
   Future<bool> isAdmin(String userId);
-  Future<void> createUserDocument(String userId, String email);
+  Future<void> createUserDocument(String userId, String phone);
 }

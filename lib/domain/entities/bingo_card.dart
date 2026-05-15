@@ -68,6 +68,7 @@ class BingoCard {
   final String status; // 'pending' or 'registered'
   final int cardNo;
   final String sessionId;
+  final DateTime? createdAt;
 
   BingoCard({
     required this.id,
@@ -76,5 +77,6 @@ class BingoCard {
     this.status = 'registered',
     this.cardNo = 0,
     this.sessionId = '',
+    this.createdAt,
   });
 }

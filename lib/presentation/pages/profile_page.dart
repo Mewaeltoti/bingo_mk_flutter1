@@ -105,65 +105,38 @@ class _ProfilePageState extends State<ProfilePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Display Name',
-          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _nameController,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: AppColors.card,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Phone Number',
+          'Account Identity',
           style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.card.withOpacity(0.5),
+            color: AppColors.card,
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Row(
             children: [
-              Icon(Icons.phone, size: 16, color: AppColors.textSecondary),
-              SizedBox(width: 12),
+              Icon(Icons.phone_android, size: 24, color: AppColors.primary),
+              SizedBox(width: 16),
               Text(
-                '0912345678',
-                style: TextStyle(color: AppColors.textSecondary),
+                'Phone Verified Profile',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 32),
-        Container(
-          width: double.infinity,
-          height: 56,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            gradient: const LinearGradient(
-              colors: [AppColors.primary, AppColors.primary],
-            ),
-          ),
-          child: ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.save, size: 20),
-            label: const Text('SAVE PROFILE'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              foregroundColor: Colors.black,
-            ),
+        const SizedBox(height: 48),
+        const Center(
+          child: Text(
+            'Your phone number is your unique ID.\nProfile management is handled via SMS.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
         ),
       ],

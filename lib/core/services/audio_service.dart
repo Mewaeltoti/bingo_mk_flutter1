@@ -1,5 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+
 
 class AudioService {
   static final AudioService _instance = AudioService._internal();
@@ -7,16 +7,13 @@ class AudioService {
   AudioService._internal();
 
   final AudioPlayer _audioPlayer = AudioPlayer();
-  final FlutterTts _tts = FlutterTts();
+
 
   bool _isMuted = false;
   bool _isVoiceEnabled = true;
 
   Future<void> init() async {
-    await _tts.setLanguage("en-US");
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
+    // TTS initialization removed as per user request to use only beep sounds
   }
 
   void toggleMute() {
@@ -33,21 +30,9 @@ class AudioService {
   }
 
   Future<void> callNumber(int number) async {
-    if (_isMuted || !_isVoiceEnabled) return;
-
-    String letter = "";
-    if (number <= 15) {
-      letter = "B";
-    } else if (number <= 30)
-      letter = "I";
-    else if (number <= 45)
-      letter = "N";
-    else if (number <= 60)
-      letter = "G";
-    else
-      letter = "O";
-
-    await _tts.speak("$letter. $number");
+    if (_isMuted) return;
+    // Instead of voice, we just play the mark/beep sound
+    await playMark();
   }
 
   Future<void> playWin() async {

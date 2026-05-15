@@ -38,21 +38,32 @@ class AuthCubit extends Cubit<AuthState> {
     });
   }
 
-  Future<void> login(String email, String password) async {
+  String _formatPhone(String phone) {
+    String clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    return '$clean@bingo.mk';
+  }
+
+  Future<void> login(String phone, String password) async {
     emit(AuthLoading());
     try {
-      await _authRepository.signInWithEmail(email, password);
+      await _authRepository.signInWithEmail(_formatPhone(phone), password);
     } catch (e) {
-      emit(AuthError(e.toString()));
+      emit(AuthError("Login failed. Check your number and password."));
     }
   }
 
-  Future<void> signUp(String email, String password, [String? displayName]) async {
+  Future<void> signUp(String phone, String password) async {
+    if (phone.length < 9) {
+      emit(AuthError("Please enter a valid phone number."));
+      return;
+    }
     emit(AuthLoading());
     try {
+      final email = _formatPhone(phone);
       final creds = await _authRepository.signUpWithEmail(email, password);
       if (creds != null && creds.user != null) {
-        await _authRepository.createUserDocument(creds.user!.uid, email);
+        // Store the original phone number in the user document
+        await _authRepository.createUserDocument(creds.user!.uid, phone);
       }
     } catch (e) {
       emit(AuthError(e.toString()));

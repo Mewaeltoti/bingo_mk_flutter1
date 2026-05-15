@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 
 class HorizontalBadgeList extends StatelessWidget {
   final IconData icon;
@@ -23,32 +24,27 @@ class HorizontalBadgeList extends StatelessWidget {
     if (items.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        color: AppColors.darkCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.8),
+              color: color.withOpacity(0.9),
               fontWeight: FontWeight.bold,
               fontSize: 12,
+              letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -57,18 +53,29 @@ class HorizontalBadgeList extends StatelessWidget {
                   ...items.map((item) => GestureDetector(
                         onTap: () => onItemTap?.call(item),
                         child: Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: color,
+                            gradient: LinearGradient(
+                              colors: [color, color.withOpacity(0.8)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: color.withOpacity(0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: Text(
                             item,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 11,
+                              fontSize: 12,
                             ),
                           ),
                         ),
@@ -77,18 +84,18 @@ class HorizontalBadgeList extends StatelessWidget {
                     GestureDetector(
                       onTap: onShowMore,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
+                          color: Colors.white10,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.blue.shade200),
+                          border: Border.all(color: Colors.white24),
                         ),
-                        child: Text(
-                          "Show more",
+                        child: const Text(
+                          "MORE",
                           style: TextStyle(
-                            color: Colors.blue.shade700,
+                            color: Colors.white70,
                             fontWeight: FontWeight.bold,
-                            fontSize: 11,
+                            fontSize: 10,
                           ),
                         ),
                       ),

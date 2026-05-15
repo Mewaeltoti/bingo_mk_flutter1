@@ -1,9 +1,9 @@
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const fs = require("fs");
 const path = require("path");
 
-exports.buyCard = onCall({ cors: true }, async (request) => {
+exports.buyCard = async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
 
     const userId = request.auth.uid;
@@ -38,14 +38,14 @@ exports.buyCard = onCall({ cors: true }, async (request) => {
 
             const randomId = cardIds[i];
             const cardRef = db.collection('users').doc(userId).collection('cards').doc(randomId.toString());
-            
+
             batch.set(cardRef, {
                 gameId: 'live',
                 sessionId: sessionId,
                 cardNo: randomId,
                 numbers: poolDoc.data().numbers,
                 status: 'pending',
-                purchasedAt: admin.firestore.FieldValue.serverTimestamp()
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
             results.push(randomId.toString());
         }
@@ -55,9 +55,9 @@ exports.buyCard = onCall({ cors: true }, async (request) => {
     } catch (error) {
         throw new HttpsError('aborted', error.message);
     }
-});
+};
 
-exports.registerCard = onCall({ cors: true }, async (request) => {
+exports.registerCard = async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
 
     const { cardId } = request.data;
@@ -76,20 +76,31 @@ exports.registerCard = onCall({ cors: true }, async (request) => {
             const gameDoc = await transaction.get(gameRef);
             const cardDoc = await transaction.get(cardRef);
 
-            if (!userDoc.exists || !gameDoc.exists || !cardDoc.exists) {
-                throw new Error("Missing data for registration (User, Game, or Card).");
+            let balance = 0;
+            if (!userDoc.exists) {
+                // Initialize user document if it doesn't exist
+                transaction.set(userRef, {
+                    balance: 0,
+                    role: 'player',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                balance = 0;
+            } else {
+                balance = userDoc.data().balance || 0;
             }
+
+            if (!gameDoc.exists) throw new Error("Live game document (games/live) does not exist.");
+            if (!cardDoc.exists) throw new Error("Card document does not exist for cardId: " + cardId);
 
             const card = cardDoc.data();
             if (card.status === 'registered') throw new Error("Card is already registered.");
 
             const price = gameDoc.data().cardPrice || 10;
-            const balance = userDoc.data().balance || 0;
 
             if (balance < price) throw new Error("Insufficient balance.");
 
             transaction.update(userRef, { balance: balance - price });
-            transaction.update(cardRef, { 
+            transaction.update(cardRef, {
                 status: 'registered',
                 sessionId: (gameDoc.data().sessionId || '').toString()
             });
@@ -102,9 +113,9 @@ exports.registerCard = onCall({ cors: true }, async (request) => {
         console.error("RegisterCard Error:", error);
         throw new HttpsError('internal', error.message);
     }
-});
+};
 
-exports.startNewGame = onCall({ cors: true }, async (request) => {
+exports.startNewGame = async (request) => {
     const { prizePool, cardPrice, gamePattern } = request.data || {};
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
@@ -139,7 +150,11 @@ exports.startNewGame = onCall({ cors: true }, async (request) => {
                 winningCardNo: null,
                 winningCardNumbers: null,
                 startTime: admin.firestore.FieldValue.serverTimestamp(),
-                endTime: null
+                endTime: null,
+                claimDeadline: null,
+                pendingClaims: [],
+                confirmedWinners: [],
+                statusMessage: "Waiting for players..."
             };
 
             if (!gameDoc.exists) {
@@ -178,10 +193,10 @@ exports.startNewGame = onCall({ cors: true }, async (request) => {
         console.error("StartNewGame Error:", error);
         throw new HttpsError('internal', error.message);
     }
-});
+};
 
 
-exports.seedPool = onCall({ cors: true, timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
+exports.seedPool = async (request) => {
     const db = admin.firestore();
     const { startIndex = 0, count = 5000 } = request.data || {};
 
@@ -233,8 +248,8 @@ exports.seedPool = onCall({ cors: true, timeoutSeconds: 540, memory: '1GiB' }, a
     } catch (error) {
         throw new HttpsError('internal', error.message);
     }
-});
-exports.cancelGame = onCall({ cors: true }, async (request) => {
+};
+exports.cancelGame = async (request) => {
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
     const historyRef = db.collection('game_history').doc();
@@ -280,7 +295,11 @@ exports.cancelGame = onCall({ cors: true }, async (request) => {
                 winningCardNo: null,
                 winningCardNumbers: null,
                 startTime: null,
-                endTime: null
+                endTime: null,
+                claimDeadline: null,
+                pendingClaims: [],
+                confirmedWinners: [],
+                statusMessage: "Game cancelled."
             });
 
             return { success: true, oldSession: game.sessionId, newSession: nextSession };
@@ -313,9 +332,9 @@ exports.cancelGame = onCall({ cors: true }, async (request) => {
         console.error("CancelGame Error:", error);
         throw new HttpsError('internal', error.message);
     }
-});
+};
 
-exports.removeCard = onCall({ cors: true }, async (request) => {
+exports.removeCard = async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
 
     const { cardId } = request.data;
@@ -331,16 +350,16 @@ exports.removeCard = onCall({ cors: true }, async (request) => {
         await db.runTransaction(async (transaction) => {
             const cardDoc = await transaction.get(cardRef);
             if (!cardDoc.exists) throw new Error("Card not found.");
-            
+
             const cardData = cardDoc.data();
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists) throw new Error("Live game not found.");
             const gameData = gameDoc.data();
-            
+
             if (cardData.status === 'registered') {
                 // Decrement cards sold
-                transaction.update(gameRef, { 
-                    cardsSold: admin.firestore.FieldValue.increment(-1) 
+                transaction.update(gameRef, {
+                    cardsSold: admin.firestore.FieldValue.increment(-1)
                 });
 
                 // Refund user if in buying phase
@@ -362,17 +381,18 @@ exports.removeCard = onCall({ cors: true }, async (request) => {
         console.error("RemoveCard Error:", error);
         throw new HttpsError('internal', error.message);
     }
-});
+};
 
 exports.resetAllRegisteredCards = async (db) => {
-    const registeredCardsSnapshot = await db.collectionGroup('cards')
-        .where('status', '==', 'registered')
+    // Reset ALL cards that are not already pending (includes 'registered' and 'claiming' cards)
+    const cardsToReset = await db.collectionGroup('cards')
+        .where('status', '!=', 'pending')
         .get();
 
-    if (!registeredCardsSnapshot.empty) {
+    if (!cardsToReset.empty) {
         let cardBatch = db.batch();
         let count = 0;
-        for (const doc of registeredCardsSnapshot.docs) {
+        for (const doc of cardsToReset.docs) {
             cardBatch.update(doc.ref, { status: 'pending', sessionId: '' });
             count++;
             if (count === 400) {

@@ -17,9 +17,9 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> createUserDocument(String userId, String email) async {
+  Future<void> createUserDocument(String userId, String phone) async {
     await _firestore.collection('users').doc(userId).set({
-      'email': email,
+      'phone': phone,
       'role': 'player',
       'balance': 0.0,
       'createdAt': FieldValue.serverTimestamp(),

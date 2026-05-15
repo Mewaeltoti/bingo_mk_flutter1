@@ -1,6 +1,25 @@
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
+// Triggered when a new user is created in Firebase Auth
+exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
+    const db = admin.firestore();
+    const userRef = db.collection('users').doc(user.uid);
+
+    try {
+        await userRef.set({
+            phone: user.phoneNumber || '',
+            email: user.email || '',
+            role: 'player',
+            balance: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        console.log(`User document created for ${user.uid}`);
+    } catch (error) {
+        console.error(`Error creating user document for ${user.uid}:`, error);
+    }
+});
+
 // Runs every 1 minute, loops internally for 60 seconds (5 sec intervals)
 exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun(async (context) => {
     const db = admin.firestore();
@@ -28,12 +47,12 @@ exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun(asyn
                     }
                     await counterRef.set({ currentSessionId: sessionNum }, { merge: true });
 
-                    // Unregister all registered cards (set back to pending)
-                    const registeredCards = await db.collectionGroup('cards').where('status', '==', 'registered').get();
-                    if (!registeredCards.empty) {
+                    // Unregister all cards that are not pending (set back to pending)
+                    const activeCards = await db.collectionGroup('cards').where('status', '!=', 'pending').get();
+                    if (!activeCards.empty) {
                         let batch = db.batch();
                         let count = 0;
-                        for (const doc of registeredCards.docs) {
+                        for (const doc of activeCards.docs) {
                             batch.update(doc.ref, { status: 'pending', sessionId: '' });
                             count++;
                             if (count % 400 === 0) {
@@ -52,9 +71,10 @@ exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun(asyn
                         drawnNumbers: [],
                         cardsSold: 0,
                         playersCount: 0,
-                        isPaused: false
-                        // Note: winners, winnerId, winningCardNo, and winningCardNumbers are preserved 
-                        // so they can be viewed during the waiting phase. They are cleared in startNewGame.
+                        isPaused: false,
+                        claimDeadline: null,
+                        pendingClaims: [],
+                        confirmedWinners: []
                     });
                 }
             }

@@ -13,7 +13,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
   @override
@@ -90,9 +90,10 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       children: [
         _buildTextField(
-          controller: _emailController,
-          hint: 'Email',
-          icon: Icons.email_outlined,
+          controller: _phoneController,
+          hint: 'Phone Number (e.g., 0912...)',
+          icon: Icons.phone_android_outlined,
+          keyboardType: TextInputType.phone,
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -110,10 +111,12 @@ class _LoginPageState extends State<LoginPage> {
     required String hint,
     required IconData icon,
     bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
   }) {
     return TextField(
       controller: controller,
       obscureText: isPassword,
+      keyboardType: keyboardType,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
@@ -161,7 +164,7 @@ class _LoginPageState extends State<LoginPage> {
               child: ElevatedButton(
                 onPressed: () {
                   context.read<AuthCubit>().login(
-                        _emailController.text,
+                        _phoneController.text,
                         _passwordController.text,
                       );
                 },

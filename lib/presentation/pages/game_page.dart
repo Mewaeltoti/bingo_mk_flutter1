@@ -1,9 +1,13 @@
+import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:confetti/confetti.dart';
+import 'package:animate_do/animate_do.dart';
 
 import '../blocs/game_cubit.dart';
 import '../widgets/settings_drawer.dart';
+import '../../core/theme/app_theme.dart';
 
 import '../widgets/game/session_card_widget.dart';
 import '../widgets/game/recent_numbers_widget.dart';
@@ -25,7 +29,7 @@ class _GamePageState extends State<GamePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late ConfettiController _confettiController;
 
-  bool _expanded = true; // Default to expanded to show the board
+  bool _expanded = true;
   bool _shownWinSnack = false;
   bool _shownDialog = false;
 
@@ -71,13 +75,19 @@ class _GamePageState extends State<GamePage> {
 
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: BingoCardWidget(
-          card: mockCard,
-          drawnNumbers: state.drawnNumbers.toSet(),
-          markedCells: winningMarks,
-          label: "WINNING CARD",
+      builder: (_) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: ZoomIn(
+            duration: const Duration(milliseconds: 500),
+            child: BingoCardWidget(
+              card: mockCard,
+              drawnNumbers: state.drawnNumbers.toSet(),
+              markedCells: winningMarks,
+              label: "WINNING CARD",
+            ),
+          ),
         ),
       ),
     );
@@ -88,6 +98,21 @@ class _GamePageState extends State<GamePage> {
     return BlocConsumer<GameCubit, GameState>(
       listener: (context, state) {
         if (state is GameLoaded) {
+          if (state.statusMessage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.statusMessage!),
+                backgroundColor: state.statusMessage!.contains('Failed') 
+                    ? AppColors.danger 
+                    : AppColors.success,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                duration: const Duration(seconds: 5),
+              ),
+            );
+            context.read<GameCubit>().clearStatusMessage();
+          }
+
           if (state.status == GameStatus.won) {
             _confettiController.play();
             if (state.hasWon && !_shownWinSnack) {
@@ -95,7 +120,9 @@ class _GamePageState extends State<GamePage> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('🎉 YOU WON!'),
-                  backgroundColor: Colors.green,
+                  backgroundColor: AppColors.success,
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 5),
                 ),
               );
             }
@@ -115,34 +142,29 @@ class _GamePageState extends State<GamePage> {
           children: [
             Scaffold(
               key: _scaffoldKey,
-              backgroundColor: const Color(0xFFF8FAFC),
+              backgroundColor: AppColors.darkBackground,
               endDrawer: SettingsDrawer(onClose: () => Navigator.pop(context)),
               appBar: AppBar(
                 flexibleSpace: Container(
                   decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
+                    gradient: AppColors.headerGradient,
+                  ),
+                ),
+                title: FadeInDown(
+                  child: Text(
+                    state is GameLoaded ? "TOTI BINGO" : "Bingo Live",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                      letterSpacing: 1.2,
                     ),
                   ),
                 ),
-                title: Text(
-                  state is GameLoaded ? "TOTI BINGO" : "Bingo Live",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                  ),
-                ),
                 actions: [
-                  IconButton(icon: const Icon(Icons.undo), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.redo), onPressed: () {}),
                   IconButton(
-                    icon: const Icon(Icons.settings),
+                    icon: const Icon(Icons.settings, color: Colors.white),
                     onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
                   ),
-                  IconButton(icon: const Icon(Icons.apps), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
                 ],
               ),
               body: state is GameLoaded
@@ -150,12 +172,16 @@ class _GamePageState extends State<GamePage> {
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         children: [
-                          // Session Info Card
-                          SessionCardWidget(state: state),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 500),
+                            child: SessionCardWidget(state: state),
+                          ),
+                          
+                          if (state.claimDeadline != null && state.status == GameStatus.paused)
+                            _ClaimTimerWidget(deadline: state.claimDeadline!),
 
                           const SizedBox(height: 10),
 
-                          // Toggle Show More/Less (Styled as in image)
                           Align(
                             alignment: Alignment.centerRight,
                             child: GestureDetector(
@@ -168,16 +194,16 @@ class _GamePageState extends State<GamePage> {
                                     _expanded
                                         ? Icons.keyboard_arrow_up
                                         : Icons.keyboard_arrow_down,
-                                    color: const Color(0xFFEF4444),
-                                    size: 18,
+                                    color: AppColors.secondary,
+                                    size: 20,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
                                     _expanded ? "Show Less" : "Show More",
                                     style: const TextStyle(
-                                      color: Color(0xFFEF4444),
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 12,
+                                      color: AppColors.secondary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ],
@@ -187,36 +213,34 @@ class _GamePageState extends State<GamePage> {
 
                           if (_expanded) ...[
                             const SizedBox(height: 8),
-                            LiveBoardWidget(drawnNumbers: state.drawnNumbers),
+                            FadeIn(child: LiveBoardWidget(drawnNumbers: state.drawnNumbers)),
                           ] else
                             RecentNumbersWidget(numbers: state.drawnNumbers),
 
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
 
-                          // Horizontal Status Badges (Winners, Blocked, etc.)
                           HorizontalBadgeList(
                             icon: Icons.check_circle,
-                            color: const Color(0xFF10B981),
+                            color: AppColors.success,
                             label: "WINNERS:",
                             items: state.winners,
                           ),
 
                           HorizontalBadgeList(
                             icon: Icons.assignment_turned_in,
-                            color: const Color(0xFFF59E0B),
-                            label: "BINGO CLAIMED CARDS:",
+                            color: AppColors.secondary,
+                            label: "CLAIMS:",
                             items: state.claimedCardIds,
                           ),
 
                           HorizontalBadgeList(
                             icon: Icons.block,
-                            color: const Color(0xFFEF4444),
+                            color: AppColors.danger,
                             label: "BLOCKED:",
                             items: state.blockedCardIds.toList(),
-                            onShowMore: () {},
                           ),
 
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
 
                           CardsGridWidget(
                             cards: state.userCards,
@@ -225,6 +249,7 @@ class _GamePageState extends State<GamePage> {
                             drawnNumbers: state.drawnNumbers,
                             status: state.status,
                             winningCardNo: state.winningCardNo,
+                            claimDeadline: state.claimDeadline,
                           ),
 
                           const SizedBox(height: 100),
@@ -234,13 +259,12 @@ class _GamePageState extends State<GamePage> {
                   : const GamePageSkeleton(),
               floatingActionButton:
                   (state is GameLoaded && state.status == GameStatus.buying)
-                  ? FloatingActionButton(
-                      backgroundColor: const Color(0xFFEF4444),
-                      onPressed: () => context.read<GameCubit>().buyCard(),
-                      child: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 30,
+                  ? ZoomIn(
+                      child: FloatingActionButton.extended(
+                        backgroundColor: AppColors.secondary,
+                        onPressed: () => context.read<GameCubit>().buyCard(),
+                        label: const Text("BUY CARD", style: TextStyle(fontWeight: FontWeight.bold)),
+                        icon: const Icon(Icons.add_shopping_cart),
                       ),
                     )
                   : null,
@@ -251,11 +275,76 @@ class _GamePageState extends State<GamePage> {
                 confettiController: _confettiController,
                 blastDirectionality: BlastDirectionality.explosive,
                 shouldLoop: false,
+                colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
               ),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+class _ClaimTimerWidget extends StatefulWidget {
+  final DateTime deadline;
+  const _ClaimTimerWidget({required this.deadline});
+
+  @override
+  State<_ClaimTimerWidget> createState() => _ClaimTimerWidgetState();
+}
+
+class _ClaimTimerWidgetState extends State<_ClaimTimerWidget> {
+  late Timer _timer;
+  int _secondsLeft = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTime();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
+  }
+
+  void _updateTime() {
+    final now = DateTime.now();
+    final diff = widget.deadline.difference(now).inSeconds;
+    setState(() {
+      _secondsLeft = diff.clamp(0, 20);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_secondsLeft <= 0) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.danger.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.timer, color: AppColors.danger, size: 20),
+          const SizedBox(width: 12),
+          Text(
+            "BINGO CLAIMED! ",
+            style: TextStyle(color: AppColors.danger.withOpacity(0.8), fontWeight: FontWeight.bold),
+          ),
+          Text(
+            "$_secondsLeft SECONDS LEFT",
+            style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+        ],
+      ),
     );
   }
 }

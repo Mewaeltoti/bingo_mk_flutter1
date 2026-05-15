@@ -1,8 +1,15 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/bingo_card.dart';
 import '../../domain/repositories/bingo_repository.dart';
 import '../../core/services/audio_service.dart';
+import '../../core/services/logger_service.dart';
+
+const Object _sentinel = Object();
+
+const String kLiveGameId = 'live';
+const int kDefaultBuyingCountdown = 120;
 
 enum GameStatus { buying, active, won, waiting, paused }
 
@@ -45,6 +52,7 @@ class GameLoaded extends GameState {
   final String? statusMessage;
   final List<String> pendingClaims;
   final bool isActionLoading;
+  final DateTime? claimDeadline;
 
   GameLoaded({
     required this.drawnNumbers,
@@ -72,6 +80,7 @@ class GameLoaded extends GameState {
     this.statusMessage,
     this.pendingClaims = const [],
     this.isActionLoading = false,
+    this.claimDeadline,
   });
 
   List<int> get lastDrawnNumbers {
@@ -106,6 +115,7 @@ class GameLoaded extends GameState {
     statusMessage,
     pendingClaims,
     isActionLoading,
+    claimDeadline,
   ];
 
   GameLoaded copyWith({
@@ -130,10 +140,11 @@ class GameLoaded extends GameState {
     int? cardsSoldCount,
     DateTime? startTime,
     String? statusStr,
-    String? broadcastMessage,
-    String? statusMessage,
+    Object? broadcastMessage = _sentinel,
+    Object? statusMessage = _sentinel,
     List<String>? pendingClaims,
     bool? isActionLoading,
+    Object? claimDeadline = _sentinel,
   }) {
     return GameLoaded(
       drawnNumbers: drawnNumbers ?? this.drawnNumbers,
@@ -157,17 +168,22 @@ class GameLoaded extends GameState {
       cardsSoldCount: cardsSoldCount ?? this.cardsSoldCount,
       startTime: startTime ?? this.startTime,
       statusStr: statusStr ?? this.statusStr,
-      broadcastMessage: broadcastMessage ?? this.broadcastMessage,
-      statusMessage: statusMessage ?? this.statusMessage,
+      broadcastMessage: broadcastMessage == _sentinel ? this.broadcastMessage : broadcastMessage as String?,
+      statusMessage: statusMessage == _sentinel ? this.statusMessage : statusMessage as String?,
       pendingClaims: pendingClaims ?? this.pendingClaims,
       isActionLoading: isActionLoading ?? this.isActionLoading,
+      claimDeadline: claimDeadline == _sentinel ? this.claimDeadline : claimDeadline as DateTime?,
     );
   }
+
 }
 
 class GameCubit extends Cubit<GameState> {
   final BingoRepository _bingoRepository;
   final String userId;
+
+  StreamSubscription? _drawnNumbersSub;
+  StreamSubscription? _gameSub;
 
   GameCubit({required BingoRepository bingoRepository, required this.userId})
     : _bingoRepository = bingoRepository,
@@ -177,129 +193,146 @@ class GameCubit extends Cubit<GameState> {
   }
 
   Future<void> _init() async {
-    // gameId is inherently 'live' now
-    final cards = await _bingoRepository.getUserCartelas(userId, 'live');
+    try {
+      final cards = await _bingoRepository.getUserCartelas(userId, kLiveGameId);
 
-    emit(
-      GameLoaded(
-        drawnNumbers: [],
-        markedCells: {},
-        userCards: cards,
-        status: GameStatus.buying,
-        buyingCountdown: 120,
-        playerCount: 0,
-        cardsSoldCount: cards.length,
-      ),
-    );
-
-    /// LIVE DRAWN NUMBERS (from games/live)
-    _bingoRepository.streamDrawnNumbers('live').listen((numbers) {
-      if (state is! GameLoaded) return;
-      final current = state as GameLoaded;
-      // Never let the draw-numbers stream overwrite a terminal status
-      final isTerminal =
-          current.status == GameStatus.won ||
-          current.status == GameStatus.waiting;
-      // Trigger sound if new number drawn
-      if (numbers.length > current.drawnNumbers.length) {
-        final newNumber = numbers.last;
-        AudioService().callNumber(newNumber);
-        AudioService().playDraw();
-      }
-
+      if (isClosed) return;
       emit(
-        current.copyWith(
-          drawnNumbers: numbers,
-          status: isTerminal ? current.status : null,
-        ),
-      );
-    });
-
-    /// GAME SESSION DATA (from games/live)
-    _bingoRepository.streamGame('live').listen((gameData) {
-      if (state is! GameLoaded) return;
-      final current = state as GameLoaded;
-
-      final statusStr = gameData['status'] ?? 'active';
-      GameStatus newStatus = GameStatus.active;
-
-      switch (statusStr) {
-        case 'buying':
-          newStatus = GameStatus.buying;
-          break;
-        case 'won':
-          newStatus = GameStatus.won;
-          break;
-        case 'paused':
-          newStatus = GameStatus.paused;
-          break;
-        case 'waiting':
-          newStatus = GameStatus.waiting;
-          break;
-        default:
-          newStatus = GameStatus.active;
-      }
-
-      final newSessionId = (gameData['sessionId'] ?? '').toString();
-      final bool sessionChanged =
-          newSessionId != current.sessionId && current.sessionId.isNotEmpty;
-
-      if (newStatus == GameStatus.won && !current.hasWon && gameData['winnerId'] == userId) {
-        AudioService().playWin();
-      }
-
-      emit(
-        current.copyWith(
-          status: newStatus,
-          isPaused: gameData['isPaused'] ?? false,
-          sessionId: newSessionId,
-          gamePattern: gameData['gamePattern'] ?? 'full_house',
-          prizePool: (gameData['prizePool'] ?? 0).toDouble(),
-          gamePrice: (gameData['cardPrice'] ?? 10).toDouble(),
-          winners: List<String>.from(gameData['winners'] ?? []),
-          claimedCardIds: List<String>.from(gameData['claims'] ?? []),
-          cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
-          playerCount: gameData['playersCount'] ?? current.playerCount,
-          winnerId: gameData['winnerId'] ?? current.winnerId,
-          winningCardNo: gameData['winningCardNo'] ?? current.winningCardNo,
-          winningCardNumbers: gameData['winningCardNumbers'] != null
-              ? List<int>.from(gameData['winningCardNumbers'])
-              : current.winningCardNumbers,
-          hasWon: newStatus == GameStatus.won && gameData['winnerId'] == userId,
-          startTime: gameData['createdAt'] != null
-              ? (gameData['createdAt'] as dynamic).toDate()
-              : null,
-          statusStr: statusStr.toUpperCase(),
-          broadcastMessage: gameData['broadcastMessage'],
-          pendingClaims: (gameData['pendingClaims'] as List?)
-                  ?.map((c) => (c['cardNo'] ?? '').toString())
-                  .toList() ??
-              [],
-          markedCells: sessionChanged ? {} : null,
-          blockedCardIds: sessionChanged ? {} : null,
-          userCards: current.userCards
-              .where((c) =>
-                  c.sessionId == newSessionId ||
-                  c.sessionId.isEmpty ||
-                  c.status == 'pending')
-              .toList(),
+        GameLoaded(
+          drawnNumbers: [],
+          markedCells: {},
+          userCards: cards,
+          status: GameStatus.buying,
+          buyingCountdown: kDefaultBuyingCountdown,
+          playerCount: 0,
+          cardsSoldCount: cards.length,
         ),
       );
 
-      final bool gameEnded = newStatus == GameStatus.won || newStatus == GameStatus.waiting;
+      /// LIVE DRAWN NUMBERS (from games/live)
+      _drawnNumbersSub = _bingoRepository.streamDrawnNumbers(kLiveGameId).listen((numbers) {
+        if (state is! GameLoaded) return;
+        final current = state as GameLoaded;
+        
+        final isTerminal =
+            current.status == GameStatus.won ||
+            current.status == GameStatus.waiting;
+            
+        if (numbers.length > current.drawnNumbers.length) {
+          final newNumber = numbers.last;
+          if (current.status != GameStatus.paused) {
+            AudioService().callNumber(newNumber);
+          }
+        }
 
-      if (sessionChanged || gameEnded) {
-        refreshCards();
-      }
-    });
+        if (isClosed) return;
+        emit(
+          current.copyWith(
+            drawnNumbers: numbers,
+            status: isTerminal ? current.status : null,
+          ),
+        );
+      });
+
+      /// GAME SESSION DATA (from games/live)
+      _gameSub = _bingoRepository.streamGame(kLiveGameId).listen((gameData) {
+        if (state is! GameLoaded) return;
+        final current = state as GameLoaded;
+
+        final statusStr = gameData['status'] ?? 'active';
+        GameStatus newStatus = GameStatus.active;
+
+        switch (statusStr) {
+          case 'buying':
+            newStatus = GameStatus.buying;
+            break;
+          case 'won':
+            newStatus = GameStatus.won;
+            break;
+          case 'paused':
+            newStatus = GameStatus.paused;
+            break;
+          case 'waiting':
+            newStatus = GameStatus.waiting;
+            break;
+          default:
+            newStatus = GameStatus.active;
+        }
+
+        final newSessionId = (gameData['sessionId'] ?? '').toString();
+        final bool sessionChanged =
+            newSessionId != current.sessionId && current.sessionId.isNotEmpty;
+
+        if (newStatus == GameStatus.won && !current.hasWon && gameData['winnerId'] == userId) {
+          AudioService().playWin();
+        }
+
+        if (isClosed) return;
+        emit(
+          current.copyWith(
+            status: newStatus,
+            isPaused: gameData['isPaused'] ?? false,
+            sessionId: newSessionId,
+            gamePattern: gameData['gamePattern'] ?? 'full_house',
+            prizePool: (gameData['prizePool'] ?? 0).toDouble(),
+            gamePrice: (gameData['cardPrice'] ?? 10).toDouble(),
+            winners: List<String>.from(gameData['winners'] ?? []),
+            claimedCardIds: List<String>.from(gameData['claims'] ?? []),
+            cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
+            playerCount: gameData['playersCount'] ?? current.playerCount,
+            winnerId: gameData['winnerId'],
+            winningCardNo: gameData['winningCardNo'],
+            winningCardNumbers: gameData['winningCardNumbers'] != null
+                ? List<int>.from(gameData['winningCardNumbers'])
+                : null,
+            hasWon: newStatus == GameStatus.won && gameData['winnerId'] == userId,
+            startTime: gameData['createdAt'] != null
+                ? (gameData['createdAt'] as dynamic).toDate()
+                : null,
+            statusStr: statusStr.toUpperCase(),
+            broadcastMessage: gameData['broadcastMessage'],
+            pendingClaims: (gameData['pendingClaims'] as List?)
+                    ?.map((c) => (c['cardNo'] ?? '').toString())
+                    .toList() ??
+                [],
+            claimDeadline: gameData['claimDeadline'] == null ? null : 
+                (gameData['claimDeadline'] is Timestamp 
+                    ? (gameData['claimDeadline'] as Timestamp).toDate()
+                    : (gameData['claimDeadline'] is int 
+                        ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'])
+                        : null)),
+            markedCells: sessionChanged ? {} : null,
+            blockedCardIds: sessionChanged ? {} : null,
+            userCards: current.userCards
+                .where((c) =>
+                    c.sessionId == newSessionId ||
+                    c.sessionId.isEmpty ||
+                    c.status == 'pending')
+                .toList(),
+          ),
+        );
+
+        final bool gameEnded = newStatus == GameStatus.won || newStatus == GameStatus.waiting;
+
+        if (sessionChanged || gameEnded) {
+          if (!isClosed) refreshCards();
+        }
+      });
+    } catch (e, stack) {
+      Log.e("GameCubit initialization failed", e, stack);
+    }
   }
 
   /// RE-FETCH CARDS
   Future<void> refreshCards() async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-    final cards = await _bingoRepository.getUserCartelas(userId, 'live');
-    emit(current.copyWith(userCards: cards));
+    try {
+      final cards = await _bingoRepository.getUserCartelas(userId, kLiveGameId);
+      emit(current.copyWith(userCards: cards));
+    } catch (e, stack) {
+      Log.e("Failed to refresh cards", e, stack);
+    }
   }
 
   /// MARK CELL (Local Only)
@@ -307,28 +340,24 @@ class GameCubit extends Cubit<GameState> {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
 
-    // Find the tapped card to get the number
     final tappedCardIndex = current.userCards.indexWhere((c) => c.id == cardId);
     if (tappedCardIndex == -1) return;
 
     final tappedCard = current.userCards[tappedCardIndex];
-    if (row == 2 && col == 2) return; // Free space, usually auto-marked
+    if (row == 2 && col == 2) return;
 
     final tappedNumber = tappedCard.numbers[row][col];
     final map = Map<String, Set<String>>.from(current.markedCells);
 
-    // Determine if we are marking or unmarking based on the tapped cell
     final isCurrentlyMarked = (map[cardId] ?? {}).contains('$row-$col');
     final isMarking = !isCurrentlyMarked;
 
-    // Iterate through all user cards to find this number
     for (var card in current.userCards) {
-      // Sync across all cards (or just registered ones, but syncing all is fine)
       final cells = Set<String>.from(map[card.id] ?? {});
 
       for (var r = 0; r < 5; r++) {
         for (var c = 0; c < 5; c++) {
-          if (r == 2 && c == 2) continue; // Skip free space
+          if (r == 2 && c == 2) continue;
           if (card.numbers[r][c] == tappedNumber) {
             final key = '$r-$c';
             if (isMarking) {
@@ -346,7 +375,7 @@ class GameCubit extends Cubit<GameState> {
     emit(current.copyWith(markedCells: map));
   }
 
-  /// GET PENDING CARD (Previously Buy)
+  /// GET PENDING CARD
   Future<void> buyCard({int count = 1}) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
@@ -354,12 +383,13 @@ class GameCubit extends Cubit<GameState> {
     try {
       await _bingoRepository.buyCartelas(userId, count: count);
       await refreshCards();
-    } catch (e) {
-      print("Failed to buy card: $e");
-    } finally {
+      emit((state as GameLoaded).copyWith(
+          isActionLoading: false, statusMessage: "Cards purchased successfully!"));
+    } catch (e, stack) {
+      Log.e("Failed to buy card", e, stack);
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
-            isActionLoading: false, statusMessage: "Cards purchased successfully!"));
+            isActionLoading: false, statusMessage: "Failed to buy cards: ${e.toString()}"));
       }
     }
   }
@@ -372,12 +402,13 @@ class GameCubit extends Cubit<GameState> {
     try {
       await _bingoRepository.registerCard(cardId);
       await refreshCards();
-    } catch (e) {
-      print("Failed to register card: $e");
-    } finally {
+      emit((state as GameLoaded).copyWith(
+          isActionLoading: false, statusMessage: "Card registered successfully!"));
+    } catch (e, stack) {
+      Log.e("Failed to register card", e, stack);
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
-            isActionLoading: false, statusMessage: "Card registered successfully!"));
+            isActionLoading: false, statusMessage: "Failed to register card: ${e.toString()}"));
       }
     }
   }
@@ -390,12 +421,13 @@ class GameCubit extends Cubit<GameState> {
     try {
       await _bingoRepository.removeCard(cardId);
       await refreshCards();
-    } catch (e) {
-      print("Failed to remove card: $e");
-    } finally {
+      emit((state as GameLoaded).copyWith(
+          isActionLoading: false, statusMessage: "Card removed successfully!"));
+    } catch (e, stack) {
+      Log.e("Failed to remove card", e, stack);
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
-            isActionLoading: false, statusMessage: "Card removed successfully!"));
+            isActionLoading: false, statusMessage: "Failed to remove card: ${e.toString()}"));
       }
     }
   }
@@ -404,26 +436,54 @@ class GameCubit extends Cubit<GameState> {
   Future<void> claimBingo(String cardId) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-    emit(current.copyWith(isActionLoading: true));
+
+    // OPTIMISTIC UPDATE: Pause immediately for instant feedback
+    emit(current.copyWith(
+      status: GameStatus.paused,
+      isPaused: true,
+      statusStr: 'PAUSED',
+      statusMessage: "BINGO! Verifying claim...",
+    ));
 
     try {
-      final success = await _bingoRepository.claimBingo('live', cardId);
+      final success = await _bingoRepository.claimBingo(kLiveGameId, cardId);
 
       if (!success) {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
         emit(current.copyWith(
-            blockedCardIds: blocked, statusMessage: "Invalid claim! Card blocked."));
+            status: GameStatus.active, // Resume if invalid
+            isPaused: false,
+            blockedCardIds: blocked, 
+            statusMessage: "Invalid claim! Card blocked."));
       } else {
+        // Server will update the official status to 'paused' and set claimDeadline
         emit(current.copyWith(
-            statusMessage: "Bingo claimed! Waiting for admin verification..."));
+            statusMessage: "Bingo claimed! Waiting for other players..."));
       }
-    } catch (e) {
-      print("Failed to claim bingo: $e");
-    } finally {
+    } catch (e, stack) {
+      Log.e("Failed to claim bingo", e, stack);
       if (state is GameLoaded) {
-        emit((state as GameLoaded).copyWith(isActionLoading: false));
+        emit((state as GameLoaded).copyWith(
+            isActionLoading: false,
+            status: GameStatus.active,
+            isPaused: false,
+            statusMessage: "Failed to claim bingo: ${e.toString()}"));
       }
     }
+  }
+
+  /// CLEAR STATUS MESSAGE
+  void clearStatusMessage() {
+    if (state is GameLoaded) {
+      emit((state as GameLoaded).copyWith(statusMessage: null));
+    }
+  }
+
+  @override
+  Future<void> close() {
+    _drawnNumbersSub?.cancel();
+    _gameSub?.cancel();
+    return super.close();
   }
 }
