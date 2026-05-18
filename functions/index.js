@@ -43,3 +43,15 @@ exports.onDepositCreated = functions.firestore
         require("./reconciliationService").onDepositCreatedHandler(snap, context)
     );
 
+exports.onWithdrawalCreated = functions.firestore
+    .document('users/{userId}/withdrawals/{withdrawId}')
+    .onCreate((snap, context) => 
+        require("./reconciliationService").onWithdrawalCreatedHandler(snap, context)
+    );
+
+exports.onWithdrawalUpdated = functions.firestore
+    .document('users/{userId}/withdrawals/{withdrawId}')
+    .onUpdate((change, context) => 
+        require("./reconciliationService").onWithdrawalUpdatedHandler(change, context)
+    );
+

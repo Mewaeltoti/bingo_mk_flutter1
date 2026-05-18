@@ -217,6 +217,94 @@ exports.onDepositCreatedHandler = async (snap, context) => {
 };
 
 /**
+ * Triggered when a withdrawal request is created. Reserves the user's balance.
+ */
+exports.onWithdrawalCreatedHandler = async (snap, context) => {
+    const withdrawal = snap.data();
+    const userId = context.params.userId;
+    const db = admin.firestore();
+
+    const amount = Number(withdrawal.amount);
+    if (isNaN(amount) || amount <= 0) {
+        await snap.ref.update({
+            status: "rejected",
+            isReserved: false,
+            rejectionReason: "Invalid withdrawal amount requested."
+        });
+        return null;
+    }
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const userRef = db.collection("users").doc(userId);
+            const userDoc = await transaction.get(userRef);
+
+            if (!userDoc.exists) {
+                throw new Error("User does not exist.");
+            }
+
+            const currentBalance = Number(userDoc.data().balance || 0);
+            if (currentBalance < amount) {
+                console.warn(`User ${userId} requested withdrawal of ${amount} with insufficient balance (${currentBalance}). Rejecting.`);
+                transaction.update(snap.ref, {
+                    status: "rejected",
+                    isReserved: false,
+                    rejectionReason: "Insufficient balance in your wallet."
+                });
+            } else {
+                console.log(`Reserving ${amount} ETB from user ${userId}'s balance for withdrawal.`);
+                transaction.update(userRef, {
+                    balance: currentBalance - amount
+                });
+                transaction.update(snap.ref, {
+                    status: "pending",
+                    isReserved: true,
+                    reservedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        });
+    } catch (error) {
+        console.error("onWithdrawalCreated Trigger error:", error);
+    }
+    return null;
+};
+
+/**
+ * Triggered when a withdrawal is updated. If marked rejected, refunds the user.
+ */
+exports.onWithdrawalUpdatedHandler = async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const userId = context.params.userId;
+    const db = admin.firestore();
+
+    // If status transitioned to rejected and we had actually reserved the funds, refund
+    if (before.status === "pending" && after.status === "rejected" && before.isReserved === true) {
+        const amount = Number(after.amount);
+        console.log(`Withdrawal was rejected. Refunding ${amount} ETB to User: ${userId}`);
+        
+        try {
+            await db.runTransaction(async (transaction) => {
+                const userRef = db.collection("users").doc(userId);
+                const userDoc = await transaction.get(userRef);
+
+                const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
+                transaction.update(userRef, {
+                    balance: currentBalance + amount
+                });
+                transaction.update(change.after.ref, {
+                    isReserved: false,
+                    refundedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            });
+        } catch (error) {
+            console.error("onWithdrawalUpdated Trigger refund error:", error);
+        }
+    }
+    return null;
+};
+
+/**
  * Regex parser for Telebirr and CBE transaction confirmation messages.
  */
 function parseSmsNotification(sender, text) {

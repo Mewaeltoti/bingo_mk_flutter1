@@ -74,8 +74,56 @@ class _PaymentPageState extends State<PaymentPage>
           'Wallet Ledger',
           style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.primary),
+            onPressed: () {
+              context.read<WalletCubit>().loadWallet();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Refreshing wallet...'),
+                  duration: Duration(seconds: 1),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+        ],
       ),
-      body: BlocBuilder<WalletCubit, WalletState>(
+  body: BlocConsumer<WalletCubit, WalletState>(
+        listener: (context, state) {
+          if (state is WalletLoaded) {
+            // Check for rejected deposits
+            for (var dep in state.deposits) {
+              if (dep['status'] == 'rejected') {
+                final reason = dep['rejectionReason'] ?? 'Unknown error';
+                final docId = dep['id'];
+                final amount = dep['amount'];
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _showRejectionDialog(context, 'Deposit', amount, reason, () {
+                    context.read<WalletCubit>().deleteTransaction('deposits', docId);
+                  });
+                });
+                break; // Show one at a time
+              }
+            }
+
+            // Check for rejected withdrawals
+            for (var wth in state.withdrawals) {
+              if (wth['status'] == 'rejected') {
+                final reason = wth['rejectionReason'] ?? 'Unknown error';
+                final docId = wth['id'];
+                final amount = wth['amount'];
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _showRejectionDialog(context, 'Withdrawal', amount, reason, () {
+                    context.read<WalletCubit>().deleteTransaction('withdrawals', docId);
+                  });
+                });
+                break; // Show one at a time
+              }
+            }
+          }
+        },
         builder: (context, state) {
           if (state is WalletLoading) {
             return const Center(child: AppSpinner());
@@ -524,7 +572,7 @@ class _PaymentPageState extends State<PaymentPage>
       child: DropdownButtonFormField<String>(
         value: value,
         dropdownColor: AppColors.card,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
           labelText: label,
@@ -535,7 +583,7 @@ class _PaymentPageState extends State<PaymentPage>
         items: items.map((item) {
           return DropdownMenuItem<String>(
             value: item,
-            child: Text(item, style: const TextStyle(color: Colors.white)),
+            child: Text(item, style: const TextStyle(color: AppColors.textPrimary)),
           );
         }).toList(),
         onChanged: onChanged,
@@ -552,7 +600,7 @@ class _PaymentPageState extends State<PaymentPage>
     return TextField(
       controller: controller,
       keyboardType: type,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
         hintText: hint,
@@ -613,12 +661,13 @@ class _PaymentPageState extends State<PaymentPage>
   }
 
   Widget _buildHistorySection(String title, List<Map<String, dynamic>> items) {
+    final visibleItems = items.where((item) => item['status'] != 'rejected').toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionHeader(title),
         const SizedBox(height: 8),
-        if (items.isEmpty)
+        if (visibleItems.isEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
             alignment: Alignment.center,
@@ -628,8 +677,65 @@ class _PaymentPageState extends State<PaymentPage>
             ),
           )
         else
-          ...items.map((item) => _buildHistoryItem(item)),
+          ...visibleItems.map((item) => _buildHistoryItem(item)),
       ],
+    );
+  }
+
+  void _showRejectionDialog(BuildContext context, String type, dynamic amount, String reason, VoidCallback onDelete) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            const SizedBox(width: 8),
+            Text(
+              '$type Rejected',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your $type of $amount ETB was rejected by the system.',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.15)),
+              ),
+              child: Text(
+                'Reason: $reason',
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onDelete();
+            },
+            child: const Text(
+              'OK',
+              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -638,6 +744,7 @@ class _PaymentPageState extends State<PaymentPage>
     final color = status == 'approved'
         ? Colors.greenAccent
         : (status == 'pending' ? Colors.amberAccent : Colors.redAccent);
+    final rejectionReason = item['rejectionReason'] as String?;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -647,62 +754,94 @@ class _PaymentPageState extends State<PaymentPage>
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border.withOpacity(0.5)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${item['bank']}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          '${item['bank']}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${item['amount']} ETB',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: AppColors.primary,
+                            fontFamily: 'Orbitron',
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 4),
                     Text(
-                      '${item['amount']} ETB',
+                      item['reference'] ?? item['accountNumber'] ?? '',
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: AppColors.primary,
-                        fontFamily: 'Orbitron',
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  item['reference'] ?? item['accountNumber'] ?? '',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  status.toUpperCase(),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              status.toUpperCase(),
-              style: TextStyle(
-                color: color,
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+          if (status == 'rejected' && rejectionReason != null && rejectionReason.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.15)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Cause: $rejectionReason',
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

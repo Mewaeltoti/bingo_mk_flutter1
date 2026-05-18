@@ -22,14 +22,16 @@ service cloud.firestore {
       match /deposits/{depositId} {
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
         allow create: if isAuthenticated() && isOwner(userId);
-        allow update, delete: if isAdmin();
+        allow update: if isAdmin();
+        allow delete: if isAdmin() || (isAuthenticated() && isOwner(userId) && resource.data.status == 'rejected');
       }
 
       // ----- Withdrawals (user can create, admin can modify)
       match /withdrawals/{withdrawId} {
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
         allow create: if isAuthenticated() && isOwner(userId);
-        allow update, delete: if isAdmin();
+        allow update: if isAdmin();
+        allow delete: if isAdmin() || (isAuthenticated() && isOwner(userId) && resource.data.status == 'rejected');
       }
 
       // ----- Cartelas & Cards – read‑only for client, write only via CF

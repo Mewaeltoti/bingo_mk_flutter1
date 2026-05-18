@@ -61,8 +61,8 @@ exports.claimBingo = async (request) => {
                 if (game.status !== 'paused') {
                     updates.status = 'paused';
                     updates.isPaused = true;
-                    updates.claimDeadline = admin.firestore.Timestamp.fromMillis(Date.now() + 25000);
-                    updates.statusMessage = "BINGO CLAIMED! 25s for other players to claim...";
+                    updates.claimDeadline = admin.firestore.Timestamp.fromMillis(Date.now() + 20000);
+                    updates.statusMessage = "BINGO CLAIMED! 20s for other players to claim...";
                 }
 
                 pendingClaims.push({
@@ -75,7 +75,7 @@ exports.claimBingo = async (request) => {
                 transaction.update(gameRef, updates);
                 transaction.update(cardRef, { status: 'claiming' });
 
-                return { success: true, message: "Claim submitted for admin verification!" };
+                return { success: true, message: "Bingo claimed! Verification in progress..." };
             } else {
                 console.warn(`Claim REJECTED for card ${cardId}. Missing numbers for ${pattern}: ${JSON.stringify(validationResult.missing)}`);
                 return { 

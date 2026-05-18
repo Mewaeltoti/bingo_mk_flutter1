@@ -49,9 +49,12 @@ class BingoRepositoryImpl implements BingoRepository {
   }
 
   @override
-  Future<void> registerCard(String cardId) async {
+  Future<void> registerCard(String cardId, List<int> numbers) async {
     try {
-      await _functions.httpsCallable('registerCard').call({'cardId': cardId});
+      await _functions.httpsCallable('registerCard').call({
+        'cardId': cardId,
+        'numbers': numbers,
+      });
     } catch (e) {
       throw Exception('Failed to register card: $e');
     }

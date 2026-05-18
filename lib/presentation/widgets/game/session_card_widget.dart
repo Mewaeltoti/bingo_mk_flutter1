@@ -30,11 +30,16 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
   }
 
   String _formatTime() {
-    if (widget.state.startTime == null) return "00:00:00";
-    final h = widget.state.startTime!.hour.toString().padLeft(2, '0');
-    final m = widget.state.startTime!.minute.toString().padLeft(2, '0');
-    final s = widget.state.startTime!.second.toString().padLeft(2, '0');
-    return "$h:$m:$s";
+    if (widget.state.startTime == null) return "00:00:00 AM";
+    final dateTime = widget.state.startTime!.toLocal();
+    final hour = dateTime.hour;
+    final isAm = hour < 12;
+    final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final h = hour12.toString().padLeft(2, '0');
+    final m = dateTime.minute.toString().padLeft(2, '0');
+    final s = dateTime.second.toString().padLeft(2, '0');
+    final period = isAm ? "AM" : "PM";
+    return "$h:$m:$s $period";
   }
 
   Widget _buildInfoRow(
@@ -45,11 +50,13 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
     Color valueColor,
   ) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, color: iconColor, size: 16),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               label,
@@ -147,8 +154,13 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
             ],
           ),
           const Divider(color: Colors.white10, height: 24),
+          
+          // Countdowns
+          if (state.status == GameStatus.buying && state.startTime != null)
+             _buildBuyingCountdownSection(state.startTime!),
           if (state.status == GameStatus.paused && state.claimDeadline != null)
              _buildCountdownSection(state.claimDeadline!),
+
           if (state.statusMessage != null && state.statusMessage!.isNotEmpty)
              Padding(
                padding: const EdgeInsets.only(bottom: 16),
@@ -191,24 +203,57 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildInfoRow(
-                Icons.group,
-                AppColors.accent,
-                "PLAYERS",
-                "${state.playerCount}",
-                AppColors.accent,
+          // Prize Pool centered beautifully (Players removed)
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.secondary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: AppColors.secondary.withOpacity(0.1)),
               ),
-              _buildInfoRow(
+              child: _buildInfoRow(
                 Icons.emoji_events,
                 AppColors.secondary,
                 "PRIZE POOL",
                 "${state.prizePool.toInt()} ETB",
                 AppColors.secondary,
               ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuyingCountdownSection(DateTime startTime) {
+    final deadline = startTime.toLocal().add(const Duration(minutes: 2));
+    final now = DateTime.now();
+    final remaining = deadline.difference(now).inSeconds;
+    final displaySeconds = remaining > 0 ? remaining : 0;
+    final color = displaySeconds > 15 ? AppColors.success : AppColors.danger;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.shopping_bag_outlined, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            "BUYING ENDS IN: ${displaySeconds}s",
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+              letterSpacing: 1,
+            ),
           ),
         ],
       ),
@@ -223,7 +268,7 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(15),
@@ -232,14 +277,14 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.timer, color: color, size: 20),
-          const SizedBox(width: 12),
+          Icon(Icons.timer_outlined, color: color, size: 18),
+          const SizedBox(width: 8),
           Text(
             "CLAIM WINDOW: ${displaySeconds}s",
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.w900,
-              fontSize: 16,
+              fontSize: 14,
               letterSpacing: 1,
             ),
           ),

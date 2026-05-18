@@ -60,8 +60,11 @@ exports.buyCard = async (request) => {
 exports.registerCard = async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
 
-    const { cardId } = request.data;
+    const { cardId, numbers } = request.data || {};
     if (!cardId) throw new HttpsError('invalid-argument', 'cardId is required.');
+    if (!numbers || !Array.isArray(numbers)) {
+        throw new HttpsError('invalid-argument', 'numbers array is required.');
+    }
 
     const userId = request.auth.uid;
     const db = admin.firestore();
@@ -72,13 +75,46 @@ exports.registerCard = async (request) => {
 
     try {
         const result = await db.runTransaction(async (transaction) => {
+            const cardDoc = await transaction.get(cardRef);
+            
+            // Idempotency: If this card is already registered by this user, return success immediately!
+            if (cardDoc.exists && cardDoc.data().status === 'registered') {
+                return { success: true };
+            }
+
             const userDoc = await transaction.get(userRef);
             const gameDoc = await transaction.get(gameRef);
-            const cardDoc = await transaction.get(cardRef);
+
+            if (!gameDoc.exists) throw new Error("Live game document (games/live) does not exist.");
+            const gameData = gameDoc.data();
+            if (gameData.status !== 'buying') throw new Error("Game is not in buying phase.");
+
+            const sessionId = (gameData.sessionId || '').toString();
+
+            // Enforce duplicate check session-wide: Check if ANOTHER player has registered this cardNo in this session!
+            const duplicateSnapshot = await db.collectionGroup('cards')
+                .where('cardNo', '==', Number(cardId))
+                .where('sessionId', '==', sessionId)
+                .where('status', '==', 'registered')
+                .get();
+
+            let isDuplicate = false;
+            if (!duplicateSnapshot.empty) {
+                for (const doc of duplicateSnapshot.docs) {
+                    const docUserId = doc.ref.parent.parent.id;
+                    if (docUserId !== userId) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+            }
+
+            if (isDuplicate) {
+                throw new Error("This card number has already been purchased by another player!");
+            }
 
             let balance = 0;
             if (!userDoc.exists) {
-                // Initialize user document if it doesn't exist
                 transaction.set(userRef, {
                     balance: 0,
                     role: 'player',
@@ -89,20 +125,23 @@ exports.registerCard = async (request) => {
                 balance = userDoc.data().balance || 0;
             }
 
-            if (!gameDoc.exists) throw new Error("Live game document (games/live) does not exist.");
-            if (!cardDoc.exists) throw new Error("Card document does not exist for cardId: " + cardId);
-
-            const card = cardDoc.data();
-            if (card.status === 'registered') throw new Error("Card is already registered.");
-
-            const price = gameDoc.data().cardPrice || 10;
-
+            const price = gameData.cardPrice || 10;
             if (balance < price) throw new Error("Insufficient balance.");
 
+            // Standardize 24-number format to 25-number format by putting the free space (0) at index 12
+            const numbers25 = [...numbers];
+            if (numbers25.length === 24) {
+                numbers25.splice(12, 0, 0);
+            }
+
             transaction.update(userRef, { balance: balance - price });
-            transaction.update(cardRef, {
+            transaction.set(cardRef, {
+                gameId: 'live',
+                sessionId: sessionId,
+                cardNo: Number(cardId),
+                numbers: numbers25,
                 status: 'registered',
-                sessionId: (gameDoc.data().sessionId || '').toString()
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
             transaction.update(gameRef, { cardsSold: admin.firestore.FieldValue.increment(1) });
 
@@ -133,10 +172,18 @@ exports.startNewGame = async (request) => {
 
             transaction.set(counterRef, { currentSessionId: sessionNum }, { merge: true });
 
+            // Generate pre-shuffled sequence of 75 numbers
+            const drawSequence = Array.from({ length: 75 }, (_, i) => i + 1);
+            for (let i = drawSequence.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [drawSequence[i], drawSequence[j]] = [drawSequence[j], drawSequence[i]];
+            }
+
             const gameUpdate = {
                 status: 'buying',
                 sessionId: sessionNum,
                 drawnNumbers: [],
+                drawSequence: drawSequence,
                 winners: [],
                 winnerId: null,
                 cardsSold: 0,
@@ -350,11 +397,14 @@ exports.removeCard = async (request) => {
         await db.runTransaction(async (transaction) => {
             const cardDoc = await transaction.get(cardRef);
             if (!cardDoc.exists) throw new Error("Card not found.");
-
             const cardData = cardDoc.data();
+
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists) throw new Error("Live game not found.");
             const gameData = gameDoc.data();
+
+            // Fetch userDoc upfront to satisfy the read-before-write constraint!
+            const userDoc = await transaction.get(userRef);
 
             if (cardData.status === 'registered') {
                 // Decrement cards sold
@@ -364,7 +414,6 @@ exports.removeCard = async (request) => {
 
                 // Refund user if in buying phase
                 if (gameData.status === 'buying') {
-                    const userDoc = await transaction.get(userRef);
                     if (userDoc.exists) {
                         const currentBalance = userDoc.data().balance || 0;
                         const price = gameData.cardPrice || 10;

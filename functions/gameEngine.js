@@ -67,11 +67,19 @@ exports.drawNumberLoopHandler = async (context) => {
                         }
                     }
 
+                    // Generate pre-shuffled sequence of 75 numbers
+                    const drawSequence = Array.from({ length: 75 }, (_, i) => i + 1);
+                    for (let i = drawSequence.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [drawSequence[i], drawSequence[j]] = [drawSequence[j], drawSequence[i]];
+                    }
+
                     await gameDoc.ref.update({
                         status: 'buying',
                         sessionId: sessionNum,
                         startTime: admin.firestore.FieldValue.serverTimestamp(),
                         drawnNumbers: [],
+                        drawSequence: drawSequence,
                         cardsSold: 0,
                         playersCount: 0,
                         isPaused: false,
@@ -167,21 +175,30 @@ exports.drawNumberLoopHandler = async (context) => {
         }
 
         const drawnNumbers = game.drawnNumbers || [];
-        
-        // Generate available numbers (1-75)
-        const availableNumbers = Array.from({length: 75}, (_, i) => i + 1)
-            .filter(n => !drawnNumbers.includes(n));
+        const drawSequence = game.drawSequence || [];
 
-        if (availableNumbers.length === 0) {
+        // Fallback: if sequence is missing, generate one dynamically on the fly
+        if (drawSequence.length === 0) {
+            const tempSeq = Array.from({ length: 75 }, (_, i) => i + 1);
+            for (let i = tempSeq.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [tempSeq[i], tempSeq[j]] = [tempSeq[j], tempSeq[i]];
+            }
+            await gameDoc.ref.update({ drawSequence: tempSeq });
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+        }
+
+        if (drawnNumbers.length >= 75) {
             console.log("No more numbers available. Finishing game.");
             await gameDoc.ref.update({ 
                 status: 'finished',
                 endTime: admin.firestore.FieldValue.serverTimestamp()
             });
         } else {
-            // Draw random number safely without duplicates
-            const randomIndex = Math.floor(Math.random() * availableNumbers.length);
-            const newNumber = availableNumbers[randomIndex];
+            // Draw next number instantly from pre-shuffled array using O(1) index!
+            const nextIndex = drawnNumbers.length;
+            const newNumber = drawSequence[nextIndex];
             drawnNumbers.push(newNumber);
 
             console.log(`Drawing number: ${newNumber}. Total drawn: ${drawnNumbers.length}`);

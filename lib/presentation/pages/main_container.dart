@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'game_page.dart';
 import 'payment_page.dart';
-import 'leaderboard_page.dart';
 import 'profile_page.dart';
 import '../../core/theme/app_theme.dart';
 import '../blocs/auth_cubit.dart';
@@ -60,14 +59,12 @@ class _MainContainerState extends State<MainContainer> {
           final List<Widget> pages = [
             const GamePage(),
             const PaymentPage(),
-            const LeaderboardPage(),
             const ProfilePage(),
           ];
 
           final List<Map<String, dynamic>> items = [
             {'icon': Icons.gamepad, 'label': 'Game'},
             {'icon': Icons.account_balance_wallet, 'label': 'Wallet'},
-            {'icon': Icons.emoji_events, 'label': 'Ranks'},
             {'icon': Icons.person, 'label': 'Profile'},
           ];
 

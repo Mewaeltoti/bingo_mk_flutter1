@@ -101,14 +101,39 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildForm() {
+    final state = context.watch<AuthCubit>().state;
+    String phoneNumber = "Unknown";
+    if (state is AuthAuthenticated) {
+      phoneNumber = state.userId;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Account Identity',
+          'Profile Details',
           style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 8),
+        TextField(
+          controller: _nameController,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: 'Display Name',
+            labelStyle: const TextStyle(color: AppColors.textSecondary),
+            filled: true,
+            fillColor: AppColors.card,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            prefixIcon: const Icon(Icons.person, color: AppColors.primary),
+          ),
+          onChanged: (val) {
+            // Future update logic
+          },
+        ),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
@@ -116,25 +141,26 @@ class _ProfilePageState extends State<ProfilePage> {
             color: AppColors.card,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.phone_android, size: 24, color: AppColors.primary),
-              SizedBox(width: 16),
+              const Icon(Icons.phone_android, size: 24, color: AppColors.primary),
+              const SizedBox(width: 16),
               Text(
-                'Phone Verified Profile',
-                style: TextStyle(
+                phoneNumber,
+                style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 48),
+        const SizedBox(height: 16),
         const Center(
           child: Text(
-            'Your phone number is your unique ID.\nProfile management is handled via SMS.',
+            'Your phone number is your unique ID.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),

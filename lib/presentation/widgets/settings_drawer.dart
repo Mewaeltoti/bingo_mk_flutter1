@@ -1,15 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
-import '../blocs/wallet_cubit.dart';
-import '../pages/profile_page.dart';
-
+import '../../core/services/audio_service.dart';
 import '../../core/theme/app_theme.dart';
 
-class SettingsDrawer extends StatelessWidget {
+class SettingsDrawer extends StatefulWidget {
   final VoidCallback onClose;
 
   const SettingsDrawer({super.key, required this.onClose});
+
+  @override
+  State<SettingsDrawer> createState() => _SettingsDrawerState();
+}
+
+class _SettingsDrawerState extends State<SettingsDrawer> {
+  late bool _soundEnabled;
+  bool _darkMode = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _soundEnabled = !AudioService().isMuted;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,30 +47,31 @@ class SettingsDrawer extends StatelessWidget {
                     _buildToggleItem(
                       Icons.volume_up,
                       'Sound Effects',
-                      true,
-                      (val) {},
+                      _soundEnabled,
+                      (val) {
+                        setState(() => _soundEnabled = val);
+                        AudioService().toggleMute();
+                      },
                     ),
                     _buildToggleItem(
                       Icons.dark_mode,
                       'Dark Mode',
-                      true,
-                      (val) {},
+                      _darkMode,
+                      (val) {
+                        setState(() => _darkMode = val);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Theme settings coming soon!')),
+                        );
+                      },
                     ),
                     _buildLanguageItem(),
                     const SizedBox(height: 24),
                     _buildSectionTitle('ACCOUNT'),
-                    _buildActionItem(Icons.person, 'Profile', () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BlocProvider.value(
-                            value: context.read<WalletCubit>(),
-                            child: const ProfilePage(),
-                          ),
-                        ),
-                      );
+                    _buildActionItem(Icons.help_outline, 'Support', () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Contact support at +251911234567')),
+                        );
                     }),
-                    _buildActionItem(Icons.help_outline, 'Support', () {}),
                     const SizedBox(height: 24),
                     _buildLogoutButton(context),
                   ],
@@ -97,7 +110,7 @@ class SettingsDrawer extends StatelessWidget {
             ),
           ),
           IconButton(
-            onPressed: onClose,
+            onPressed: widget.onClose,
             icon: const Icon(Icons.close, color: AppColors.textSecondary),
           ),
         ],
@@ -189,7 +202,10 @@ class SettingsDrawer extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
-        onPressed: () => context.read<AuthCubit>().logout(),
+        onPressed: () {
+          widget.onClose();
+          context.read<AuthCubit>().logout();
+        },
         icon: const Icon(Icons.logout, size: 16),
         label: const Text('LOG OUT'),
         style: OutlinedButton.styleFrom(

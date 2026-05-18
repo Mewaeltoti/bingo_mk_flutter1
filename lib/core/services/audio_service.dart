@@ -12,6 +12,8 @@ class AudioService {
   bool _isMuted = false;
   bool _isVoiceEnabled = true;
 
+  bool get isMuted => _isMuted;
+
   Future<void> init() async {
     // TTS initialization removed as per user request to use only beep sounds
   }
@@ -26,7 +28,12 @@ class AudioService {
 
   Future<void> playSfx(String assetPath) async {
     if (_isMuted) return;
-    await _audioPlayer.play(AssetSource(assetPath));
+    try {
+      await _audioPlayer.play(AssetSource(assetPath));
+    } catch (e) {
+      // Handle gracefully if the sound asset does not exist or isn't supported by browser
+      print("Audio playback skipped: $e");
+    }
   }
 
   Future<void> callNumber(int number) async {

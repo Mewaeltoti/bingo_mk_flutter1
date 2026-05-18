@@ -289,8 +289,8 @@ class _GamePageState extends State<GamePage> {
                 colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
               ),
             ),
-            if (state is GameLoaded && state.isPaused)
-              _buildPausedOverlay(state),
+            // Paused overlay has been removed to avoid blocking the user's screen.
+            // The claim countdown is rendered elegantly on the SessionCardWidget instead.
           ],
         );
       },

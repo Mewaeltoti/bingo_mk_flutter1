@@ -5,7 +5,7 @@ abstract class BingoRepository {
   Stream<Map<String, dynamic>> streamGame(String gameId);
   Future<void> drawNumber(String gameId, int number);
   Future<void> buyCartelas(String userId, {int count = 1});
-  Future<void> registerCard(String cardId);
+  Future<void> registerCard(String cardId, List<int> numbers);
   Future<void> removeCard(String cardId);
   Future<bool> claimBingo(String gameId, String cardId);
   Future<List<BingoCard>> getUserCartelas(String userId, String gameId);
