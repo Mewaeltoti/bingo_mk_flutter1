@@ -65,10 +65,18 @@ exports.claimBingo = async (request) => {
                     updates.statusMessage = "BINGO CLAIMED! 20s for other players to claim...";
                 }
 
+                const userRef = db.collection('users').doc(userId);
+                const userDoc = await transaction.get(userRef);
+                const phone = userDoc.exists ? (userDoc.data().phone || '') : '';
+                const markedCells = request.data.markedCells || [];
+
                 pendingClaims.push({
                     cardId,
                     userId,
                     cardNo,
+                    phone,
+                    numbers: cardNumbers,
+                    markedCells: markedCells,
                     timestamp: new Date().toISOString()
                 });
 
@@ -353,6 +361,7 @@ exports.confirmBingoClaim = async (request) => {
     const { cardId } = request.data;
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
+    const cartelaService = require("./cartelaService");
 
     await db.runTransaction(async (transaction) => {
         const gameDoc = await transaction.get(gameRef);
@@ -371,8 +380,32 @@ exports.confirmBingoClaim = async (request) => {
 
         const updates = { pendingClaims, confirmedWinners };
 
-        // AUTO-RESUME: If no more pending claims, resume game to 'active'
-        if (pendingClaims.length === 0) {
+        // If no more pending claims, and we have confirmed winners, finalize and payout!
+        if (pendingClaims.length === 0 && confirmedWinners.length > 0) {
+            const prizePerWinner = (game.prizePool || 0) / confirmedWinners.length;
+
+            // Pay out each winner
+            for (const winner of confirmedWinners) {
+                const userRef = db.collection('users').doc(winner.userId);
+                const userDoc = await transaction.get(userRef);
+                const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
+                transaction.update(userRef, { balance: currentBalance + prizePerWinner });
+            }
+
+            // Mark game as won and set end time so it auto-resets in 15 seconds!
+            updates.status = 'won';
+            updates.winners = confirmedWinners.map(w => w.cardNo.toString());
+            updates.winnerId = confirmedWinners[0].userId;
+            updates.winningCardNo = confirmedWinners[0].cardNo;
+            updates.endTime = admin.firestore.FieldValue.serverTimestamp();
+            updates.confirmedWinners = confirmedWinners;
+            updates.claimDeadline = null;
+            updates.statusMessage = "Game Over! Winners have been paid.";
+
+            // Reset all cards
+            await cartelaService.resetAllRegisteredCards(db);
+        } else if (pendingClaims.length === 0) {
+            // Fallback: If no confirmed winners, resume game
             updates.status = 'active';
             updates.isPaused = false;
             updates.claimDeadline = null;

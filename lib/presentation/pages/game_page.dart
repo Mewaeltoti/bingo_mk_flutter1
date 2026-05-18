@@ -101,7 +101,13 @@ class _GamePageState extends State<GamePage> {
         if (state is GameLoaded) {
           if (state.statusMessage != null && state.statusMessage!.isNotEmpty) {
             final message = state.statusMessage!;
-            if (message != _lastShownStatusMessage) {
+            final isGenericLoopMsg = message.contains('drawn') || 
+                                     message.contains('Waiting') || 
+                                     message.contains('resumed') || 
+                                     message.contains('Playing') || 
+                                     message.contains('Verification');
+
+            if (message != _lastShownStatusMessage && !isGenericLoopMsg) {
               _lastShownStatusMessage = message;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 ScaffoldMessenger.of(context).clearSnackBars();
@@ -235,6 +241,7 @@ class _GamePageState extends State<GamePage> {
                             color: AppColors.success,
                             label: "WINNERS:",
                             items: state.winners,
+                            onItemTap: (item) => _showCardTransparencyDialog(context, item, state, isWinner: true),
                           ),
 
                           HorizontalBadgeList(
@@ -242,6 +249,7 @@ class _GamePageState extends State<GamePage> {
                             color: AppColors.secondary,
                             label: "CLAIMS:",
                             items: state.claimedCardIds,
+                            onItemTap: (item) => _showCardTransparencyDialog(context, item, state, isWinner: false),
                           ),
 
                           HorizontalBadgeList(
@@ -249,6 +257,7 @@ class _GamePageState extends State<GamePage> {
                             color: AppColors.danger,
                             label: "BLOCKED:",
                             items: state.blockedCardIds.toList(),
+                            onItemTap: (item) => _showCardTransparencyDialog(context, item, state, isBlocked: true),
                           ),
 
                           const SizedBox(height: 16),
@@ -273,9 +282,12 @@ class _GamePageState extends State<GamePage> {
                   ? ZoomIn(
                       child: FloatingActionButton.extended(
                         backgroundColor: AppColors.secondary,
-                        onPressed: () => context.read<GameCubit>().buyCard(),
-                        label: const Text("BUY CARD", style: TextStyle(fontWeight: FontWeight.bold)),
-                        icon: const Icon(Icons.add_shopping_cart),
+                        onPressed: () => _showBuyCartelaBottomSheet(context, state),
+                        label: const Text(
+                          "BUY CARDS", 
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                        ),
+                        icon: const Icon(Icons.add_shopping_cart, color: Colors.black),
                       ),
                     )
                   : null,
@@ -360,6 +372,404 @@ class _GamePageState extends State<GamePage> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showBuyCartelaBottomSheet(BuildContext context, GameLoaded state) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.darkCard,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: Colors.white10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 20,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                "BUY CARTELAS",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "You can own a maximum of 25 cards per session.",
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [1, 2, 5, 10, 25].map((count) {
+                  final canBuy = (state.userCards.length + count) <= 25;
+                  return InkWell(
+                    onTap: canBuy ? () {
+                      Navigator.pop(ctx);
+                      context.read<GameCubit>().buyCard(count: count);
+                    } : null,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: 80,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: canBuy ? AppColors.secondary.withOpacity(0.1) : Colors.white.withOpacity(0.02),
+                        border: Border.all(
+                          color: canBuy ? AppColors.secondary : Colors.white10,
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            "$count",
+                            style: TextStyle(
+                              color: canBuy ? AppColors.secondary : Colors.white38,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Orbitron',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            count == 1 ? "CARD" : "CARDS",
+                            style: TextStyle(
+                              color: canBuy ? Colors.white : Colors.white38,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCardTransparencyDialog(
+    BuildContext context,
+    String item,
+    GameLoaded state, {
+    bool isWinner = false,
+    bool isBlocked = false,
+  }) {
+    Map<String, dynamic>? found;
+    List<int> numbersList = [];
+    String cardNo = item;
+    String phone = "ስልክ ቁጥር: 0910117997";
+
+    if (isBlocked) {
+      final userCard = state.userCards.firstWhere(
+        (c) => c.id == item || c.cardNo.toString() == item,
+        orElse: () => BingoCard(id: '', cardNo: int.tryParse(item) ?? 0, numbers: [], price: 10),
+      );
+      if (userCard.id.isNotEmpty) {
+        numbersList = userCard.numbers.expand((row) => row).toList();
+        cardNo = userCard.cardNo.toString();
+        phone = "የእርስዎ የታገደ ካርቴላ";
+      }
+    } else {
+      final searchList = isWinner ? state.rawWinnersData : state.rawClaimsData;
+      for (var c in searchList) {
+        if (c['cardNo']?.toString() == item || c['cardId'] == item) {
+          found = c;
+          break;
+        }
+      }
+      if (found == null) {
+        final altList = isWinner ? state.rawClaimsData : state.rawWinnersData;
+        for (var c in altList) {
+          if (c['cardNo']?.toString() == item || c['cardId'] == item) {
+            found = c;
+            break;
+          }
+        }
+      }
+
+      if (found != null) {
+        cardNo = (found['cardNo'] ?? item).toString();
+        final rawPhone = found['phone'] ?? '';
+        phone = rawPhone.toString().isNotEmpty ? "ስልክ ቁጥር: $rawPhone" : "ስልክ ቁጥር: 0910117997";
+        
+        final rawNumbers = found['numbers'];
+        if (rawNumbers is List) {
+          for (var x in rawNumbers) {
+            if (x is List) {
+              numbersList.addAll(x.map((e) => int.tryParse(e.toString()) ?? 0));
+            } else {
+              numbersList.add(int.tryParse(x.toString()) ?? 0);
+            }
+          }
+        }
+      }
+    }
+
+    if (numbersList.length < 25) {
+      final seed = int.tryParse(cardNo) ?? 12345;
+      numbersList = List.generate(25, (index) {
+        if (index == 12) return 0; // Center free space placeholder
+        return ((seed + index) % 75) + 1;
+      });
+    }
+
+    Set<String> markedCellSet = {};
+    if (isBlocked) {
+      markedCellSet = state.markedCells[cardNo] ?? state.markedCells[item] ?? {};
+    } else if (found != null && found['markedCells'] != null) {
+      markedCellSet = Set<String>.from(found['markedCells']);
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.85),
+      builder: (context) {
+        return Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 360),
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            decoration: BoxDecoration(
+              color: AppColors.darkCard,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.6),
+                  blurRadius: 25,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFE63946), Color(0xFFD62828)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.credit_card, color: Colors.white, size: 22),
+                            const SizedBox(width: 8),
+                            Text(
+                              "ካርቴላ: $cardNo",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          phone,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondary,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            "መጫወቻ ቁጥር: ${state.drawnNumbers.isNotEmpty ? state.drawnNumbers.last : '-'}",
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 11,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildBingoLetterBlock("B", AppColors.accent),
+                        _buildBingoLetterBlock("I", AppColors.danger),
+                        _buildBingoLetterBlock("N", AppColors.success),
+                        _buildBingoLetterBlock("G", const Color(0xFF8B5CF6)),
+                        _buildBingoLetterBlock("O", AppColors.secondary),
+                      ],
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 5,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                      ),
+                      itemCount: 25,
+                      itemBuilder: (context, index) {
+                        final row = index ~/ 5;
+                        final col = index % 5;
+                        
+                        if (row == 2 && col == 2) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.success.withOpacity(0.2),
+                              border: Border.all(color: AppColors.success, width: 1.5),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Text(
+                              "FREE",
+                              style: TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          );
+                        }
+
+                        final numVal = numbersList[index];
+                        final isUserMarked = markedCellSet.contains('$row-$col');
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isUserMarked 
+                                ? AppColors.danger 
+                                : Colors.white.withOpacity(0.05),
+                            border: Border.all(
+                              color: isUserMarked 
+                                  ? AppColors.danger 
+                                  : Colors.white10,
+                              width: 1.5,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "$numVal",
+                            style: TextStyle(
+                              color: isUserMarked ? Colors.white : Colors.white70,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: SizedBox(
+                      width: 120,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.white10,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(color: Colors.white24),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text(
+                          "ዕድሉ",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBingoLetterBlock(String letter, Color color) {
+    return Container(
+      width: 44,
+      height: 34,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.5), width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        letter,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          decoration: TextDecoration.none,
         ),
       ),
     );

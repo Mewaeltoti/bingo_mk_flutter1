@@ -39,8 +39,8 @@ exports.drawNumberLoopHandler = async (context) => {
         if (game.status === 'won' || game.status === 'finished') {
             if (game.endTime) {
                 const end = game.endTime.toDate().getTime();
-                // Reset after 60 seconds
-                if (Date.now() - end >= 60 * 1000) {
+                // Reset after 15 seconds for a fast, dynamic game loop!
+                if (Date.now() - end >= 15 * 1000) {
                     const counterRef = db.collection('metadata').doc('counters');
                     const counterDoc = await counterRef.get();
                     let sessionNum = 1000;

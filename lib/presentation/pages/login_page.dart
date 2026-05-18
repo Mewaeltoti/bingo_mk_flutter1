@@ -29,6 +29,7 @@ class _LoginPageState extends State<LoginPage> {
         }
       },
       child: Scaffold(
+        backgroundColor: AppColors.darkBackground,
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -77,7 +78,7 @@ class _LoginPageState extends State<LoginPage> {
         const Text(
           'Play. Win. Celebrate.',
           style: TextStyle(
-            color: AppColors.textSecondary,
+            color: Colors.white70,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -120,17 +121,17 @@ class _LoginPageState extends State<LoginPage> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textSecondary),
-        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+        hintStyle: const TextStyle(color: Colors.white54),
+        prefixIcon: Icon(icon, color: Colors.white54, size: 20),
         filled: true,
-        fillColor: AppColors.card,
+        fillColor: AppColors.darkCard,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 20,
           vertical: 18,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: Colors.white10, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -151,11 +152,11 @@ class _LoginPageState extends State<LoginPage> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(
-                  colors: [AppColors.primary, AppColors.primary],
+                  colors: [AppColors.secondary, Color(0xFFFFC107)],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: AppColors.secondary.withOpacity(0.3),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -214,8 +215,8 @@ class _LoginPageState extends State<LoginPage> {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.textPrimary,
-        side: const BorderSide(color: AppColors.border),
+        foregroundColor: Colors.white,
+        side: const BorderSide(color: Colors.white24),
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

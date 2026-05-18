@@ -70,10 +70,15 @@ class BingoRepositoryImpl implements BingoRepository {
   }
 
   @override
-  Future<bool> claimBingo(String gameId, String cardId) async {
+  Future<bool> claimBingo(
+    String gameId,
+    String cardId, {
+    List<String> markedCells = const [],
+  }) async {
     try {
       final result = await _functions.httpsCallable('claimBingo').call({
         'cardId': cardId,
+        'markedCells': markedCells,
       });
       return result.data['success'] == true;
     } catch (e) {
@@ -249,22 +254,24 @@ class BingoRepositoryImpl implements BingoRepository {
   @override
   Future<List<Map<String, dynamic>>> getPaymentAccounts() async {
     try {
-      final doc = await _firestore.collection('metadata').doc('payment_info').get();
+      final doc = await _firestore
+          .collection('metadata')
+          .doc('payment_settings')
+          .get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
         if (data['accounts'] != null) {
           final list = data['accounts'] as List;
-          return list.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+          return list
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
         }
       }
     } catch (e) {
       Log.e("Failed to get payment accounts from Firestore", e);
     }
-    // Fallback to default accounts if document doesn't exist or load fails
-    return [
-      {'bank': 'Telebirr', 'number': '0978187178', 'name': 'Ephrem'},
-      {'bank': 'CBE', 'number': '1000217643426', 'name': 'Ephrem'},
-    ];
+    // Fallback to empty list if document doesn't exist
+    return [];
   }
 
   @override

@@ -17,8 +17,19 @@ exports.buyCard = async (request) => {
         }
 
         const { count = 1 } = request.data || {};
-        const buyCount = Math.min(Math.max(1, count), 50);
+        const requestedCount = Math.min(Math.max(1, count), 25);
         const sessionId = (gameSnap.data().sessionId || '').toString();
+
+        // Enforce the 25-card hard limit per user per session
+        const existingCardsSnap = await db.collection('users').doc(userId).collection('cards')
+            .where('sessionId', '==', sessionId)
+            .get();
+        
+        const existingCount = existingCardsSnap.size;
+        if (existingCount + requestedCount > 25) {
+            throw new Error(`You can only own a maximum of 25 cards per session. You already have ${existingCount} cards.`);
+        }
+        const buyCount = requestedCount;
         const batch = db.batch();
         const poolPromises = [];
         const cardIds = [];

@@ -7,7 +7,7 @@ abstract class BingoRepository {
   Future<void> buyCartelas(String userId, {int count = 1});
   Future<void> registerCard(String cardId, List<int> numbers);
   Future<void> removeCard(String cardId);
-  Future<bool> claimBingo(String gameId, String cardId);
+  Future<bool> claimBingo(String gameId, String cardId, {List<String> markedCells = const []});
   Future<List<BingoCard>> getUserCartelas(String userId, String gameId);
   Future<double> getBalance(String userId);
   Stream<double> streamBalance(String userId);

@@ -33,6 +33,8 @@ class GameLoaded extends GameState {
   final Set<String> blockedCardIds;
   final List<String> winners;
   final List<String> claimedCardIds;
+  final List<Map<String, dynamic>> rawClaimsData;
+  final List<Map<String, dynamic>> rawWinnersData;
 
   final int? winningCardNo;
   final List<int>? winningCardNumbers;
@@ -65,6 +67,8 @@ class GameLoaded extends GameState {
     this.blockedCardIds = const {},
     this.winners = const [],
     this.claimedCardIds = const [],
+    this.rawClaimsData = const [],
+    this.rawWinnersData = const [],
     this.winningCardNo,
     this.winningCardNumbers,
     this.sessionId = '',
@@ -100,6 +104,8 @@ class GameLoaded extends GameState {
     blockedCardIds,
     winners,
     claimedCardIds,
+    rawClaimsData,
+    rawWinnersData,
     winningCardNo,
     winningCardNumbers,
     sessionId,
@@ -129,6 +135,8 @@ class GameLoaded extends GameState {
     Set<String>? blockedCardIds,
     List<String>? winners,
     List<String>? claimedCardIds,
+    List<Map<String, dynamic>>? rawClaimsData,
+    List<Map<String, dynamic>>? rawWinnersData,
     int? winningCardNo,
     List<int>? winningCardNumbers,
     String? sessionId,
@@ -157,6 +165,8 @@ class GameLoaded extends GameState {
       blockedCardIds: blockedCardIds ?? this.blockedCardIds,
       winners: winners ?? this.winners,
       claimedCardIds: claimedCardIds ?? this.claimedCardIds,
+      rawClaimsData: rawClaimsData ?? this.rawClaimsData,
+      rawWinnersData: rawWinnersData ?? this.rawWinnersData,
       winningCardNo: winningCardNo ?? this.winningCardNo,
       winningCardNumbers: winningCardNumbers ?? this.winningCardNumbers,
       sessionId: sessionId ?? this.sessionId,
@@ -314,6 +324,14 @@ class GameCubit extends Cubit<GameState> {
                     ?.map((c) => (c['cardNo'] ?? '').toString())
                     .toList() ??
                 [],
+            rawClaimsData: (gameData['pendingClaims'] as List?)
+                    ?.map((c) => Map<String, dynamic>.from(c as Map))
+                    .toList() ??
+                const [],
+            rawWinnersData: (gameData['confirmedWinners'] as List?)
+                    ?.map((c) => Map<String, dynamic>.from(c as Map))
+                    .toList() ??
+                const [],
             claimDeadline: gameData['claimDeadline'] == null ? null : 
                 (gameData['claimDeadline'] is Timestamp 
                     ? (gameData['claimDeadline'] as Timestamp).toDate()
@@ -499,6 +517,9 @@ class GameCubit extends Cubit<GameState> {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
     
+    // Prevent race conditions: block remove actions while any network transaction is in progress!
+    if (current.isActionLoading) return;
+
     final card = current.userCards.firstWhere((c) => c.id == cardId);
     if (card.status == 'pending') {
       // Pending card is local only! Remove instantly with zero network cost!
@@ -527,28 +548,26 @@ class GameCubit extends Cubit<GameState> {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
 
-    // OPTIMISTIC UPDATE: Pause immediately for instant feedback
     emit(current.copyWith(
-      status: GameStatus.paused,
-      isPaused: true,
-      statusStr: 'PAUSED',
-      statusMessage: "BINGO! Verifying claim...",
+      isActionLoading: true,
+      statusMessage: "Verifying BINGO claim...",
     ));
 
     try {
-      final success = await _bingoRepository.claimBingo(kLiveGameId, cardId);
+      final cardMarked = current.markedCells[cardId]?.toList() ?? <String>[];
+      final success = await _bingoRepository.claimBingo(kLiveGameId, cardId, markedCells: cardMarked);
 
       if (!success) {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
         emit(current.copyWith(
-            status: GameStatus.active, // Resume if invalid
-            isPaused: false,
-            blockedCardIds: blocked, 
+            isActionLoading: false,
+            blockedCardIds: blocked,
             statusMessage: "Invalid claim! Card blocked."));
       } else {
         // Server will update the official status to 'paused' and set claimDeadline
         emit(current.copyWith(
+            isActionLoading: false,
             statusMessage: "Bingo claimed! Waiting for other players..."));
       }
     } catch (e, stack) {
@@ -556,13 +575,10 @@ class GameCubit extends Cubit<GameState> {
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
             isActionLoading: false,
-            status: GameStatus.active,
-            isPaused: false,
             statusMessage: "Failed to claim bingo: ${e.toString()}"));
       }
     }
   }
-
   /// CLEAR STATUS MESSAGE
   void clearStatusMessage() {
     if (state is GameLoaded) {

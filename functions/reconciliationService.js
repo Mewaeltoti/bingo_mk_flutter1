@@ -208,6 +208,13 @@ exports.onDepositCreatedHandler = async (snap, context) => {
                         transaction.update(bankRef, { status: "amount_mismatch" });
                     }
                 }
+            } else {
+                // Bank transaction not found, automatically reject per requirements
+                transaction.update(snap.ref, {
+                    status: "rejected",
+                    rejectionReason: "Invalid reference number. Transaction not found in bank records."
+                });
+                console.log(`Auto-rejected deposit for user ${userId} - Reference ${reference} not found in bank_notifications.`);
             }
         });
     } catch (error) {

@@ -29,8 +29,13 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: AppColors.headerGradient,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -74,14 +79,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
                 ),
               ),
-              child: const Icon(Icons.person, size: 40, color: Colors.black),
+              child: const Icon(Icons.person, size: 40, color: AppColors.primary),
             ),
             const SizedBox(height: 16),
             const Text(
               'BALANCE',
               style: TextStyle(
                 fontSize: 10,
-                color: AppColors.textSecondary,
+                color: Colors.white70,
                 letterSpacing: 1,
               ),
             ),
@@ -91,7 +96,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 fontFamily: 'Orbitron',
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: AppColors.primary,
+                color: AppColors.secondary,
               ),
             ),
           ],
@@ -112,7 +117,7 @@ class _ProfilePageState extends State<ProfilePage> {
       children: [
         const Text(
           'Profile Details',
-          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 12, color: Colors.white70),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -120,14 +125,14 @@ class _ProfilePageState extends State<ProfilePage> {
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'Display Name',
-            labelStyle: const TextStyle(color: AppColors.textSecondary),
+            labelStyle: const TextStyle(color: Colors.white70),
             filled: true,
-            fillColor: AppColors.card,
+            fillColor: AppColors.darkCard,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: const BorderSide(color: Colors.white10),
             ),
-            prefixIcon: const Icon(Icons.person, color: AppColors.primary),
+            prefixIcon: const Icon(Icons.person, color: AppColors.secondary),
           ),
           onChanged: (val) {
             // Future update logic
@@ -138,12 +143,13 @@ class _ProfilePageState extends State<ProfilePage> {
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: AppColors.darkCard,
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white10),
           ),
           child: Row(
             children: [
-              const Icon(Icons.phone_android, size: 24, color: AppColors.primary),
+              const Icon(Icons.phone_android, size: 24, color: AppColors.secondary),
               const SizedBox(width: 16),
               Text(
                 phoneNumber,
@@ -162,7 +168,7 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Text(
             'Your phone number is your unique ID.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 12, color: Colors.white70),
           ),
         ),
       ],

@@ -43,11 +43,18 @@ class _PaymentPageState extends State<PaymentPage>
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 20),
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.greenAccent,
+              size: 20,
+            ),
             const SizedBox(width: 8),
             Text(
               '$label copied!',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ],
         ),
@@ -62,8 +69,13 @@ class _PaymentPageState extends State<PaymentPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: AppColors.headerGradient,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -90,7 +102,7 @@ class _PaymentPageState extends State<PaymentPage>
           ),
         ],
       ),
-  body: BlocConsumer<WalletCubit, WalletState>(
+      body: BlocConsumer<WalletCubit, WalletState>(
         listener: (context, state) {
           if (state is WalletLoaded) {
             // Check for rejected deposits
@@ -101,7 +113,10 @@ class _PaymentPageState extends State<PaymentPage>
                 final amount = dep['amount'];
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _showRejectionDialog(context, 'Deposit', amount, reason, () {
-                    context.read<WalletCubit>().deleteTransaction('deposits', docId);
+                    context.read<WalletCubit>().deleteTransaction(
+                      'deposits',
+                      docId,
+                    );
                   });
                 });
                 break; // Show one at a time
@@ -115,9 +130,18 @@ class _PaymentPageState extends State<PaymentPage>
                 final docId = wth['id'];
                 final amount = wth['amount'];
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _showRejectionDialog(context, 'Withdrawal', amount, reason, () {
-                    context.read<WalletCubit>().deleteTransaction('withdrawals', docId);
-                  });
+                  _showRejectionDialog(
+                    context,
+                    'Withdrawal',
+                    amount,
+                    reason,
+                    () {
+                      context.read<WalletCubit>().deleteTransaction(
+                        'withdrawals',
+                        docId,
+                      );
+                    },
+                  );
                 });
                 break; // Show one at a time
               }
@@ -164,16 +188,16 @@ class _PaymentPageState extends State<PaymentPage>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.darkCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Colors.white10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
-          )
-        ]
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -182,7 +206,7 @@ class _PaymentPageState extends State<PaymentPage>
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: AppColors.textSecondary,
+              color: Colors.white70,
               letterSpacing: 2,
             ),
           ),
@@ -193,7 +217,7 @@ class _PaymentPageState extends State<PaymentPage>
               fontFamily: 'Orbitron',
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: AppColors.primary,
+              color: AppColors.secondary,
             ),
           ),
         ],
@@ -205,19 +229,23 @@ class _PaymentPageState extends State<PaymentPage>
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.darkCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Colors.white10),
       ),
       child: TabBar(
         controller: _tabController,
         indicator: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          color: AppColors.primary,
+          color: AppColors.secondary,
         ),
         labelColor: Colors.black,
-        unselectedLabelColor: AppColors.textSecondary,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Orbitron'),
+        unselectedLabelColor: Colors.white70,
+        labelStyle: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+          fontFamily: 'Orbitron',
+        ),
         tabs: const [
           Tab(text: 'DEPOSIT'),
           Tab(text: 'WITHDRAW'),
@@ -276,7 +304,7 @@ class _PaymentPageState extends State<PaymentPage>
       style: const TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
+        color: Colors.white,
         letterSpacing: 0.5,
       ),
     );
@@ -293,7 +321,11 @@ class _PaymentPageState extends State<PaymentPage>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 20),
+          const Icon(
+            Icons.info_outline_rounded,
+            color: AppColors.primary,
+            size: 20,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -303,7 +335,7 @@ class _PaymentPageState extends State<PaymentPage>
                   title,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    color: AppColors.secondary,
                     fontSize: 13,
                   ),
                 ),
@@ -311,7 +343,7 @@ class _PaymentPageState extends State<PaymentPage>
                 Text(
                   content,
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
+                    color: Colors.white70,
                     fontSize: 11,
                     height: 1.4,
                   ),
@@ -329,7 +361,10 @@ class _PaymentPageState extends State<PaymentPage>
       return Container(
         padding: const EdgeInsets.all(16),
         alignment: Alignment.center,
-        child: const Text('No payment accounts configured.', style: TextStyle(color: AppColors.textSecondary)),
+        child: const Text(
+          'No payment accounts configured.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
       );
     }
 
@@ -349,14 +384,16 @@ class _PaymentPageState extends State<PaymentPage>
 
   Widget _buildAccountCard(String bank, String number, String name) {
     final isTelebirr = bank.toLowerCase().contains('tele');
-    final accentColor = isTelebirr ? Colors.lightBlueAccent : Colors.purpleAccent;
+    final accentColor = isTelebirr
+        ? Colors.lightBlueAccent
+        : Colors.purpleAccent;
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.darkCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Colors.white10),
       ),
       child: Row(
         children: [
@@ -367,7 +404,9 @@ class _PaymentPageState extends State<PaymentPage>
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              isTelebirr ? Icons.phone_android_rounded : Icons.account_balance_rounded,
+              isTelebirr
+                  ? Icons.phone_android_rounded
+                  : Icons.account_balance_rounded,
               color: accentColor,
               size: 20,
             ),
@@ -394,7 +433,10 @@ class _PaymentPageState extends State<PaymentPage>
                         '($name)',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ],
@@ -413,7 +455,11 @@ class _PaymentPageState extends State<PaymentPage>
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.copy_rounded, color: AppColors.primary, size: 20),
+            icon: const Icon(
+              Icons.copy_rounded,
+              color: AppColors.primary,
+              size: 20,
+            ),
             onPressed: () => _copyToClipboard(number, '$bank Number'),
             tooltip: 'Copy Number',
           ),
@@ -423,15 +469,23 @@ class _PaymentPageState extends State<PaymentPage>
   }
 
   Widget _buildDepositForm(WalletLoaded state) {
-    final activeBank = _selectedBank ?? (state.bankAccounts.isNotEmpty ? state.bankAccounts.first['bank'] as String : 'Telebirr');
+    final activeBank =
+        _selectedBank ??
+        (state.bankAccounts.isNotEmpty
+            ? state.bankAccounts.first['bank'] as String
+            : 'Telebirr');
 
     return Column(
       children: [
         if (state.bankAccounts.isNotEmpty) ...[
           _buildDropdownField(
             label: 'Select Bank You Paid To',
-            value: state.bankAccounts.any((a) => a['bank'] == activeBank) ? activeBank : state.bankAccounts.first['bank'] as String,
-            items: state.bankAccounts.map((a) => a['bank'] as String? ?? '').toList(),
+            value: state.bankAccounts.any((a) => a['bank'] == activeBank)
+                ? activeBank
+                : state.bankAccounts.first['bank'] as String,
+            items: state.bankAccounts
+                .map((a) => a['bank'] as String? ?? '')
+                .toList(),
             onChanged: (val) {
               setState(() {
                 _selectedBank = val;
@@ -461,19 +515,23 @@ class _PaymentPageState extends State<PaymentPage>
 
           if (amt <= 0) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Please enter a valid deposit amount')),
+              const SnackBar(
+                content: Text('Please enter a valid deposit amount'),
+              ),
             );
             return;
           }
           if (ref.isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Please enter transaction reference number')),
+              const SnackBar(
+                content: Text('Please enter transaction reference number'),
+              ),
             );
             return;
           }
 
           context.read<WalletCubit>().deposit(amt, activeBank, ref);
-          
+
           // Clear inputs on success submit to improve user feel
           _amountController.clear();
           _referenceController.clear();
@@ -490,15 +548,23 @@ class _PaymentPageState extends State<PaymentPage>
   }
 
   Widget _buildWithdrawForm(WalletLoaded state) {
-    final activeBank = _selectedBank ?? (state.bankAccounts.isNotEmpty ? state.bankAccounts.first['bank'] as String : 'Telebirr');
+    final activeBank =
+        _selectedBank ??
+        (state.bankAccounts.isNotEmpty
+            ? state.bankAccounts.first['bank'] as String
+            : 'Telebirr');
 
     return Column(
       children: [
         if (state.bankAccounts.isNotEmpty) ...[
           _buildDropdownField(
             label: 'Select Withdrawal Bank',
-            value: state.bankAccounts.any((a) => a['bank'] == activeBank) ? activeBank : state.bankAccounts.first['bank'] as String,
-            items: state.bankAccounts.map((a) => a['bank'] as String? ?? '').toList(),
+            value: state.bankAccounts.any((a) => a['bank'] == activeBank)
+                ? activeBank
+                : state.bankAccounts.first['bank'] as String,
+            items: state.bankAccounts
+                .map((a) => a['bank'] as String? ?? '')
+                .toList(),
             onChanged: (val) {
               setState(() {
                 _selectedBank = val;
@@ -528,19 +594,23 @@ class _PaymentPageState extends State<PaymentPage>
 
           if (amt <= 0) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Please enter a valid withdrawal amount')),
+              const SnackBar(
+                content: Text('Please enter a valid withdrawal amount'),
+              ),
             );
             return;
           }
           if (acc.isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Please enter target bank account number')),
+              const SnackBar(
+                content: Text('Please enter target bank account number'),
+              ),
             );
             return;
           }
 
           context.read<WalletCubit>().withdraw(amt, activeBank, acc);
-          
+
           _amountController.clear();
           _accountController.clear();
 
@@ -565,25 +635,31 @@ class _PaymentPageState extends State<PaymentPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.darkCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Colors.white10),
       ),
       child: DropdownButtonFormField<String>(
-        value: value,
-        dropdownColor: AppColors.card,
-        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+        initialValue: value,
+        dropdownColor: AppColors.darkCard,
+        style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
+          prefixIcon: Icon(icon, color: AppColors.secondary, size: 20),
           labelText: label,
-          labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          labelStyle: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 4),
         ),
         items: items.map((item) {
           return DropdownMenuItem<String>(
             value: item,
-            child: Text(item, style: const TextStyle(color: AppColors.textPrimary)),
+            child: Text(
+              item,
+              style: const TextStyle(color: Colors.white),
+            ),
           );
         }).toList(),
         onChanged: onChanged,
@@ -600,22 +676,28 @@ class _PaymentPageState extends State<PaymentPage>
     return TextField(
       controller: controller,
       keyboardType: type,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+      style: const TextStyle(color: Colors.white, fontSize: 14),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
+        prefixIcon: Icon(icon, color: AppColors.secondary, size: 20),
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        hintStyle: const TextStyle(
+          color: Colors.white70,
+          fontSize: 13,
+        ),
         filled: true,
-        fillColor: AppColors.card,
+        fillColor: AppColors.darkCard,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: const BorderSide(color: Colors.white10),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.secondary, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -628,13 +710,13 @@ class _PaymentPageState extends State<PaymentPage>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.15),
+            color: AppColors.secondary.withOpacity(0.15),
             blurRadius: 10,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
         gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primary],
+          colors: [AppColors.secondary, Color(0xFFFFC107)],
         ),
       ),
       child: ElevatedButton(
@@ -661,7 +743,9 @@ class _PaymentPageState extends State<PaymentPage>
   }
 
   Widget _buildHistorySection(String title, List<Map<String, dynamic>> items) {
-    final visibleItems = items.where((item) => item['status'] != 'rejected').toList();
+    final visibleItems = items
+        .where((item) => item['status'] != 'rejected')
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -673,7 +757,7 @@ class _PaymentPageState extends State<PaymentPage>
             alignment: Alignment.center,
             child: const Text(
               'No recent transactions found',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              style: TextStyle(color: Colors.white70, fontSize: 12),
             ),
           )
         else
@@ -682,12 +766,18 @@ class _PaymentPageState extends State<PaymentPage>
     );
   }
 
-  void _showRejectionDialog(BuildContext context, String type, dynamic amount, String reason, VoidCallback onDelete) {
+  void _showRejectionDialog(
+    BuildContext context,
+    String type,
+    dynamic amount,
+    String reason,
+    VoidCallback onDelete,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.card,
+        backgroundColor: AppColors.darkCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
@@ -695,7 +785,11 @@ class _PaymentPageState extends State<PaymentPage>
             const SizedBox(width: 8),
             Text(
               '$type Rejected',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 16),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+                fontSize: 16,
+              ),
             ),
           ],
         ),
@@ -705,7 +799,10 @@ class _PaymentPageState extends State<PaymentPage>
           children: [
             Text(
               'Your $type of $amount ETB was rejected by the system.',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 12),
             Container(
@@ -718,7 +815,11 @@ class _PaymentPageState extends State<PaymentPage>
               ),
               child: Text(
                 'Reason: $reason',
-                style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -731,7 +832,10 @@ class _PaymentPageState extends State<PaymentPage>
             },
             child: const Text(
               'OK',
-              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -750,9 +854,9 @@ class _PaymentPageState extends State<PaymentPage>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.darkCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border.withOpacity(0.5)),
+        border: Border.all(color: Colors.white10),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -780,7 +884,7 @@ class _PaymentPageState extends State<PaymentPage>
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
-                            color: AppColors.primary,
+                            color: AppColors.secondary,
                             fontFamily: 'Orbitron',
                           ),
                         ),
@@ -791,7 +895,7 @@ class _PaymentPageState extends State<PaymentPage>
                       item['reference'] ?? item['accountNumber'] ?? '',
                       style: const TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: Colors.white70,
                       ),
                     ),
                   ],
@@ -815,7 +919,9 @@ class _PaymentPageState extends State<PaymentPage>
               ),
             ],
           ),
-          if (status == 'rejected' && rejectionReason != null && rejectionReason.isNotEmpty) ...[
+          if (status == 'rejected' &&
+              rejectionReason != null &&
+              rejectionReason.isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(10),
@@ -826,7 +932,11 @@ class _PaymentPageState extends State<PaymentPage>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 16),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.redAccent,
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
