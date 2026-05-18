@@ -244,6 +244,27 @@ class BingoRepositoryImpl implements BingoRepository {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> getPaymentAccounts() async {
+    try {
+      final doc = await _firestore.collection('metadata').doc('payment_info').get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        if (data['accounts'] != null) {
+          final list = data['accounts'] as List;
+          return list.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        }
+      }
+    } catch (e) {
+      Log.e("Failed to get payment accounts from Firestore", e);
+    }
+    // Fallback to default accounts if document doesn't exist or load fails
+    return [
+      {'bank': 'Telebirr', 'number': '0978187178', 'name': 'Ephrem'},
+      {'bank': 'CBE', 'number': '1000217643426', 'name': 'Ephrem'},
+    ];
+  }
+
+  @override
   Future<void> initializeGame() async {
     throw UnimplementedError(
       "Initialization is handled by Admin Dashboard via Cloud Functions.",

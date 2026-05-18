@@ -14,28 +14,32 @@ class WalletLoaded extends WalletState {
   final double balance;
   final List<Map<String, dynamic>> deposits;
   final List<Map<String, dynamic>> withdrawals;
+  final List<Map<String, dynamic>> bankAccounts;
   final bool isActionLoading;
 
   WalletLoaded({
     required this.balance,
     required this.deposits,
     required this.withdrawals,
+    this.bankAccounts = const [],
     this.isActionLoading = false,
   });
 
   @override
-  List<Object?> get props => [balance, deposits, withdrawals, isActionLoading];
+  List<Object?> get props => [balance, deposits, withdrawals, bankAccounts, isActionLoading];
 
   WalletLoaded copyWith({
     double? balance,
     List<Map<String, dynamic>>? deposits,
     List<Map<String, dynamic>>? withdrawals,
+    List<Map<String, dynamic>>? bankAccounts,
     bool? isActionLoading,
   }) {
     return WalletLoaded(
       balance: balance ?? this.balance,
       deposits: deposits ?? this.deposits,
       withdrawals: withdrawals ?? this.withdrawals,
+      bankAccounts: bankAccounts ?? this.bankAccounts,
       isActionLoading: isActionLoading ?? this.isActionLoading,
     );
   }
@@ -79,10 +83,12 @@ class WalletCubit extends Cubit<WalletState> {
       final balance = await _bingoRepository.getBalance(userId);
       final deposits = await _bingoRepository.getDeposits(userId);
       final withdrawals = await _bingoRepository.getWithdrawals(userId);
+      final bankAccounts = await _bingoRepository.getPaymentAccounts();
       emit(WalletLoaded(
         balance: balance,
         deposits: deposits,
         withdrawals: withdrawals,
+        bankAccounts: bankAccounts,
       ));
     } catch (e) {
       emit(WalletError(e.toString()));

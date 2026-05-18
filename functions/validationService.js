@@ -58,7 +58,7 @@ exports.claimBingo = async (request) => {
 
                 const updates = { pendingClaims };
                 
-                if (pendingClaims.length === 0) {
+                if (game.status !== 'paused') {
                     updates.status = 'paused';
                     updates.isPaused = true;
                     updates.claimDeadline = admin.firestore.Timestamp.fromMillis(Date.now() + 25000);
@@ -369,7 +369,17 @@ exports.confirmBingoClaim = async (request) => {
         confirmedWinners.push(claim);
         pendingClaims.splice(claimIndex, 1);
 
-        transaction.update(gameRef, { pendingClaims, confirmedWinners });
+        const updates = { pendingClaims, confirmedWinners };
+
+        // AUTO-RESUME: If no more pending claims, resume game to 'active'
+        if (pendingClaims.length === 0) {
+            updates.status = 'active';
+            updates.isPaused = false;
+            updates.claimDeadline = null;
+            updates.statusMessage = "Verification complete. Game resumed!";
+        }
+
+        transaction.update(gameRef, updates);
     });
 
     return { success: true };

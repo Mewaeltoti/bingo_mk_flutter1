@@ -39,7 +39,9 @@ class BingoCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool validGrid = card.numbers.length == 5 && card.numbers.every((row) => row.length == 5);
+    final bool validGrid =
+        card.numbers.length == 5 &&
+        card.numbers.every((row) => row.length == 5);
     if (!validGrid) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -50,7 +52,10 @@ class BingoCardWidget extends StatelessWidget {
         ),
         child: const Text(
           'Invalid Bingo Card Data',
-          style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.danger,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
     }
@@ -79,14 +84,23 @@ class BingoCardWidget extends StatelessWidget {
                 children: [
                   // Gold/Teal Top Bar
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: const BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.tablet_android, size: 16, color: AppColors.secondary),
+                        const Icon(
+                          Icons.tablet_android,
+                          size: 16,
+                          color: AppColors.secondary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           "CARD #${card.cardNo}",
@@ -102,7 +116,11 @@ class BingoCardWidget extends StatelessWidget {
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.cancel, size: 20, color: Colors.white70),
+                            icon: const Icon(
+                              Icons.cancel,
+                              size: 20,
+                              color: Colors.white70,
+                            ),
                             onPressed: onRemove,
                           ),
                       ],
@@ -113,18 +131,26 @@ class BingoCardWidget extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: isUnregistered ? AppColors.danger : AppColors.accent,
+                          color: isUnregistered
+                              ? AppColors.danger
+                              : AppColors.accent,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           isUnregistered ? "PENDING" : (label ?? ""),
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-
 
                   Padding(
                     padding: const EdgeInsets.all(12.0),
@@ -142,76 +168,114 @@ class BingoCardWidget extends StatelessWidget {
                     Builder(
                       builder: (context) {
                         final now = DateTime.now();
-                        final bool isExpired = claimDeadline != null && now.isAfter(claimDeadline!);
-                        final bool isRegistered = card.status.toLowerCase().contains('reg') && !isUnregistered;
-                        final bool canClaim = isRegistered && drawnNumbers.isNotEmpty && !isExpired;
-                        
+                        final bool isExpired =
+                            claimDeadline != null &&
+                            now.isAfter(claimDeadline!);
+                        final bool isRegistered =
+                            card.status.toLowerCase().contains('reg') &&
+                            !isUnregistered;
+                        final bool canClaim =
+                            isRegistered &&
+                            drawnNumbers.isNotEmpty &&
+                            !isExpired;
+
                         return Padding(
                           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                           child: SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
                               onPressed: () {
-                                 if (!isRegistered) {
-                                   if (onRegister != null) {
-                                     onRegister!();
-                                   } else {
-                                     ScaffoldMessenger.of(context).showSnackBar(
-                                       const SnackBar(
-                                         content: Text("Registration is only allowed during the Buying Phase!"),
-                                         behavior: SnackBarBehavior.floating,
-                                       ),
-                                     );
-                                   }
-                                   return;
-                                 }
+                                if (!isRegistered) {
+                                  if (onRegister != null) {
+                                    onRegister!();
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Registration is only allowed during the Buying Phase!",
+                                        ),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
 
-                                 if (canClaim) {
-                                   onBingoClaim!();
-                                 } else {
-                                   String msg = "Game hasn't started drawing numbers yet!";
-                                   if (isExpired) msg = "Bingo claim window has closed.";
-                                   else if (drawnNumbers.isEmpty) msg = "Wait for the first number to be drawn!";
+                                if (canClaim) {
+                                  onBingoClaim!();
+                                } else {
+                                  String msg =
+                                      "Game hasn't started drawing numbers yet!";
+                                  if (isExpired) {
+                                    msg = "Bingo claim window has closed.";
+                                  } else if (drawnNumbers.isEmpty)
+                                    msg =
+                                        "Wait for the first number to be drawn!";
 
-                                   ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(msg),
                                       behavior: SnackBarBehavior.floating,
                                       duration: const Duration(seconds: 5),
                                     ),
                                   );
-                                 }
+                                }
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: isRegistered 
-                                     ? (canClaim ? AppColors.success : Colors.grey.withOpacity(0.2))
-                                     : (onRegister == null ? Colors.grey.withOpacity(0.5) : AppColors.secondary),
-                                foregroundColor: isRegistered ? Colors.white : Colors.black,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                backgroundColor: isRegistered
+                                    ? (canClaim
+                                          ? AppColors.success
+                                          : Colors.grey.withOpacity(0.2))
+                                    : (onRegister == null
+                                          ? Colors.grey.withOpacity(0.5)
+                                          : AppColors.secondary),
+                                foregroundColor: isRegistered
+                                    ? Colors.white
+                                    : Colors.black,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
                                 elevation: canClaim || !isRegistered ? 10 : 0,
                               ),
                               child: Text(
-                                !isRegistered 
-                                    ? "ACTIVATE CARD" 
-                                    : (isExpired ? "CLAIM CLOSED" : "BINGO"), 
+                                !isRegistered
+                                    ? "ACTIVATE CARD"
+                                    : (isExpired ? "CLAIM CLOSED" : "BINGO"),
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w900, 
+                                  fontWeight: FontWeight.w900,
                                   fontSize: isRegistered ? 20 : 16,
                                   letterSpacing: isRegistered ? 2 : 1,
-                                )
+                                ),
                               ),
                             ),
                           ),
                         );
-                      }
+                      },
                     ),
                 ],
               ),
             ),
-            if (isBlocked) _buildOverlay("BLOCKED", Colors.black.withOpacity(0.85), AppColors.danger),
-            if (isWinner) _buildOverlay("BINGO!", AppColors.success.withOpacity(0.2), AppColors.success),
-            if (card.status == 'claiming') _buildOverlay("CLAIM PENDING", Colors.black54, AppColors.secondary),
+            if (isBlocked)
+              _buildOverlay(
+                "BLOCKED",
+                Colors.black.withOpacity(0.85),
+                AppColors.danger,
+              ),
+            if (isWinner)
+              _buildOverlay(
+                "BINGO!",
+                AppColors.success.withOpacity(0.2),
+                AppColors.success,
+              ),
+            if (card.status == 'claiming')
+              _buildOverlay(
+                "CLAIM PENDING",
+                Colors.black54,
+                AppColors.secondary,
+              ),
           ],
         );
       },
@@ -225,7 +289,9 @@ class BingoCardWidget extends StatelessWidget {
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          foregroundColor: color == AppColors.secondary ? Colors.black : Colors.white,
+          foregroundColor: color == AppColors.secondary
+              ? Colors.black
+              : Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
           elevation: 4,
         ),
@@ -237,18 +303,27 @@ class BingoCardWidget extends StatelessWidget {
   Widget _buildOverlay(String text, Color bgColor, Color labelColor) {
     return Positioned.fill(
       child: Container(
-        decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(20)),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Center(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               color: labelColor,
               borderRadius: BorderRadius.circular(12),
-              boxShadow: [BoxShadow(color: labelColor.withOpacity(0.5), blurRadius: 20)],
+              boxShadow: [
+                BoxShadow(color: labelColor.withOpacity(0.5), blurRadius: 20),
+              ],
             ),
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+              ),
             ),
           ),
         ),
@@ -334,7 +409,11 @@ class BingoCardWidget extends StatelessWidget {
                   border: Border.all(color: borderColor, width: 1.5),
                   boxShadow: [
                     if (isMarked && !isFree)
-                      BoxShadow(color: bgColor.withOpacity(0.4), blurRadius: 8, spreadRadius: 1),
+                      BoxShadow(
+                        color: bgColor.withOpacity(0.4),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
                   ],
                 ),
                 child: Text(

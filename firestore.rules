@@ -18,10 +18,11 @@ service cloud.firestore {
       // Only admins can modify user documents (e.g., role changes).
       allow write: if isAdmin();
 
-      // ----- Deposits (admin‑only writes)
+      // ----- Deposits (user can create, admin can modify)
       match /deposits/{depositId} {
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-        allow write: if isAdmin();
+        allow create: if isAuthenticated() && isOwner(userId);
+        allow update, delete: if isAdmin();
       }
 
       // ----- Withdrawals (user can create, admin can modify)
@@ -40,6 +41,26 @@ service cloud.firestore {
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
         allow write: if false;   // Cloud Functions only
       }
+    }
+
+    // ---- Collection Group Rules for Admin Queries ---------------------------
+    match /{path=**}/deposits/{depositId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/withdrawals/{withdrawId} {
+      allow read: if isAdmin();
+    }
+
+    // ---- Bank SMS Notifications ---------------------------------------------
+    match /bank_notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow write: if false; // Only written via Cloud Functions
+    }
+
+    // ---- Metadata Rules (Payment Settings) ----------------------------------
+    match /metadata/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     // ---- Live Game Document -------------------------------------------------

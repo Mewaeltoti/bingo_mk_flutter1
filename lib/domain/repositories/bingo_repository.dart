@@ -18,5 +18,6 @@ abstract class BingoRepository {
   Stream<List<int>> streamDrawnNumbers(String gameId);
   Future<List<Map<String, dynamic>>> getGameHistory();
   Future<List<Map<String, dynamic>>> getTopPlayers();
+  Future<List<Map<String, dynamic>>> getPaymentAccounts();
   Future<void> initializeGame();
 }

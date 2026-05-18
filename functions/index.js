@@ -19,7 +19,27 @@ exports.seedPool = onCall({ cors: true }, (request) => require("./cartelaService
 exports.cancelGame = onCall({ cors: true }, (request) => require("./cartelaService").cancelGame(request));
 exports.removeCard = onCall({ cors: true }, (request) => require("./cartelaService").removeCard(request));
 
-// Game Engine (v1 triggers/schedule)
-const gameEngine = require("./gameEngine");
-exports.onUserCreated = gameEngine.onUserCreated;
-exports.drawNumberLoop = gameEngine.drawNumberLoop;
+// Game Engine (v1 triggers/schedule - lazy loaded)
+const functions = require("firebase-functions/v1");
+
+exports.onUserCreated = functions.auth.user().onCreate((user) => 
+    require("./gameEngine").onUserCreatedHandler(user)
+);
+
+exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun((context) => 
+    require("./gameEngine").drawNumberLoopHandler(context)
+);
+
+// Auto-Reconciliation Services (Lazy Loaded)
+const { onRequest } = require("firebase-functions/v2/https");
+
+exports.smsWebhook = onRequest({ cors: true }, (req, res) => 
+    require("./reconciliationService").smsWebhook(req, res)
+);
+
+exports.onDepositCreated = functions.firestore
+    .document('users/{userId}/deposits/{depositId}')
+    .onCreate((snap, context) => 
+        require("./reconciliationService").onDepositCreatedHandler(snap, context)
+    );
+

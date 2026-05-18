@@ -292,6 +292,7 @@ class GameCubit extends Cubit<GameState> {
                 : null,
             statusStr: statusStr.toUpperCase(),
             broadcastMessage: gameData['broadcastMessage'],
+            statusMessage: sessionChanged ? "New game session started!" : gameData['statusMessage'],
             pendingClaims: (gameData['pendingClaims'] as List?)
                     ?.map((c) => (c['cardNo'] ?? '').toString())
                     .toList() ??
@@ -314,8 +315,9 @@ class GameCubit extends Cubit<GameState> {
         );
 
         final bool gameEnded = newStatus == GameStatus.won || newStatus == GameStatus.waiting;
+        final bool transitionedToBuying = newStatus == GameStatus.buying && current.status != GameStatus.buying;
 
-        if (sessionChanged || gameEnded) {
+        if (sessionChanged || gameEnded || transitionedToBuying) {
           if (!isClosed) refreshCards();
         }
       });
