@@ -41,23 +41,35 @@ class _SignupPageState extends State<SignupPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back, color: Colors.white70),
             onPressed: () => Navigator.pop(context),
           ),
         ),
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildHero(),
-                  const SizedBox(height: 48),
-                  _buildForm(),
-                  const SizedBox(height: 32),
-                  _buildActionButtons(context),
-                ],
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF020C12), // Cozy Midnight Navy
+                Color(0xFF0C2537), // Soft Deep Blue Slate
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildHero(),
+                    const SizedBox(height: 48),
+                    _buildForm(),
+                    const SizedBox(height: 32),
+                    _buildActionButtons(context),
+                  ],
+                ),
               ),
             ),
           ),
@@ -82,7 +94,7 @@ class _SignupPageState extends State<SignupPage> {
         const SizedBox(height: 8),
         const Text(
           'Join the Bingo Mekele community',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style: TextStyle(color: Colors.white54, fontSize: 14),
         ),
       ],
     );
@@ -129,8 +141,8 @@ class _SignupPageState extends State<SignupPage> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white54),
-        prefixIcon: Icon(icon, color: Colors.white54, size: 20),
+        hintStyle: const TextStyle(color: Colors.white30),
+        prefixIcon: Icon(icon, color: Colors.white30, size: 20),
         filled: true,
         fillColor: AppColors.darkCard,
         contentPadding: const EdgeInsets.symmetric(
@@ -143,7 +155,7 @@ class _SignupPageState extends State<SignupPage> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
     );
@@ -160,11 +172,11 @@ class _SignupPageState extends State<SignupPage> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(
-                  colors: [AppColors.secondary, Color(0xFFFFC107)],
+                  colors: [AppColors.primary, Color(0xFF1E3A5F)],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.secondary.withOpacity(0.3),
+                    color: AppColors.primary.withOpacity(0.15),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -217,11 +229,11 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                 ),
                 child: const Text(
-                  'GET STARTED',
+                  'CREATE ACCOUNT',
                   style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
                   ),
                 ),
               ),

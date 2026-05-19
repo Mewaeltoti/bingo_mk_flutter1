@@ -43,20 +43,31 @@ class _LoginPageState extends State<LoginPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.darkBackground,
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildHero(),
-                  const SizedBox(height: 48),
-                  _buildForm(),
-                  const SizedBox(height: 32),
-                  _buildActionButtons(context),
-                ],
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF020C12), // Cozy Midnight Navy
+                Color(0xFF0C2537), // Soft Deep Blue Slate
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildHero(),
+                    const SizedBox(height: 48),
+                    _buildForm(),
+                    const SizedBox(height: 32),
+                    _buildActionButtons(context),
+                  ],
+                ),
               ),
             ),
           ),
@@ -79,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               TextSpan(
                 text: 'BINGO ',
-                style: TextStyle(color: AppColors.primary),
+                style: TextStyle(color: Colors.white),
               ),
               TextSpan(
                 text: 'Mk',
@@ -92,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
         const Text(
           'Play. Win. Celebrate.',
           style: TextStyle(
-            color: Colors.white70,
+            color: Colors.white54,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -135,8 +146,8 @@ class _LoginPageState extends State<LoginPage> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white54),
-        prefixIcon: Icon(icon, color: Colors.white54, size: 20),
+        hintStyle: const TextStyle(color: Colors.white30),
+        prefixIcon: Icon(icon, color: Colors.white30, size: 20),
         filled: true,
         fillColor: AppColors.darkCard,
         contentPadding: const EdgeInsets.symmetric(
@@ -149,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
     );
@@ -166,11 +177,11 @@ class _LoginPageState extends State<LoginPage> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(
-                  colors: [AppColors.secondary, Color(0xFFFFC107)],
+                  colors: [AppColors.primary, Color(0xFF1E3A5F)],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.secondary.withOpacity(0.3),
+                    color: AppColors.primary.withOpacity(0.15),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -193,9 +204,9 @@ class _LoginPageState extends State<LoginPage> {
                 child: const Text(
                   'SIGN IN',
                   style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
                   ),
                 ),
               ),
@@ -207,7 +218,7 @@ class _LoginPageState extends State<LoginPage> {
           children: [
             Expanded(
               child: _buildSecondaryButton(
-                label: 'Sign Up',
+                label: 'Create New Account',
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -229,12 +240,12 @@ class _LoginPageState extends State<LoginPage> {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.white,
-        side: const BorderSide(color: Colors.white24),
+        foregroundColor: AppColors.secondary,
+        side: const BorderSide(color: AppColors.secondary, width: 1.2),
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
     );
   }
 }
