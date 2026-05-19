@@ -337,10 +337,7 @@ class GameCubit extends Cubit<GameState> {
             markedCells: sessionChanged ? {} : null,
             blockedCardIds: sessionChanged ? {} : null,
             userCards: current.userCards
-                .where((c) =>
-                    c.sessionId == newSessionId ||
-                    c.sessionId.isEmpty ||
-                    c.status == 'pending')
+                .where((c) => c.sessionId == newSessionId)
                 .toList(),
           ),
         );
@@ -383,13 +380,16 @@ class GameCubit extends Cubit<GameState> {
     try {
       final dbCards = await _bingoRepository.getUserCartelas(userId, kLiveGameId);
       
-      // Get all local-only pending cards from the current state
+      // Filter database cards to only keep cards that belong to the current active session
+      final activeDbCards = dbCards.where((c) => c.sessionId == current.sessionId).toList();
+      
+      // Get all local-only pending cards from the current state that belong to the current active session
       final localPendingCards = current.userCards
-          .where((c) => c.status == 'pending' && c.sessionId.isNotEmpty)
+          .where((c) => c.status == 'pending' && c.sessionId == current.sessionId)
           .toList();
 
       // Combine database cards with local pending cards
-      final combinedCards = [...dbCards, ...localPendingCards];
+      final combinedCards = [...activeDbCards, ...localPendingCards];
 
       emit(current.copyWith(userCards: combinedCards));
     } catch (e, stack) {
@@ -524,7 +524,7 @@ class GameCubit extends Cubit<GameState> {
       // Update local state first to prevent duplicate merging!
       final updatedCards = current.userCards.map((c) {
         if (c.id == cardId) {
-          return c.copyWith(status: 'registered', sessionId: '');
+          return c.copyWith(status: 'registered', sessionId: current.sessionId);
         }
         return c;
       }).toList();
@@ -568,7 +568,7 @@ class GameCubit extends Cubit<GameState> {
       return;
     }
 
-    if (card.status == 'pending' && card.sessionId.isNotEmpty) {
+    if (card.status == 'pending') {
       // Pending card is local only! Remove instantly with zero network cost!
       final updatedCards = current.userCards.where((c) => c.id != cardId).toList();
       emit(current.copyWith(userCards: updatedCards, statusMessage: "Card discarded."));
@@ -618,7 +618,7 @@ class GameCubit extends Cubit<GameState> {
       // Clear the local pending status of these cards in-memory first to prevent duplicates!
       final updatedCards = current.userCards.map((c) {
         if (c.status == 'pending') {
-          return c.copyWith(status: 'registered', sessionId: '');
+          return c.copyWith(status: 'registered', sessionId: current.sessionId);
         }
         return c;
       }).toList();
@@ -655,37 +655,14 @@ class GameCubit extends Cubit<GameState> {
     final pendingCards = current.userCards.where((c) => c.status == 'pending').toList();
     if (pendingCards.isEmpty) return;
 
+    // All pending cards are local only! Discard them instantly in memory with zero network cost!
+    final pendingIds = pendingCards.map((c) => c.id).toSet();
+    final updatedCards = current.userCards.where((c) => !pendingIds.contains(c.id)).toList();
+    
     emit(current.copyWith(
-      isActionLoading: true,
-      statusMessage: "Discarding pending cards...",
+      userCards: updatedCards,
+      statusMessage: "Pending cards discarded successfully!",
     ));
-
-    try {
-      final localPending = pendingCards.where((c) => c.sessionId.isNotEmpty).map((c) => c.id).toSet();
-      final dbPending = pendingCards.where((c) => c.sessionId.isEmpty).toList();
-
-      for (var card in dbPending) {
-        await _bingoRepository.removeCard(card.id);
-      }
-
-      final updatedCards = current.userCards.where((c) => !localPending.contains(c.id)).toList();
-      emit(current.copyWith(userCards: updatedCards));
-
-      await refreshCards();
-      emit((state as GameLoaded).copyWith(
-        isActionLoading: false,
-        statusMessage: "Pending cards discarded successfully!",
-      ));
-    } catch (e, stack) {
-      Log.e("Failed to discard all cards", e, stack);
-      await refreshCards();
-      if (state is GameLoaded) {
-        emit((state as GameLoaded).copyWith(
-          isActionLoading: false,
-          statusMessage: "Discard failed: ${e.toString()}",
-        ));
-      }
-    }
   }
 
   /// CLAIM BINGO VIA CLOUD FUNCTION
