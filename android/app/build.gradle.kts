@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.bingomk.bingo_mk"
     compileSdk = 35
-    ndkVersion = "28.1.13354025"
+    
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
