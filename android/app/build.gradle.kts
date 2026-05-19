@@ -5,11 +5,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
 }
-
 android {
     namespace = "com.bingomk.bingo_mk"
     compileSdk = 35
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.1.13354025"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
