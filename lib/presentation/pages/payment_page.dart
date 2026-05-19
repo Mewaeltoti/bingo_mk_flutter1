@@ -86,21 +86,7 @@ class _PaymentPageState extends State<PaymentPage>
           'Wallet Ledger',
           style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.primary),
-            onPressed: () {
-              context.read<WalletCubit>().loadWallet();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Refreshing wallet...'),
-                  duration: Duration(seconds: 1),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
-        ],
+
       ),
       body: BlocConsumer<WalletCubit, WalletState>(
         listener: (context, state) {

@@ -275,83 +275,103 @@ class _GamePageState extends State<GamePage> {
                 ],
               ),
               body: state is GameLoaded
-                  ? SingleChildScrollView(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: [
-                          FadeInUp(
-                            duration: const Duration(milliseconds: 500),
-                            child: SessionCardWidget(state: state),
-                          ),
+                  ? RefreshIndicator(
+                      onRefresh: () async {
+                        await context.read<GameCubit>().refreshCards();
+                      },
+                      color: AppColors.primary,
+                      backgroundColor: AppColors.darkCard,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            FadeInUp(
+                              duration: const Duration(milliseconds: 500),
+                              child: SessionCardWidget(state: state),
+                            ),
 
-                          if (state.claimDeadline != null &&
-                              state.status == GameStatus.paused)
-                            _ClaimTimerWidget(deadline: state.claimDeadline!),
+                            if (state.claimDeadline != null &&
+                                state.status == GameStatus.paused)
+                              _ClaimTimerWidget(deadline: state.claimDeadline!),
 
-                          const SizedBox(height: 10),
+                            const SizedBox(height: 10),
 
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: GestureDetector(
-                              onTap: () =>
-                                  setState(() => _expanded = !_expanded),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _expanded
-                                        ? Icons.keyboard_arrow_up
-                                        : Icons.keyboard_arrow_down,
-                                    color: AppColors.secondary,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _expanded ? "Show Less" : "Show More",
-                                    style: const TextStyle(
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    setState(() => _expanded = !_expanded),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _expanded
+                                          ? Icons.keyboard_arrow_up
+                                          : Icons.keyboard_arrow_down,
                                       color: AppColors.secondary,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
+                                      size: 20,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _expanded ? "Show Less" : "Show More",
+                                      style: const TextStyle(
+                                        color: AppColors.secondary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
 
-                          if (_expanded) ...[
-                            const SizedBox(height: 8),
-                            FadeIn(
-                              child: LiveBoardWidget(
-                                drawnNumbers: state.drawnNumbers,
+                            if (_expanded) ...[
+                              const SizedBox(height: 8),
+                              FadeIn(
+                                child: LiveBoardWidget(
+                                  drawnNumbers: state.drawnNumbers,
+                                ),
                               ),
-                            ),
-                          ] else
-                            RecentNumbersWidget(numbers: state.drawnNumbers),
+                            ] else
+                              RecentNumbersWidget(numbers: state.drawnNumbers),
 
-                          const SizedBox(height: 16),
+                            const SizedBox(height: 16),
 
-                          if (state.status != GameStatus.buying &&
-                              state.winners.isNotEmpty)
+                            if (state.status != GameStatus.buying &&
+                                state.winners.isNotEmpty)
+                              HorizontalBadgeList(
+                                icon: Icons.check_circle,
+                                color: AppColors.success,
+                                label: "WINNERS:",
+                                items: state.winners,
+                                onItemTap: (item) => _showCardTransparencyDialog(
+                                  context,
+                                  item,
+                                  state,
+                                  isWinner: true,
+                                ),
+                              ),
+
+                            if (state.pendingClaims.isNotEmpty)
+                              HorizontalBadgeList(
+                                icon: Icons.hourglass_empty,
+                                color: AppColors.warning,
+                                label: "PENDING:",
+                                items: state.pendingClaims,
+                                onItemTap: (item) => _showCardTransparencyDialog(
+                                  context,
+                                  item,
+                                  state,
+                                  isWinner: false,
+                                ),
+                              ),
+
                             HorizontalBadgeList(
-                              icon: Icons.check_circle,
-                              color: AppColors.success,
-                              label: "WINNERS:",
-                              items: state.winners,
-                              onItemTap: (item) => _showCardTransparencyDialog(
-                                context,
-                                item,
-                                state,
-                                isWinner: true,
-                              ),
-                            ),
-
-                          if (state.pendingClaims.isNotEmpty)
-                            HorizontalBadgeList(
-                              icon: Icons.hourglass_empty,
-                              color: AppColors.warning,
-                              label: "PENDING:",
-                              items: state.pendingClaims,
+                              icon: Icons.assignment_turned_in,
+                              color: AppColors.secondary,
+                              label: "CLAIMS:",
+                              items: state.claimedCardIds,
                               onItemTap: (item) => _showCardTransparencyDialog(
                                 context,
                                 item,
@@ -360,46 +380,34 @@ class _GamePageState extends State<GamePage> {
                               ),
                             ),
 
-                          HorizontalBadgeList(
-                            icon: Icons.assignment_turned_in,
-                            color: AppColors.secondary,
-                            label: "CLAIMS:",
-                            items: state.claimedCardIds,
-                            onItemTap: (item) => _showCardTransparencyDialog(
-                              context,
-                              item,
-                              state,
-                              isWinner: false,
+                            HorizontalBadgeList(
+                              icon: Icons.block,
+                              color: AppColors.danger,
+                              label: "BLOCKED:",
+                              items: state.blockedCardIds.toList(),
+                              onItemTap: (item) => _showCardTransparencyDialog(
+                                context,
+                                item,
+                                state,
+                                isBlocked: true,
+                              ),
                             ),
-                          ),
 
-                          HorizontalBadgeList(
-                            icon: Icons.block,
-                            color: AppColors.danger,
-                            label: "BLOCKED:",
-                            items: state.blockedCardIds.toList(),
-                            onItemTap: (item) => _showCardTransparencyDialog(
-                              context,
-                              item,
-                              state,
-                              isBlocked: true,
+
+
+                            CardsGridWidget(
+                              cards: state.userCards,
+                              markedCells: state.markedCells,
+                              blockedCards: state.blockedCardIds,
+                              drawnNumbers: state.drawnNumbers,
+                              status: state.status,
+                              winningCardNo: state.status == GameStatus.buying ? null : state.winningCardNo,
+                              claimDeadline: state.claimDeadline,
                             ),
-                          ),
 
-
-
-                          CardsGridWidget(
-                            cards: state.userCards,
-                            markedCells: state.markedCells,
-                            blockedCards: state.blockedCardIds,
-                            drawnNumbers: state.drawnNumbers,
-                            status: state.status,
-                            winningCardNo: state.status == GameStatus.buying ? null : state.winningCardNo,
-                            claimDeadline: state.claimDeadline,
-                          ),
-
-                          const SizedBox(height: 100),
-                        ],
+                            const SizedBox(height: 100),
+                          ],
+                        ),
                       ),
                     )
                   : const GamePageSkeleton(),
