@@ -3,6 +3,7 @@ import '../../domain/entities/bingo_card.dart';
 abstract class BingoRepository {
   Future<void> createGame(String gameId, Map<String, dynamic> data);
   Stream<Map<String, dynamic>> streamGame(String gameId);
+  Stream<List<Map<String, dynamic>>> streamGameWinners();
   Future<void> drawNumber(String gameId, int number);
   Future<void> buyCartelas(String userId, {int count = 1});
   Future<void> registerCard(String cardId, List<int> numbers);

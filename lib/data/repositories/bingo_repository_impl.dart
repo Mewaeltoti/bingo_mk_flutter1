@@ -32,6 +32,14 @@ class BingoRepositoryImpl implements BingoRepository {
   }
 
   @override
+  Stream<List<Map<String, dynamic>>> streamGameWinners() {
+    return _firestore
+        .collection('game_winners')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  @override
   Future<void> drawNumber(String gameId, int number) async {
     // CLIENTS CAN NO LONGER DRAW NUMBERS
     throw UnimplementedError(

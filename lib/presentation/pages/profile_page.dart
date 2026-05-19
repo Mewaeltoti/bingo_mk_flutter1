@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
 import '../blocs/wallet_cubit.dart';
 import '../../core/theme/app_theme.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -18,12 +19,10 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     context.read<WalletCubit>().loadWallet();
-    // Assuming auth state has the user info
-    final state = context.read<AuthCubit>().state;
-    if (state is AuthAuthenticated) {
-      // In a real app, we'd fetch the profile details
-      _nameController.text = 'Player';
-    }
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final email = currentUser?.email ?? '';
+    final cleanPhone = email.contains('@') ? email.split('@').first : (currentUser?.phoneNumber ?? 'Player');
+    _nameController.text = cleanPhone;
   }
 
   @override
@@ -106,11 +105,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildForm() {
-    final state = context.watch<AuthCubit>().state;
-    String phoneNumber = "Unknown";
-    if (state is AuthAuthenticated) {
-      phoneNumber = state.userId;
-    }
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final email = currentUser?.email ?? '';
+    final phoneNumber = email.contains('@') ? email.split('@').first : (currentUser?.phoneNumber ?? 'Unknown');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,7 +176,10 @@ class _ProfilePageState extends State<ProfilePage> {
     return SizedBox(
       width: double.infinity,
       child: TextButton.icon(
-        onPressed: () => context.read<AuthCubit>().logout(),
+        onPressed: () {
+          Navigator.pop(context);
+          context.read<AuthCubit>().logout();
+        },
         icon: const Icon(Icons.logout, size: 20, color: Colors.redAccent),
         label: const Text(
           'SIGN OUT',

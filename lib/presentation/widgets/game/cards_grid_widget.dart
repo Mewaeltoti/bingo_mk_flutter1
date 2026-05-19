@@ -69,7 +69,7 @@ class CardsGridWidget extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 40),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.46,
+        childAspectRatio: 0.58,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
+import '../blocs/wallet_cubit.dart';
 import '../../core/services/audio_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../pages/payment_page.dart';
+import '../pages/profile_page.dart';
 
 class SettingsDrawer extends StatefulWidget {
   final VoidCallback onClose;
@@ -30,7 +33,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
       child: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF1E88E5), Color(0xFF8E24AA)],
+            colors: [AppColors.darkBackground, AppColors.darkCard],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -53,24 +56,25 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                         AudioService().toggleMute();
                       },
                     ),
-                    _buildToggleItem(
-                      Icons.dark_mode,
-                      'Dark Mode',
-                      _darkMode,
-                      (val) {
-                        setState(() => _darkMode = val);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Theme settings coming soon!')),
-                        );
-                      },
-                    ),
+                    _buildToggleItem(Icons.dark_mode, 'Dark Mode', _darkMode, (
+                      val,
+                    ) {
+                      setState(() => _darkMode = val);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Theme settings coming soon!'),
+                        ),
+                      );
+                    }),
                     _buildLanguageItem(),
                     const SizedBox(height: 24),
                     _buildSectionTitle('ACCOUNT'),
                     _buildActionItem(Icons.help_outline, 'Support', () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Contact support at +251911234567')),
-                        );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Contact support at +251911234567'),
+                        ),
+                      );
                     }),
                     const SizedBox(height: 24),
                     _buildLogoutButton(context),
@@ -80,7 +84,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
               const Padding(
                 padding: EdgeInsets.all(16.0),
                 child: Text(
-                  'v1.0.0 (Bingo Ethio)',
+                  'v1.0.0 (Bingo Mekele) by Toti Tech',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,

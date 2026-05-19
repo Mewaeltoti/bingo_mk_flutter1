@@ -49,13 +49,23 @@ exports.drawNumberLoopHandler = async (context) => {
                     }
                     await counterRef.set({ currentSessionId: sessionNum }, { merge: true });
 
-                    // Unregister all cards that are not pending (set back to pending)
-                    const activeCards = await db.collectionGroup('cards').where('status', '!=', 'pending').get();
+                    // Delete all game winners for the new session
+                    const liveWinners = await db.collection('game_winners').get();
+                    if (!liveWinners.empty) {
+                        let batch = db.batch();
+                        for (const doc of liveWinners.docs) {
+                            batch.delete(doc.ref);
+                        }
+                        await batch.commit();
+                    }
+
+                    // Delete all cards to start a clean new session
+                    const activeCards = await db.collectionGroup('cards').get();
                     if (!activeCards.empty) {
                         let batch = db.batch();
                         let count = 0;
                         for (const doc of activeCards.docs) {
-                            batch.update(doc.ref, { status: 'pending', sessionId: '' });
+                            batch.delete(doc.ref);
                             count++;
                             if (count % 400 === 0) {
                                 await batch.commit();
@@ -86,6 +96,10 @@ exports.drawNumberLoopHandler = async (context) => {
                         claimDeadline: null,
                         pendingClaims: [],
                         confirmedWinners: [],
+                        winnerId: null,
+                        winningCardNo: null,
+                        winningCardNumbers: null,
+                        winners: [],
                         statusMessage: "Waiting for players..."
                     });
                 }
@@ -133,7 +147,31 @@ exports.drawNumberLoopHandler = async (context) => {
                             const userDoc = await transaction.get(userRef);
                             const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
                             transaction.update(userRef, { balance: currentBalance + prizePerWinner });
+
+                            // Write to game_winners collection
+                            const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
+                            transaction.set(winnerRef, {
+                                sessionId: game.sessionId || 'N/A',
+                                cardNo: winner.cardNo.toString(),
+                                userId: winner.userId,
+                                phone: winner.phone || 'Player',
+                                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
                         }
+
+                        // Write to game history
+                        const historyRef = db.collection('game_history').doc();
+                        transaction.set(historyRef, {
+                            sessionId: game.sessionId || 'N/A',
+                            status: 'won',
+                            prize: game.prizePool || 0,
+                            drawnNumbers: game.drawnNumbers || [],
+                            cardsSold: game.cardsSold || 0,
+                            winnerId: allWinners[0].userId,
+                            winnerName: allWinners[0].phone || 'Player',
+                            winningCardNo: allWinners[0].cardNo,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
                     });
 
                     await gameDoc.ref.update({
@@ -168,10 +206,11 @@ exports.drawNumberLoopHandler = async (context) => {
             continue;
         }
 
-        if (game.status !== 'active') {
-            console.log(`Game is in ${game.status} state. Skipping number draw.`);
+        const pendingClaims = game.pendingClaims || [];
+        if (game.status !== 'active' || pendingClaims.length > 0) {
+            console.log(`Game is in ${game.status} state with ${pendingClaims.length} pending claims. Skipping number draw.`);
             await new Promise(resolve => setTimeout(resolve, 5000));
-            continue; // Wait if not active
+            continue; // Wait if not active or if there are pending claims
         }
 
         const drawnNumbers = game.drawnNumbers || [];

@@ -79,4 +79,24 @@ class BingoCard {
     this.sessionId = '',
     this.createdAt,
   });
+
+  BingoCard copyWith({
+    String? id,
+    List<List<int>>? numbers,
+    double? price,
+    String? status,
+    int? cardNo,
+    String? sessionId,
+    DateTime? createdAt,
+  }) {
+    return BingoCard(
+      id: id ?? this.id,
+      numbers: numbers ?? this.numbers,
+      price: price ?? this.price,
+      status: status ?? this.status,
+      cardNo: cardNo ?? this.cardNo,
+      sessionId: sessionId ?? this.sessionId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }

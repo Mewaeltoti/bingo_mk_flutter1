@@ -224,16 +224,24 @@ exports.startNewGame = async (request) => {
             return { success: true, sessionId: sessionNum };
         });
 
-        // Unregister all 'registered' cards for the new session
-        const registeredCardsSnapshot = await db.collectionGroup('cards')
-            .where('status', '==', 'registered')
-            .get();
+        // Delete all game winners for the new session
+        const liveWinners = await db.collection('game_winners').get();
+        if (!liveWinners.empty) {
+            let winnerBatch = db.batch();
+            for (const doc of liveWinners.docs) {
+                winnerBatch.delete(doc.ref);
+            }
+            await winnerBatch.commit();
+        }
+
+        // Delete all cards for the new session
+        const registeredCardsSnapshot = await db.collectionGroup('cards').get();
 
         if (!registeredCardsSnapshot.empty) {
             let cardBatch = db.batch();
             let count = 0;
             for (const doc of registeredCardsSnapshot.docs) {
-                cardBatch.update(doc.ref, { status: 'pending', sessionId: '' });
+                cardBatch.delete(doc.ref);
                 count++;
                 if (count === 400) {
                     await cardBatch.commit();
@@ -363,16 +371,24 @@ exports.cancelGame = async (request) => {
             return { success: true, oldSession: game.sessionId, newSession: nextSession };
         });
 
-        // Unregister all 'registered' cards for the new session
-        const registeredCardsSnapshot = await db.collectionGroup('cards')
-            .where('status', '==', 'registered')
-            .get();
+        // Delete all game winners for the new session
+        const liveWinners = await db.collection('game_winners').get();
+        if (!liveWinners.empty) {
+            let winnerBatch = db.batch();
+            for (const doc of liveWinners.docs) {
+                winnerBatch.delete(doc.ref);
+            }
+            await winnerBatch.commit();
+        }
+
+        // Delete all cards for the new session
+        const registeredCardsSnapshot = await db.collectionGroup('cards').get();
 
         if (!registeredCardsSnapshot.empty) {
             let cardBatch = db.batch();
             let count = 0;
             for (const doc of registeredCardsSnapshot.docs) {
-                cardBatch.update(doc.ref, { status: 'pending', sessionId: '' });
+                cardBatch.delete(doc.ref);
                 count++;
                 if (count === 400) {
                     await cardBatch.commit();
@@ -444,16 +460,24 @@ exports.removeCard = async (request) => {
 };
 
 exports.resetAllRegisteredCards = async (db) => {
-    // Reset ALL cards that are not already pending (includes 'registered' and 'claiming' cards)
-    const cardsToReset = await db.collectionGroup('cards')
-        .where('status', '!=', 'pending')
-        .get();
+    // Delete all game winners for the new session
+    const liveWinners = await db.collection('game_winners').get();
+    if (!liveWinners.empty) {
+        let winnerBatch = db.batch();
+        for (const doc of liveWinners.docs) {
+            winnerBatch.delete(doc.ref);
+        }
+        await winnerBatch.commit();
+    }
+
+    // Delete ALL cards for reset
+    const cardsToReset = await db.collectionGroup('cards').get();
 
     if (!cardsToReset.empty) {
         let cardBatch = db.batch();
         let count = 0;
         for (const doc of cardsToReset.docs) {
-            cardBatch.update(doc.ref, { status: 'pending', sessionId: '' });
+            cardBatch.delete(doc.ref);
             count++;
             if (count === 400) {
                 await cardBatch.commit();

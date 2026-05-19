@@ -14,6 +14,15 @@ class SignupPage extends StatefulWidget {
 class _SignupPageState extends State<SignupPage> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,11 +81,8 @@ class _SignupPageState extends State<SignupPage> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Join the Bingo Ethio community',
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 14,
-          ),
+          'Join the Bingo Mekele community',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
         ),
       ],
     );
@@ -98,6 +104,13 @@ class _SignupPageState extends State<SignupPage> {
           icon: Icons.lock_outline,
           isPassword: true,
         ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _confirmPasswordController,
+          hint: 'Confirm Password',
+          icon: Icons.lock_outline,
+          isPassword: true,
+        ),
       ],
     );
   }
@@ -116,14 +129,17 @@ class _SignupPageState extends State<SignupPage> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textSecondary),
-        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+        hintStyle: const TextStyle(color: Colors.white54),
+        prefixIcon: Icon(icon, color: Colors.white54, size: 20),
         filled: true,
-        fillColor: AppColors.card,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        fillColor: AppColors.darkCard,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: Colors.white10, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -144,7 +160,7 @@ class _SignupPageState extends State<SignupPage> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(
-                  colors: [AppColors.secondary, Color(0xFF6A11CB)],
+                  colors: [AppColors.secondary, Color(0xFFFFC107)],
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -156,10 +172,42 @@ class _SignupPageState extends State<SignupPage> {
               ),
               child: ElevatedButton(
                 onPressed: () {
-                  context.read<AuthCubit>().signUp(
-                        _phoneController.text,
-                        _passwordController.text,
-                      );
+                  final phone = _phoneController.text.trim();
+                  final password = _passwordController.text;
+                  final confirm = _confirmPasswordController.text;
+
+                  if (phone.isEmpty || password.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please fill all registration fields'),
+                        backgroundColor: AppColors.danger,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  if (phone.length < 9) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter a valid phone number'),
+                        backgroundColor: AppColors.danger,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  if (password != confirm) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Passwords do not match'),
+                        backgroundColor: AppColors.danger,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+
+                  context.read<AuthCubit>().signUp(phone, password);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
@@ -171,7 +219,7 @@ class _SignupPageState extends State<SignupPage> {
                 child: const Text(
                   'GET STARTED',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.black,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1,
                   ),

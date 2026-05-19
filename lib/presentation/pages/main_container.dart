@@ -15,12 +15,21 @@ class MainContainer extends StatefulWidget {
   @override
   State<MainContainer> createState() => _MainContainerState();
 }
-
 class _MainContainerState extends State<MainContainer> {
   int _currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      GamePage(onTabChanged: (index) {
+        setState(() {
+          _currentIndex = index;
+        });
+      }),
+      const PaymentPage(),
+      const ProfilePage(),
+    ];
+
     return MultiBlocListener(
       listeners: [
         BlocListener<GameCubit, GameState>(
@@ -54,99 +63,63 @@ class _MainContainerState extends State<MainContainer> {
           },
         ),
       ],
-      child: BlocBuilder<AuthCubit, AuthState>(
-        builder: (context, state) {
-          final List<Widget> pages = [
-            const GamePage(),
-            const PaymentPage(),
-            const ProfilePage(),
-          ];
-
-          final List<Map<String, dynamic>> items = [
-            {'icon': Icons.gamepad, 'label': 'Game'},
-            {'icon': Icons.account_balance_wallet, 'label': 'Wallet'},
-            {'icon': Icons.person, 'label': 'Profile'},
-          ];
-
-          if (_currentIndex >= pages.length) _currentIndex = 0;
-
-          return Scaffold(
-            body: IndexedStack(index: _currentIndex, children: pages),
-            bottomNavigationBar: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                        color: Colors.black.withOpacity(0.08),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: List.generate(
-                      items.length,
-                      (index) => _buildNavItem(
-                        index,
-                        items[index]['icon'],
-                        items[index]['label'],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildNavItem(int index, IconData icon, String label) {
-    final bool isActive = _currentIndex == index;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () => setState(() => _currentIndex = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.primary.withOpacity(0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+      child: Scaffold(
+        backgroundColor: AppColors.darkBackground,
+        body: IndexedStack(
+          index: _currentIndex,
+          children: pages,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isActive ? AppColors.primary : AppColors.textSecondary,
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            border: const Border(
+              top: BorderSide(color: Colors.white10, width: 1),
             ),
-            if (isActive) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
               ),
             ],
-          ],
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            backgroundColor: AppColors.darkCard,
+            selectedItemColor: AppColors.primary,
+            unselectedItemColor: Colors.white38,
+            selectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+              letterSpacing: 0.5,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 11,
+            ),
+            type: BottomNavigationBarType.fixed,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.sports_esports_outlined),
+                activeIcon: Icon(Icons.sports_esports, color: AppColors.primary),
+                label: 'Play Bingo',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.account_balance_wallet_outlined),
+                activeIcon: Icon(Icons.account_balance_wallet, color: AppColors.primary),
+                label: 'My Wallet',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                activeIcon: Icon(Icons.person, color: AppColors.primary),
+                label: 'Profile',
+              ),
+            ],
+          ),
         ),
       ),
     );

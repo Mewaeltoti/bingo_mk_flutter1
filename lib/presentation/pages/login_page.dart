@@ -20,12 +20,26 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
       listenWhen: (previous, current) =>
-          (previous is AuthLoading) != (current is AuthLoading),
+          (previous is AuthLoading) != (current is AuthLoading) ||
+          current is AuthError,
       listener: (context, state) {
         if (state is AuthLoading) {
           LoadingDialog.show(context);
         } else {
           LoadingDialog.hide(context);
+        }
+
+        if (state is AuthError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: AppColors.danger,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
         }
       },
       child: Scaffold(
@@ -68,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
                 style: TextStyle(color: AppColors.primary),
               ),
               TextSpan(
-                text: 'ETHIO',
+                text: 'Mk',
                 style: TextStyle(color: AppColors.secondary),
               ),
             ],
@@ -165,9 +179,9 @@ class _LoginPageState extends State<LoginPage> {
               child: ElevatedButton(
                 onPressed: () {
                   context.read<AuthCubit>().login(
-                        _phoneController.text,
-                        _passwordController.text,
-                      );
+                    _phoneController.text,
+                    _passwordController.text,
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,

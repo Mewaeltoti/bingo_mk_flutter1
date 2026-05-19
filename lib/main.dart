@@ -18,22 +18,16 @@ import 'presentation/pages/dashboard_page.dart';
 import 'presentation/pages/main_container.dart';
 import 'presentation/pages/splash_page.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   final authRepository = AuthRepositoryImpl();
   final bingoRepository = BingoRepositoryImpl();
 
   runApp(
-    BingoApp(
-      authRepository: authRepository,
-      bingoRepository: bingoRepository,
-    ),
+    BingoApp(authRepository: authRepository, bingoRepository: bingoRepository),
   );
 }
 
@@ -57,7 +51,7 @@ class BingoApp extends StatelessWidget {
       child: BlocProvider(
         create: (_) => AuthCubit(authRepository),
         child: MaterialApp(
-          title: 'Bingo Ethio',
+          title: 'Bingo MK',
           debugShowCheckedModeBanner: false,
 
           // 🌙 DARK MODE ENABLED
@@ -71,8 +65,6 @@ class BingoApp extends StatelessWidget {
     );
   }
 }
-
-
 
 /// ============================
 /// 🔥 CLEAN ROUTING LAYER
@@ -120,6 +112,15 @@ class _AppRouterState extends State<AppRouter> {
               ),
             ],
             child: const MainContainer(),
+          );
+        }
+
+        if (state is AuthInitial || state is AuthLoading) {
+          return const Scaffold(
+            backgroundColor: AppColors.darkBackground,
+            body: Center(
+              child: CircularProgressIndicator(color: AppColors.secondary),
+            ),
           );
         }
 

@@ -83,7 +83,7 @@ class _SplashPageState extends State<SplashPage>
                       _buildLogo(),
                       const SizedBox(height: 24),
                       const Text(
-                        'BINGO ETHIO',
+                        'BINGO MEKELE',
                         style: TextStyle(
                           fontFamily: 'Orbitron',
                           fontSize: 32,

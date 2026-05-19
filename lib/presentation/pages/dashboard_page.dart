@@ -50,7 +50,7 @@ class DashboardPage extends StatelessWidget {
                 style: TextStyle(color: AppColors.primary),
               ),
               TextSpan(
-                text: 'ETHIO',
+                text: 'MK',
                 style: TextStyle(color: AppColors.secondary),
               ),
             ],

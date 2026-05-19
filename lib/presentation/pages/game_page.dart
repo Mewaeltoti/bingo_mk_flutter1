@@ -6,6 +6,9 @@ import 'package:confetti/confetti.dart';
 import 'package:animate_do/animate_do.dart';
 
 import '../blocs/game_cubit.dart';
+import '../blocs/wallet_cubit.dart';
+import 'payment_page.dart';
+import 'profile_page.dart';
 import '../widgets/settings_drawer.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -19,7 +22,9 @@ import '../widgets/bingo_card_widget.dart';
 import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 
 class GamePage extends StatefulWidget {
-  const GamePage({super.key});
+  final Function(int index)? onTabChanged;
+
+  const GamePage({super.key, this.onTabChanged});
 
   @override
   State<GamePage> createState() => _GamePageState();
@@ -32,6 +37,7 @@ class _GamePageState extends State<GamePage> {
   bool _expanded = true;
   bool _shownWinSnack = false;
   bool _shownDialog = false;
+  bool _showBulkPanel = true;
   String? _lastShownStatusMessage;
 
   @override
@@ -101,11 +107,12 @@ class _GamePageState extends State<GamePage> {
         if (state is GameLoaded) {
           if (state.statusMessage != null && state.statusMessage!.isNotEmpty) {
             final message = state.statusMessage!;
-            final isGenericLoopMsg = message.contains('drawn') || 
-                                     message.contains('Waiting') || 
-                                     message.contains('resumed') || 
-                                     message.contains('Playing') || 
-                                     message.contains('Verification');
+            final isGenericLoopMsg =
+                message.contains('drawn') ||
+                message.contains('Waiting') ||
+                message.contains('resumed') ||
+                message.contains('Playing') ||
+                message.contains('Verification');
 
             if (message != _lastShownStatusMessage && !isGenericLoopMsg) {
               _lastShownStatusMessage = message;
@@ -114,11 +121,15 @@ class _GamePageState extends State<GamePage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(message),
-                    backgroundColor: message.contains('Failed') || message.contains('Invalid')
-                        ? AppColors.danger 
+                    backgroundColor:
+                        message.contains('Failed') ||
+                            message.contains('Invalid')
+                        ? AppColors.danger
                         : AppColors.success,
                     behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     duration: const Duration(seconds: 4),
                   ),
                 );
@@ -130,7 +141,7 @@ class _GamePageState extends State<GamePage> {
             _lastShownStatusMessage = null;
           }
 
-          if (state.status == GameStatus.won) {
+          if (state.status == GameStatus.won && state.hasWon) {
             _confettiController.play();
             if (state.hasWon && !_shownWinSnack) {
               _shownWinSnack = true;
@@ -160,22 +171,101 @@ class _GamePageState extends State<GamePage> {
             Scaffold(
               key: _scaffoldKey,
               backgroundColor: AppColors.darkBackground,
-              endDrawer: SettingsDrawer(onClose: () => Navigator.pop(context)),
+              endDrawer: BlocProvider.value(
+                value: context.read<WalletCubit>(),
+                child: SettingsDrawer(onClose: () => Navigator.pop(context)),
+              ),
               appBar: AppBar(
+                leading: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Material(
+                    color: Colors.white.withOpacity(0.08),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () {
+                        if (widget.onTabChanged != null) {
+                          widget.onTabChanged!(2); // Switch to Profile tab
+                        } else {
+                          final walletCubit = BlocProvider.of<WalletCubit>(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BlocProvider.value(
+                                value: walletCubit,
+                                child: const ProfilePage(),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Center(
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 flexibleSpace: Container(
                   decoration: const BoxDecoration(
                     gradient: AppColors.headerGradient,
                   ),
                 ),
-                title: FadeInDown(
-                  child: Text(
-                    state is GameLoaded ? "TOTI BINGO" : "Bingo Live",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 20,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
+                title: BlocBuilder<WalletCubit, WalletState>(
+                  builder: (context, walletState) {
+                    double balance = 0;
+                    if (walletState is WalletLoaded) {
+                      balance = walletState.balance;
+                    }
+                    return FadeInDown(
+                      child: InkWell(
+                        onTap: () {
+                          if (widget.onTabChanged != null) {
+                            widget.onTabChanged!(1); // Switch to Wallet tab
+                          } else {
+                            final walletCubit = BlocProvider.of<WalletCubit>(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlocProvider.value(
+                                  value: walletCubit,
+                                  child: const PaymentPage(),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withOpacity(0.12)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.account_balance_wallet, color: AppColors.secondary, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                "${balance.toStringAsFixed(2)} ETB",
+                                style: const TextStyle(
+                                  fontFamily: 'Orbitron',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 actions: [
                   IconButton(
@@ -193,8 +283,9 @@ class _GamePageState extends State<GamePage> {
                             duration: const Duration(milliseconds: 500),
                             child: SessionCardWidget(state: state),
                           ),
-                          
-                          if (state.claimDeadline != null && state.status == GameStatus.paused)
+
+                          if (state.claimDeadline != null &&
+                              state.status == GameStatus.paused)
                             _ClaimTimerWidget(deadline: state.claimDeadline!),
 
                           const SizedBox(height: 10),
@@ -230,26 +321,56 @@ class _GamePageState extends State<GamePage> {
 
                           if (_expanded) ...[
                             const SizedBox(height: 8),
-                            FadeIn(child: LiveBoardWidget(drawnNumbers: state.drawnNumbers)),
+                            FadeIn(
+                              child: LiveBoardWidget(
+                                drawnNumbers: state.drawnNumbers,
+                              ),
+                            ),
                           ] else
                             RecentNumbersWidget(numbers: state.drawnNumbers),
 
                           const SizedBox(height: 16),
 
-                          HorizontalBadgeList(
-                            icon: Icons.check_circle,
-                            color: AppColors.success,
-                            label: "WINNERS:",
-                            items: state.winners,
-                            onItemTap: (item) => _showCardTransparencyDialog(context, item, state, isWinner: true),
-                          ),
+                          if (state.status != GameStatus.buying &&
+                              state.winners.isNotEmpty)
+                            HorizontalBadgeList(
+                              icon: Icons.check_circle,
+                              color: AppColors.success,
+                              label: "WINNERS:",
+                              items: state.winners,
+                              onItemTap: (item) => _showCardTransparencyDialog(
+                                context,
+                                item,
+                                state,
+                                isWinner: true,
+                              ),
+                            ),
+
+                          if (state.pendingClaims.isNotEmpty)
+                            HorizontalBadgeList(
+                              icon: Icons.hourglass_empty,
+                              color: AppColors.warning,
+                              label: "PENDING:",
+                              items: state.pendingClaims,
+                              onItemTap: (item) => _showCardTransparencyDialog(
+                                context,
+                                item,
+                                state,
+                                isWinner: false,
+                              ),
+                            ),
 
                           HorizontalBadgeList(
                             icon: Icons.assignment_turned_in,
                             color: AppColors.secondary,
                             label: "CLAIMS:",
                             items: state.claimedCardIds,
-                            onItemTap: (item) => _showCardTransparencyDialog(context, item, state, isWinner: false),
+                            onItemTap: (item) => _showCardTransparencyDialog(
+                              context,
+                              item,
+                              state,
+                              isWinner: false,
+                            ),
                           ),
 
                           HorizontalBadgeList(
@@ -257,10 +378,15 @@ class _GamePageState extends State<GamePage> {
                             color: AppColors.danger,
                             label: "BLOCKED:",
                             items: state.blockedCardIds.toList(),
-                            onItemTap: (item) => _showCardTransparencyDialog(context, item, state, isBlocked: true),
+                            onItemTap: (item) => _showCardTransparencyDialog(
+                              context,
+                              item,
+                              state,
+                              isBlocked: true,
+                            ),
                           ),
 
-                          const SizedBox(height: 16),
+
 
                           CardsGridWidget(
                             cards: state.userCards,
@@ -268,7 +394,7 @@ class _GamePageState extends State<GamePage> {
                             blockedCards: state.blockedCardIds,
                             drawnNumbers: state.drawnNumbers,
                             status: state.status,
-                            winningCardNo: state.winningCardNo,
+                            winningCardNo: state.status == GameStatus.buying ? null : state.winningCardNo,
                             claimDeadline: state.claimDeadline,
                           ),
 
@@ -282,12 +408,19 @@ class _GamePageState extends State<GamePage> {
                   ? ZoomIn(
                       child: FloatingActionButton.extended(
                         backgroundColor: AppColors.secondary,
-                        onPressed: () => _showBuyCartelaBottomSheet(context, state),
+                        onPressed: () =>
+                            _showBuyCartelaBottomSheet(context, state),
                         label: const Text(
-                          "BUY CARDS", 
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                          "BUY CARDS",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                         ),
-                        icon: const Icon(Icons.add_shopping_cart, color: Colors.black),
+                        icon: const Icon(
+                          Icons.add_shopping_cart,
+                          color: Colors.black,
+                        ),
                       ),
                     )
                   : null,
@@ -298,7 +431,13 @@ class _GamePageState extends State<GamePage> {
                 confettiController: _confettiController,
                 blastDirectionality: BlastDirectionality.explosive,
                 shouldLoop: false,
-                colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
+                colors: const [
+                  Colors.green,
+                  Colors.blue,
+                  Colors.pink,
+                  Colors.orange,
+                  Colors.purple,
+                ],
               ),
             ),
             // Paused overlay has been removed to avoid blocking the user's screen.
@@ -321,11 +460,17 @@ class _GamePageState extends State<GamePage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 24,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.darkCard,
                       borderRadius: BorderRadius.circular(25),
-                      border: Border.all(color: AppColors.secondary.withOpacity(0.5), width: 2),
+                      border: Border.all(
+                        color: AppColors.secondary.withOpacity(0.5),
+                        width: 2,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.secondary.withOpacity(0.2),
@@ -336,7 +481,11 @@ class _GamePageState extends State<GamePage> {
                     ),
                     child: Column(
                       children: [
-                        const Icon(Icons.pause_circle_filled, color: AppColors.secondary, size: 64),
+                        const Icon(
+                          Icons.pause_circle_filled,
+                          color: AppColors.secondary,
+                          size: 64,
+                        ),
                         const SizedBox(height: 16),
                         const Text(
                           "GAME PAUSED",
@@ -358,12 +507,18 @@ class _GamePageState extends State<GamePage> {
                         ),
                         const SizedBox(height: 24),
                         if (state.claimDeadline != null)
-                          _ClaimTimerWidget(deadline: state.claimDeadline!, isOverlay: true),
+                          _ClaimTimerWidget(
+                            deadline: state.claimDeadline!,
+                            isOverlay: true,
+                          ),
                         const SizedBox(height: 16),
                         Text(
                           state.statusMessage ?? "Waiting for other players...",
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -431,16 +586,20 @@ class _GamePageState extends State<GamePage> {
                 children: [1, 2, 5, 10, 25].map((count) {
                   final canBuy = (state.userCards.length + count) <= 25;
                   return InkWell(
-                    onTap: canBuy ? () {
-                      Navigator.pop(ctx);
-                      context.read<GameCubit>().buyCard(count: count);
-                    } : null,
+                    onTap: canBuy
+                        ? () {
+                            Navigator.pop(ctx);
+                            context.read<GameCubit>().buyCard(count: count);
+                          }
+                        : null,
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       width: 80,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
-                        color: canBuy ? AppColors.secondary.withOpacity(0.1) : Colors.white.withOpacity(0.02),
+                        color: canBuy
+                            ? AppColors.secondary.withOpacity(0.1)
+                            : Colors.white.withOpacity(0.02),
                         border: Border.all(
                           color: canBuy ? AppColors.secondary : Colors.white10,
                           width: 1.5,
@@ -452,7 +611,9 @@ class _GamePageState extends State<GamePage> {
                           Text(
                             "$count",
                             style: TextStyle(
-                              color: canBuy ? AppColors.secondary : Colors.white38,
+                              color: canBuy
+                                  ? AppColors.secondary
+                                  : Colors.white38,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               fontFamily: 'Orbitron',
@@ -496,7 +657,12 @@ class _GamePageState extends State<GamePage> {
     if (isBlocked) {
       final userCard = state.userCards.firstWhere(
         (c) => c.id == item || c.cardNo.toString() == item,
-        orElse: () => BingoCard(id: '', cardNo: int.tryParse(item) ?? 0, numbers: [], price: 10),
+        orElse: () => BingoCard(
+          id: '',
+          cardNo: int.tryParse(item) ?? 0,
+          numbers: [],
+          price: 10,
+        ),
       );
       if (userCard.id.isNotEmpty) {
         numbersList = userCard.numbers.expand((row) => row).toList();
@@ -524,8 +690,10 @@ class _GamePageState extends State<GamePage> {
       if (found != null) {
         cardNo = (found['cardNo'] ?? item).toString();
         final rawPhone = found['phone'] ?? '';
-        phone = rawPhone.toString().isNotEmpty ? "ስልክ ቁጥር: $rawPhone" : "ስልክ ቁጥር: 0910117997";
-        
+        phone = rawPhone.toString().isNotEmpty
+            ? "ስልክ ቁጥር: $rawPhone"
+            : "ስልክ ቁጥር: 0910117997";
+
         final rawNumbers = found['numbers'];
         if (rawNumbers is List) {
           for (var x in rawNumbers) {
@@ -549,7 +717,8 @@ class _GamePageState extends State<GamePage> {
 
     Set<String> markedCellSet = {};
     if (isBlocked) {
-      markedCellSet = state.markedCells[cardNo] ?? state.markedCells[item] ?? {};
+      markedCellSet =
+          state.markedCells[cardNo] ?? state.markedCells[item] ?? {};
     } else if (found != null && found['markedCells'] != null) {
       markedCellSet = Set<String>.from(found['markedCells']);
     }
@@ -594,7 +763,11 @@ class _GamePageState extends State<GamePage> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.credit_card, color: Colors.white, size: 22),
+                            const Icon(
+                              Icons.credit_card,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               "ካርቴላ: $cardNo",
@@ -607,39 +780,16 @@ class _GamePageState extends State<GamePage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          phone,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: AppColors.secondary,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            "መጫወቻ ቁጥር: ${state.drawnNumbers.isNotEmpty ? state.drawnNumbers.last : '-'}",
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 11,
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
 
                   Padding(
-                    padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
+                    padding: const EdgeInsets.only(
+                      top: 16,
+                      left: 16,
+                      right: 16,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -657,22 +807,26 @@ class _GamePageState extends State<GamePage> {
                     child: GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 5,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 5,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
                       itemCount: 25,
                       itemBuilder: (context, index) {
                         final row = index ~/ 5;
                         final col = index % 5;
-                        
+
                         if (row == 2 && col == 2) {
                           return Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.success.withOpacity(0.2),
-                              border: Border.all(color: AppColors.success, width: 1.5),
+                              border: Border.all(
+                                color: AppColors.success,
+                                width: 1.5,
+                              ),
                             ),
                             alignment: Alignment.center,
                             child: const Text(
@@ -688,17 +842,19 @@ class _GamePageState extends State<GamePage> {
                         }
 
                         final numVal = numbersList[index];
-                        final isUserMarked = markedCellSet.contains('$row-$col');
+                        final isUserMarked = markedCellSet.contains(
+                          '$row-$col',
+                        );
 
                         return Container(
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: isUserMarked 
-                                ? AppColors.danger 
+                            color: isUserMarked
+                                ? AppColors.danger
                                 : Colors.white.withOpacity(0.05),
                             border: Border.all(
-                              color: isUserMarked 
-                                  ? AppColors.danger 
+                              color: isUserMarked
+                                  ? AppColors.danger
                                   : Colors.white10,
                               width: 1.5,
                             ),
@@ -707,7 +863,9 @@ class _GamePageState extends State<GamePage> {
                           child: Text(
                             "$numVal",
                             style: TextStyle(
-                              color: isUserMarked ? Colors.white : Colors.white70,
+                              color: isUserMarked
+                                  ? Colors.white
+                                  : Colors.white70,
                               fontWeight: FontWeight.w900,
                               fontSize: 14,
                               decoration: TextDecoration.none,
@@ -858,7 +1016,11 @@ class _ClaimTimerWidgetState extends State<_ClaimTimerWidget> {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 "UNTIL CLAIM WINDOW CLOSES",
-                style: TextStyle(color: color.withOpacity(0.6), fontSize: 10, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: color.withOpacity(0.6),
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
         ],

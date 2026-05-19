@@ -390,7 +390,31 @@ exports.confirmBingoClaim = async (request) => {
                 const userDoc = await transaction.get(userRef);
                 const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
                 transaction.update(userRef, { balance: currentBalance + prizePerWinner });
+
+                // Write to game_winners collection
+                const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
+                transaction.set(winnerRef, {
+                    sessionId: game.sessionId || 'N/A',
+                    cardNo: winner.cardNo.toString(),
+                    userId: winner.userId,
+                    phone: winner.phone || 'Player',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
             }
+
+            // Write to game history
+            const historyRef = db.collection('game_history').doc();
+            transaction.set(historyRef, {
+                sessionId: game.sessionId || 'N/A',
+                status: 'won',
+                prize: game.prizePool || 0,
+                drawnNumbers: game.drawnNumbers || [],
+                cardsSold: game.cardsSold || 0,
+                winnerId: confirmedWinners[0].userId,
+                winnerName: confirmedWinners[0].phone || 'Player',
+                winningCardNo: confirmedWinners[0].cardNo,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
 
             // Mark game as won and set end time so it auto-resets in 15 seconds!
             updates.status = 'won';
@@ -476,7 +500,31 @@ exports.finalizeGameAndPayout = async (request) => {
             const userDoc = await transaction.get(userRef);
             const currentBalance = userDoc.data().balance || 0;
             transaction.update(userRef, { balance: currentBalance + prizePerWinner });
+
+            // Write to game_winners collection
+            const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
+            transaction.set(winnerRef, {
+                sessionId: game.sessionId || 'N/A',
+                cardNo: winner.cardNo.toString(),
+                userId: winner.userId,
+                phone: winner.phone || 'Player',
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
         }
+
+        // Write to game history
+        const historyRef = db.collection('game_history').doc();
+        transaction.set(historyRef, {
+            sessionId: game.sessionId || 'N/A',
+            status: 'won',
+            prize: game.prizePool || 0,
+            drawnNumbers: game.drawnNumbers || [],
+            cardsSold: game.cardsSold || 0,
+            winnerId: winners[0].userId,
+            winnerName: winners[0].phone || 'Player',
+            winningCardNo: winners[0].cardNo,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
 
         // Set game to won
         transaction.update(gameRef, {

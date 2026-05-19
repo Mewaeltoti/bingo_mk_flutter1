@@ -65,226 +65,213 @@ class BingoCardWidget extends StatelessWidget {
         final double cellSize = (availableWidth - (12 * 2) - (4 * 4)) / 5;
         final bool isCardDisabled = isBlocked || isWinner || card.status == 'claiming';
 
-        return Stack(
-          children: [
-            Opacity(
-              opacity: isCardDisabled ? 0.6 : 1.0,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.darkCard,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white10),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black45,
-                      blurRadius: 15,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Gold/Teal Top Bar
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(20),
+        // Pre-calculate status badge parameters inline to save vertical space
+        String? badgeText;
+        Color badgeColor = AppColors.accent;
+
+        if (isBlocked) {
+          badgeText = "BLOCKED";
+          badgeColor = AppColors.danger;
+        } else if (isWinner) {
+          badgeText = "WINNER!";
+          badgeColor = AppColors.success;
+        } else if (card.status == 'claiming') {
+          badgeText = "CLAIMING";
+          badgeColor = AppColors.secondary;
+        } else if (isUnregistered) {
+          badgeText = "PENDING";
+          badgeColor = AppColors.danger;
+        } else if (label != null) {
+          badgeText = label;
+        }
+
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            width: availableWidth,
+            child: Stack(
+              children: [
+                Opacity(
+                  opacity: isCardDisabled ? 0.6 : 1.0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.darkCard,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white10),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black45,
+                          blurRadius: 15,
+                          offset: Offset(0, 8),
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.tablet_android,
-                            size: 16,
-                            color: AppColors.secondary,
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Ultra Compact Transparent Top Bar
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            "CARD #${card.cardNo}",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (onRemove != null)
-                            IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              icon: const Icon(
-                                Icons.cancel,
-                                size: 20,
-                                color: Colors.white70,
+                          child: Row(
+                            children: [
+                              Text(
+                                "CARD #${card.cardNo}",
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
-                              onPressed: onRemove,
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    Builder(
-                      builder: (context) {
-                        String? badgeText;
-                        Color badgeColor = AppColors.accent;
-
-                        if (isBlocked) {
-                          badgeText = "BLOCKED";
-                          badgeColor = AppColors.danger;
-                        } else if (isWinner) {
-                          badgeText = "WINNER!";
-                          badgeColor = AppColors.success;
-                        } else if (card.status == 'claiming') {
-                          badgeText = "CLAIM PENDING";
-                          badgeColor = AppColors.secondary;
-                        } else if (isUnregistered) {
-                          badgeText = "PENDING";
-                          badgeColor = AppColors.danger;
-                        } else if (label != null) {
-                          badgeText = label;
-                        }
-
-                        if (badgeText == null) return const SizedBox.shrink();
-
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: badgeColor,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              badgeText.toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                    ),
-
-                    Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        children: [
-                          _buildHeader(cellSize),
-                          const SizedBox(height: 8),
-                          _buildGrid(cellSize),
-                        ],
-                      ),
-                    ),
-
-                    // Actions at the bottom
-                    if (!isBlocked)
-                      Builder(
-                        builder: (context) {
-                          final now = DateTime.now();
-                          final bool isExpired =
-                              claimDeadline != null &&
-                              now.isAfter(claimDeadline!);
-                          final bool isRegistered =
-                              card.status.toLowerCase().contains('reg') &&
-                              !isUnregistered;
-                          final bool canClaim =
-                              isRegistered &&
-                              drawnNumbers.isNotEmpty &&
-                              !isExpired;
-
-                          return Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  if (!isRegistered) {
-                                    if (onRegister != null) {
-                                      onRegister!();
-                                    } else {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            "Registration is only allowed during the Buying Phase!",
-                                          ),
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                    }
-                                    return;
-                                  }
-
-                                  if (canClaim) {
-                                    onBingoClaim!();
-                                  } else {
-                                    String msg =
-                                        "Game hasn't started drawing numbers yet!";
-                                    if (isExpired) {
-                                      msg = "Bingo claim window has closed.";
-                                    } else if (drawnNumbers.isEmpty)
-                                      msg =
-                                          "Wait for the first number to be drawn!";
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(msg),
-                                        behavior: SnackBarBehavior.floating,
-                                        duration: const Duration(seconds: 5),
-                                      ),
-                                    );
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isRegistered
-                                      ? (canClaim
-                                            ? AppColors.success
-                                            : Colors.grey.withOpacity(0.2))
-                                      : (onRegister == null
-                                            ? Colors.grey.withOpacity(0.5)
-                                            : AppColors.secondary),
-                                  foregroundColor: isRegistered
-                                      ? Colors.white
-                                      : Colors.black,
+                              if (badgeText != null) ...[
+                                const SizedBox(width: 6),
+                                Container(
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
+                                    horizontal: 6,
+                                    vertical: 2,
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(15),
+                                  decoration: BoxDecoration(
+                                    color: badgeColor,
+                                    borderRadius: BorderRadius.circular(6),
                                   ),
-                                  elevation: canClaim || !isRegistered ? 10 : 0,
+                                  child: Text(
+                                    badgeText.toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
-                                child: Text(
-                                  !isRegistered
-                                      ? "ACTIVATE CARD"
-                                      : (isExpired ? "CLAIM CLOSED" : "BINGO"),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: isRegistered ? 20 : 16,
-                                    letterSpacing: isRegistered ? 2 : 1,
+                              ],
+                              const Spacer(),
+                              if (onRemove != null)
+                                IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: const Icon(
+                                    Icons.cancel,
+                                    size: 16,
+                                    color: Colors.white70,
+                                  ),
+                                  onPressed: onRemove,
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: Column(
+                            children: [
+                              _buildHeader(cellSize),
+                              const SizedBox(height: 2),
+                              _buildGrid(cellSize),
+                            ],
+                          ),
+                        ),
+
+                        // Actions at the bottom
+                        if (!isBlocked)
+                          Builder(
+                            builder: (context) {
+                              final now = DateTime.now();
+                              final bool isExpired =
+                                  claimDeadline != null &&
+                                  now.isAfter(claimDeadline!);
+                              final bool isRegistered =
+                                  card.status.toLowerCase().contains('reg') &&
+                                  !isUnregistered;
+                              final bool canClaim =
+                                  isRegistered &&
+                                  drawnNumbers.isNotEmpty &&
+                                  !isExpired;
+
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 32,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      if (!isRegistered) {
+                                        if (onRegister != null) {
+                                          onRegister!();
+                                        } else {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                "Registration is only allowed during the Buying Phase!",
+                                              ),
+                                              behavior: SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        }
+                                        return;
+                                      }
+
+                                      if (canClaim) {
+                                        onBingoClaim!();
+                                      } else {
+                                        String msg =
+                                            "Game hasn't started drawing numbers yet!";
+                                        if (isExpired) {
+                                          msg = "Bingo claim window has closed.";
+                                        } else if (drawnNumbers.isEmpty)
+                                          msg =
+                                              "Wait for the first number to be drawn!";
+
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(msg),
+                                            behavior: SnackBarBehavior.floating,
+                                            duration: const Duration(seconds: 5),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: isRegistered
+                                          ? (canClaim
+                                                ? AppColors.success
+                                                : Colors.grey.withOpacity(0.2))
+                                          : (onRegister == null
+                                                ? Colors.grey.withOpacity(0.5)
+                                                : AppColors.secondary),
+                                      foregroundColor: isRegistered
+                                          ? Colors.white
+                                          : Colors.black,
+                                      padding: EdgeInsets.zero,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      elevation: canClaim || !isRegistered ? 3 : 0,
+                                    ),
+                                    child: Text(
+                                      !isRegistered
+                                          ? "ACTIVATE"
+                                          : (isExpired ? "CLOSED" : "BINGO"),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: isRegistered ? 12 : 10,
+                                        letterSpacing: isRegistered ? 1.2 : 0.6,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                  ],
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -409,7 +396,7 @@ class BingoCardWidget extends StatelessWidget {
                 duration: const Duration(milliseconds: 250),
                 width: cellSize,
                 height: cellSize,
-                margin: const EdgeInsets.symmetric(vertical: 3),
+                margin: const EdgeInsets.symmetric(vertical: 1.5),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
