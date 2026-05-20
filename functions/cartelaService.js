@@ -56,7 +56,8 @@ exports.buyCard = async (request) => {
                 cardNo: randomId,
                 numbers: poolDoc.data().numbers,
                 status: 'pending',
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 2 * 60 * 60 * 1000))
             });
             results.push(randomId.toString());
         }
@@ -71,11 +72,9 @@ exports.buyCard = async (request) => {
 exports.registerCard = async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
 
-    const { cardId, numbers } = request.data || {};
+    const { cardId } = request.data || {};
     if (!cardId) throw new HttpsError('invalid-argument', 'cardId is required.');
-    if (!numbers || !Array.isArray(numbers)) {
-        throw new HttpsError('invalid-argument', 'numbers array is required.');
-    }
+    
 
     const userId = request.auth.uid;
     const db = admin.firestore();
@@ -95,6 +94,10 @@ exports.registerCard = async (request) => {
 
             const userDoc = await transaction.get(userRef);
             const gameDoc = await transaction.get(gameRef);
+
+            const poolDoc = await transaction.get(db.collection('cartelas_pool').doc(cardId.toString()));
+            if (!poolDoc.exists) throw new Error("Invalid card number. Not found in pool.");
+            const numbers = poolDoc.data().numbers;
 
             if (!gameDoc.exists) throw new Error("Live game document (games/live) does not exist.");
             const gameData = gameDoc.data();
@@ -145,14 +148,15 @@ exports.registerCard = async (request) => {
                 numbers25.splice(12, 0, 0);
             }
 
-            transaction.update(userRef, { balance: balance - price });
+            transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(-price) });
             transaction.set(cardRef, {
                 gameId: 'live',
                 sessionId: sessionId,
                 cardNo: Number(cardId),
                 numbers: numbers25,
                 status: 'registered',
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 2 * 60 * 60 * 1000))
             });
             transaction.update(gameRef, { cardsSold: admin.firestore.FieldValue.increment(1) });
 
@@ -234,25 +238,7 @@ exports.startNewGame = async (request) => {
             await winnerBatch.commit();
         }
 
-        // Delete all cards for the new session
-        const registeredCardsSnapshot = await db.collectionGroup('cards').get();
-
-        if (!registeredCardsSnapshot.empty) {
-            let cardBatch = db.batch();
-            let count = 0;
-            for (const doc of registeredCardsSnapshot.docs) {
-                cardBatch.delete(doc.ref);
-                count++;
-                if (count === 400) {
-                    await cardBatch.commit();
-                    cardBatch = db.batch();
-                    count = 0;
-                }
-            }
-            if (count > 0) {
-                await cardBatch.commit();
-            }
-        }
+        // TTL handles card deletion; no manual batch deletion needed.
 
         return result;
     } catch (error) {
@@ -381,25 +367,7 @@ exports.cancelGame = async (request) => {
             await winnerBatch.commit();
         }
 
-        // Delete all cards for the new session
-        const registeredCardsSnapshot = await db.collectionGroup('cards').get();
-
-        if (!registeredCardsSnapshot.empty) {
-            let cardBatch = db.batch();
-            let count = 0;
-            for (const doc of registeredCardsSnapshot.docs) {
-                cardBatch.delete(doc.ref);
-                count++;
-                if (count === 400) {
-                    await cardBatch.commit();
-                    cardBatch = db.batch();
-                    count = 0;
-                }
-            }
-            if (count > 0) {
-                await cardBatch.commit();
-            }
-        }
+        // TTL handles card deletion; no manual batch deletion needed.
 
         return result;
     } catch (error) {
@@ -470,23 +438,5 @@ exports.resetAllRegisteredCards = async (db) => {
         await winnerBatch.commit();
     }
 
-    // Delete ALL cards for reset
-    const cardsToReset = await db.collectionGroup('cards').get();
-
-    if (!cardsToReset.empty) {
-        let cardBatch = db.batch();
-        let count = 0;
-        for (const doc of cardsToReset.docs) {
-            cardBatch.delete(doc.ref);
-            count++;
-            if (count === 400) {
-                await cardBatch.commit();
-                cardBatch = db.batch();
-                count = 0;
-            }
-        }
-        if (count > 0) {
-            await cardBatch.commit();
-        }
-    }
+    // TTL handles card deletion; no manual batch deletion needed.
 };

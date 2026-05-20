@@ -37,10 +37,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
         title: const Text(
           'Profile',
           style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold),
@@ -177,7 +174,6 @@ class _ProfilePageState extends State<ProfilePage> {
       width: double.infinity,
       child: TextButton.icon(
         onPressed: () {
-          Navigator.pop(context);
           context.read<AuthCubit>().logout();
         },
         icon: const Icon(Icons.logout, size: 20, color: Colors.redAccent),

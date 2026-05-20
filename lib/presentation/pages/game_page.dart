@@ -171,8 +171,11 @@ class _GamePageState extends State<GamePage> {
             Scaffold(
               key: _scaffoldKey,
               backgroundColor: AppColors.darkBackground,
-              endDrawer: BlocProvider.value(
-                value: context.read<WalletCubit>(),
+              endDrawer: MultiBlocProvider(
+                providers: [
+                  BlocProvider.value(value: context.read<WalletCubit>()),
+                  BlocProvider.value(value: context.read<GameCubit>()),
+                ],
                 child: SettingsDrawer(onClose: () => Navigator.pop(context)),
               ),
               appBar: AppBar(

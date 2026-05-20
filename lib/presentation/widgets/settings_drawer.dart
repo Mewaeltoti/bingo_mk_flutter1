@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
 import '../blocs/wallet_cubit.dart';
+import '../blocs/game_cubit.dart';
 import '../../core/services/audio_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../pages/payment_page.dart';
@@ -28,6 +29,10 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final gameCubit = context.watch<GameCubit>();
+    final gameState = gameCubit.state;
+    final bool isAutoDaubEnabled = gameState is GameLoaded ? gameState.isAutoDaubEnabled : false;
+
     return Drawer(
       backgroundColor: Colors.transparent,
       child: Container(
@@ -56,6 +61,15 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                         AudioService().toggleMute();
                       },
                     ),
+                    if (gameState is GameLoaded)
+                      _buildToggleItem(
+                        Icons.brightness_auto,
+                        'Auto-Daub Assistant',
+                        isAutoDaubEnabled,
+                        (val) {
+                          gameCubit.toggleAutoDaub(val);
+                        },
+                      ),
                     _buildToggleItem(Icons.dark_mode, 'Dark Mode', _darkMode, (
                       val,
                     ) {

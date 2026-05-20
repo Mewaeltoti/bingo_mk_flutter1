@@ -49,33 +49,7 @@ exports.drawNumberLoopHandler = async (context) => {
                     }
                     await counterRef.set({ currentSessionId: sessionNum }, { merge: true });
 
-                    // Delete all game winners for the new session
-                    const liveWinners = await db.collection('game_winners').get();
-                    if (!liveWinners.empty) {
-                        let batch = db.batch();
-                        for (const doc of liveWinners.docs) {
-                            batch.delete(doc.ref);
-                        }
-                        await batch.commit();
-                    }
-
-                    // Delete all cards to start a clean new session
-                    const activeCards = await db.collectionGroup('cards').get();
-                    if (!activeCards.empty) {
-                        let batch = db.batch();
-                        let count = 0;
-                        for (const doc of activeCards.docs) {
-                            batch.delete(doc.ref);
-                            count++;
-                            if (count % 400 === 0) {
-                                await batch.commit();
-                                batch = db.batch();
-                            }
-                        }
-                        if (count % 400 !== 0) {
-                            await batch.commit();
-                        }
-                    }
+                    // TTL handles card deletion; no manual batch deletion needed.
 
                     // Generate pre-shuffled sequence of 75 numbers
                     const drawSequence = Array.from({ length: 75 }, (_, i) => i + 1);
@@ -88,7 +62,6 @@ exports.drawNumberLoopHandler = async (context) => {
                         status: 'buying',
                         sessionId: sessionNum,
                         startTime: admin.firestore.FieldValue.serverTimestamp(),
-                        drawnNumbers: [],
                         drawSequence: drawSequence,
                         cardsSold: 0,
                         playersCount: 0,
@@ -213,7 +186,8 @@ exports.drawNumberLoopHandler = async (context) => {
             continue; // Wait if not active or if there are pending claims
         }
 
-        const drawnNumbers = game.drawnNumbers || [];
+                const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
+        const drawnNumbers = rtdbSnap.val() || [];
         const drawSequence = game.drawSequence || [];
 
         // Fallback: if sequence is missing, generate one dynamically on the fly
@@ -242,11 +216,12 @@ exports.drawNumberLoopHandler = async (context) => {
 
             console.log(`Drawing number: ${newNumber}. Total drawn: ${drawnNumbers.length}`);
 
-            const updates = {
+                        const updates = {};
+            await admin.database().ref('games/live').update({
                 currentNumber: newNumber,
                 drawnNumbers: drawnNumbers,
-                lastDrawTime: admin.firestore.FieldValue.serverTimestamp()
-            };
+                lastDrawTime: admin.database.ServerValue.TIMESTAMP
+            });
 
             // Clear "Waiting for players" message if it's still there
             if (game.statusMessage === "Waiting for players...") {

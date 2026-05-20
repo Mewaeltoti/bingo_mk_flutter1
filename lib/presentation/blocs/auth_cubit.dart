@@ -30,11 +30,19 @@ class AuthCubit extends Cubit<AuthState> {
   AuthCubit(this._authRepository) : super(AuthInitial()) {
     _authRepository.user.listen((user) async {
       if (user != null) {
-        final admin = await _authRepository.isAdmin(user.uid);
-        emit(AuthAuthenticated(user.uid, isAdmin: admin));
+        try {
+          final admin = await _authRepository.isAdmin(user.uid);
+          emit(AuthAuthenticated(user.uid, isAdmin: admin));
+        } catch (e) {
+          // Fallback to player role if Firestore is cold-starting, document doesn't exist yet,
+          // or network is offline, to ensure the login session completes successfully.
+          emit(AuthAuthenticated(user.uid, isAdmin: false));
+        }
       } else {
         emit(AuthUnauthenticated());
       }
+    }, onError: (e) {
+      emit(AuthUnauthenticated());
     });
   }
 

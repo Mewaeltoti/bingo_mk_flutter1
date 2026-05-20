@@ -47,6 +47,11 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "cards",
+      "fieldPath": "expiresAt",
+      "ttlConfig": {}
     }
   ]
 }

@@ -15,7 +15,7 @@ exports.finalizeGameAndPayout = onCall({ cors: true }, (request) => require("./v
 exports.buyCard = onCall({ cors: true }, (request) => require("./cartelaService").buyCard(request));
 exports.registerCard = onCall({ cors: true }, (request) => require("./cartelaService").registerCard(request));
 exports.startNewGame = onCall({ cors: true }, (request) => require("./cartelaService").startNewGame(request));
-exports.seedPool = onCall({ cors: true }, (request) => require("./cartelaService").seedPool(request));
+exports.seedPool = onCall({ cors: true, timeoutSeconds: 540 }, (request) => require("./cartelaService").seedPool(request));
 exports.cancelGame = onCall({ cors: true }, (request) => require("./cartelaService").cancelGame(request));
 exports.removeCard = onCall({ cors: true }, (request) => require("./cartelaService").removeCard(request));
 

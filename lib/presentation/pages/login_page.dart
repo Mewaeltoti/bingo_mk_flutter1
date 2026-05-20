@@ -21,7 +21,8 @@ class _LoginPageState extends State<LoginPage> {
     return BlocListener<AuthCubit, AuthState>(
       listenWhen: (previous, current) =>
           (previous is AuthLoading) != (current is AuthLoading) ||
-          current is AuthError,
+          current is AuthError ||
+          current is AuthAuthenticated,
       listener: (context, state) {
         if (state is AuthLoading) {
           LoadingDialog.show(context);
@@ -40,6 +41,11 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           );
+        }
+
+        if (state is AuthAuthenticated) {
+          // Cleanly pop all pushed login screens off the stack, taking the user straight to MainContainer
+          Navigator.of(context).popUntil((route) => route.isFirst);
         }
       },
       child: Scaffold(

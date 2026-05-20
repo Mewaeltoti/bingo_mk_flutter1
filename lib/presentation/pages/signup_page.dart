@@ -28,12 +28,32 @@ class _SignupPageState extends State<SignupPage> {
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
       listenWhen: (previous, current) =>
-          (previous is AuthLoading) != (current is AuthLoading),
+          (previous is AuthLoading) != (current is AuthLoading) ||
+          current is AuthError ||
+          current is AuthAuthenticated,
       listener: (context, state) {
         if (state is AuthLoading) {
           LoadingDialog.show(context);
         } else {
           LoadingDialog.hide(context);
+        }
+
+        if (state is AuthError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: AppColors.danger,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+
+        if (state is AuthAuthenticated) {
+          // Cleanly pop all pushed registration screens off the stack, taking the user straight to MainContainer
+          Navigator.of(context).popUntil((route) => route.isFirst);
         }
       },
       child: Scaffold(

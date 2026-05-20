@@ -78,15 +78,11 @@ class _PaymentPageState extends State<PaymentPage>
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
         title: const Text(
           'Wallet Ledger',
           style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold),
         ),
-
       ),
       body: BlocConsumer<WalletCubit, WalletState>(
         listener: (context, state) {

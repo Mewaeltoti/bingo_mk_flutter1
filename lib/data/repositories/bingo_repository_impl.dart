@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_database/firebase_database.dart';
 import '../../domain/entities/bingo_card.dart';
 import '../../domain/repositories/bingo_repository.dart';
 import '../../core/services/logger_service.dart';
@@ -7,12 +8,15 @@ import '../../core/services/logger_service.dart';
 class BingoRepositoryImpl implements BingoRepository {
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
+  final FirebaseDatabase _database;
 
   BingoRepositoryImpl({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
+    FirebaseDatabase? database,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _functions = functions ?? FirebaseFunctions.instance;
+       _functions = functions ?? FirebaseFunctions.instance,
+       _database = database ?? FirebaseDatabase.instance;
 
   @override
   Future<void> createGame(String gameId, Map<String, dynamic> data) async {
@@ -85,12 +89,30 @@ class BingoRepositoryImpl implements BingoRepository {
   }) async {
     try {
       final result = await _functions.httpsCallable('claimBingo').call({
-        'cardId': cardId,
-        'markedCells': markedCells,
+        'cardIds': [cardId],
+        'markedCellsMap': {cardId: markedCells},
       });
       return result.data['success'] == true;
     } catch (e) {
       Log.e("Repository claimBingo failed", e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<bool> claimMultipleBingo(
+    String gameId,
+    List<String> cardIds, {
+    Map<String, List<String>> markedCellsMap = const {},
+  }) async {
+    try {
+      final result = await _functions.httpsCallable('claimBingo').call({
+        'cardIds': cardIds,
+        'markedCellsMap': markedCellsMap,
+      });
+      return result.data['success'] == true;
+    } catch (e) {
+      Log.e("Repository claimMultipleBingo failed", e);
       rethrow;
     }
   }
@@ -150,15 +172,19 @@ class BingoRepositoryImpl implements BingoRepository {
     return cards;
   }
 
-  @override
+    @override
   Stream<List<int>> streamDrawnNumbers(String gameId) {
-    return _firestore
-        .collection('games')
-        .doc('live')
-        .snapshots()
-        .map(
-          (doc) => (doc.data()?['drawnNumbers'] as List?)?.cast<int>() ?? [],
-        );
+    return _database
+        .ref('games/live/drawnNumbers')
+        .onValue
+        .map((event) {
+          final val = event.snapshot.value;
+          if (val == null) return <int>[];
+          if (val is List) {
+             return val.where((e) => e != null).map((e) => int.parse(e.toString())).toList();
+          }
+          return <int>[];
+        });
   }
 
   @override

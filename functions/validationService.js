@@ -6,22 +6,23 @@ exports.claimBingo = async (request) => {
         throw new HttpsError('unauthenticated', 'Must be logged in.');
     }
 
-    const { cardId } = request.data;
+        const { cardIds } = request.data;
     const userId = request.auth.uid;
     const db = admin.firestore();
-
     const gameRef = db.collection('games').doc('live');
-    const cardRef = db.collection('users').doc(userId).collection('cards').doc(cardId);
 
     try {
         const result = await db.runTransaction(async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            const cardDoc = await transaction.get(cardRef);
-
-            if (!gameDoc.exists || !cardDoc.exists) {
-                console.error(`Claim failed: Game exists: ${gameDoc.exists}, Card exists: ${cardDoc.exists}`);
-                throw new Error("Game or Card not found.");
+                        const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists) throw new Error("Game not found.");
+            
+            const cardDocs = [];
+            for (const cId of cardIds) {
+                const cRef = db.collection('users').doc(userId).collection('cards').doc(cId);
+                const cDoc = await transaction.get(cRef);
+                if (cDoc.exists) cardDocs.push({ id: cId, doc: cDoc, ref: cRef });
             }
+            if (cardDocs.length === 0) throw new Error("No valid cards found.");
 
             const game = gameDoc.data();
             if (game.status !== 'active' && game.status !== 'paused') {
@@ -37,7 +38,8 @@ exports.claimBingo = async (request) => {
             }
 
             const cardNumbers = cardDoc.data().numbers;
-            const drawnNumbers = game.drawnNumbers || [];
+                        const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
+            const drawnNumbers = rtdbSnap.val() || [];
             const pattern = (game.gamePattern || 'full_house').toLowerCase().replace(/[\s_]/g, '');
 
             console.log(`Validating claim for card ${cardId}. Pattern: ${pattern}. Drawn numbers: ${JSON.stringify(drawnNumbers)}`);
@@ -408,7 +410,7 @@ exports.confirmBingoClaim = async (request) => {
                 sessionId: game.sessionId || 'N/A',
                 status: 'won',
                 prize: game.prizePool || 0,
-                drawnNumbers: game.drawnNumbers || [],
+                drawnNumbers: (await admin.database().ref('games/live/drawnNumbers').once('value')).val() || [],
                 cardsSold: game.cardsSold || 0,
                 winnerId: confirmedWinners[0].userId,
                 winnerName: confirmedWinners[0].phone || 'Player',
@@ -518,7 +520,7 @@ exports.finalizeGameAndPayout = async (request) => {
             sessionId: game.sessionId || 'N/A',
             status: 'won',
             prize: game.prizePool || 0,
-            drawnNumbers: game.drawnNumbers || [],
+            drawnNumbers: (await admin.database().ref('games/live/drawnNumbers').once('value')).val() || [],
             cardsSold: game.cardsSold || 0,
             winnerId: winners[0].userId,
             winnerName: winners[0].phone || 'Player',

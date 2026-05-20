@@ -59,6 +59,7 @@ class GameLoaded extends GameState {
   final List<String> pendingClaims;
   final bool isActionLoading;
   final DateTime? claimDeadline;
+  final bool isAutoDaubEnabled;
 
   GameLoaded({
     required this.drawnNumbers,
@@ -89,6 +90,7 @@ class GameLoaded extends GameState {
     this.pendingClaims = const [],
     this.isActionLoading = false,
     this.claimDeadline,
+    this.isAutoDaubEnabled = false,
   });
 
   List<int> get lastDrawnNumbers {
@@ -126,6 +128,7 @@ class GameLoaded extends GameState {
     pendingClaims,
     isActionLoading,
     claimDeadline,
+    isAutoDaubEnabled,
   ];
 
   GameLoaded copyWith({
@@ -157,6 +160,7 @@ class GameLoaded extends GameState {
     List<String>? pendingClaims,
     bool? isActionLoading,
     Object? claimDeadline = _sentinel,
+    bool? isAutoDaubEnabled,
   }) {
     return GameLoaded(
       drawnNumbers: drawnNumbers ?? this.drawnNumbers,
@@ -187,6 +191,7 @@ class GameLoaded extends GameState {
       pendingClaims: pendingClaims ?? this.pendingClaims,
       isActionLoading: isActionLoading ?? this.isActionLoading,
       claimDeadline: claimDeadline == _sentinel ? this.claimDeadline : claimDeadline as DateTime?,
+      isAutoDaubEnabled: isAutoDaubEnabled ?? this.isAutoDaubEnabled,
     );
   }
 
@@ -254,10 +259,32 @@ class GameCubit extends Cubit<GameState> {
           }
         }
 
+        // AUTO-DAUB MECHANIC
+        Map<String, Set<String>>? autoMarked;
+        if (current.isAutoDaubEnabled) {
+          final drawnSet = Set<int>.from(numbers);
+          final map = Map<String, Set<String>>.from(current.markedCells);
+          for (var card in current.userCards) {
+            if (card.status != 'registered') continue;
+            final cells = Set<String>.from(map[card.id] ?? {});
+            for (var r = 0; r < 5; r++) {
+              for (var c = 0; c < 5; c++) {
+                if (r == 2 && c == 2) continue;
+                if (drawnSet.contains(card.numbers[r][c])) {
+                  cells.add('$r-$c');
+                }
+              }
+            }
+            map[card.id] = cells;
+          }
+          autoMarked = map;
+        }
+
         if (isClosed) return;
         emit(
           current.copyWith(
             drawnNumbers: numbers,
+            markedCells: autoMarked,
             status: isTerminal ? current.status : null,
           ),
         );
@@ -687,7 +714,6 @@ class GameCubit extends Cubit<GameState> {
             blockedCardIds: blocked,
             statusMessage: "Invalid claim! Card blocked."));
       } else {
-        // Server will update the official status to 'paused' and set claimDeadline
         emit(current.copyWith(
             isActionLoading: false,
             statusMessage: "Bingo claimed! Waiting for other players..."));
@@ -701,11 +727,86 @@ class GameCubit extends Cubit<GameState> {
       }
     }
   }
+
+  /// CLAIM MULTIPLE BINGOS VIA CLOUD FUNCTION
+  Future<void> claimMultipleBingo(List<String> cardIds) async {
+    if (state is! GameLoaded) return;
+    final current = state as GameLoaded;
+
+    if (cardIds.isEmpty) return;
+
+    emit(current.copyWith(
+      isActionLoading: true,
+      statusMessage: "Verifying ${cardIds.length} BINGO claims...",
+    ));
+
+    try {
+      final Map<String, List<String>> markedCellsMap = {};
+      for (var id in cardIds) {
+        markedCellsMap[id] = current.markedCells[id]?.toList() ?? <String>[];
+      }
+
+      final success = await _bingoRepository.claimMultipleBingo(kLiveGameId, cardIds, markedCellsMap: markedCellsMap);
+
+      if (!success) {
+        AudioService().playError();
+        final blocked = Set<String>.from(current.blockedCardIds)..addAll(cardIds);
+        emit(current.copyWith(
+            isActionLoading: false,
+            blockedCardIds: blocked,
+            statusMessage: "Invalid claims! Cards blocked."));
+      } else {
+        emit(current.copyWith(
+            isActionLoading: false,
+            statusMessage: "${cardIds.length} Bingos claimed! Waiting for other players..."));
+      }
+    } catch (e, stack) {
+      Log.e("Failed to claim multiple bingos", e, stack);
+      if (state is GameLoaded) {
+        emit((state as GameLoaded).copyWith(
+            isActionLoading: false,
+            statusMessage: "Failed to claim bingos: ${e.toString()}"));
+      }
+    }
+  }
   /// CLEAR STATUS MESSAGE
   void clearStatusMessage() {
     if (state is GameLoaded) {
       emit((state as GameLoaded).copyWith(statusMessage: null));
     }
+  }
+
+  /// TOGGLE AUTO-DAUB
+  void toggleAutoDaub(bool enabled) {
+    if (state is! GameLoaded) return;
+    final current = state as GameLoaded;
+    
+    Map<String, Set<String>>? newMarkedCells;
+    if (enabled) {
+      // Auto-daub all numbers drawn so far!
+      final drawnSet = Set<int>.from(current.drawnNumbers);
+      final map = Map<String, Set<String>>.from(current.markedCells);
+      for (var card in current.userCards) {
+        if (card.status != 'registered') continue;
+        final cells = Set<String>.from(map[card.id] ?? {});
+        for (var r = 0; r < 5; r++) {
+          for (var c = 0; c < 5; c++) {
+            if (r == 2 && c == 2) continue;
+            if (drawnSet.contains(card.numbers[r][c])) {
+              cells.add('$r-$c');
+            }
+          }
+        }
+        map[card.id] = cells;
+      }
+      newMarkedCells = map;
+    }
+    
+    emit(current.copyWith(
+      isAutoDaubEnabled: enabled,
+      markedCells: newMarkedCells,
+      statusMessage: enabled ? "Auto-Daub Assistant enabled!" : "Auto-Daub Assistant disabled.",
+    ));
   }
 
   @override

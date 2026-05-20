@@ -62,10 +62,22 @@ class CardsGridWidget extends StatelessWidget {
 
     final drawnSet = Set<int>.from(drawnNumbers);
 
+    final List<BingoCard> sortedCards = List.from(cards);
+    if (status != GameStatus.buying) {
+      sortedCards.sort((a, b) {
+        final matchA = _getMatchCount(a, drawnSet);
+        final matchB = _getMatchCount(b, drawnSet);
+        if (matchA != matchB) {
+          return matchB.compareTo(matchA);
+        }
+        return a.cardNo.compareTo(b.cardNo);
+      });
+    }
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: cards.length,
+      itemCount: sortedCards.length,
       padding: const EdgeInsets.only(bottom: 40),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -74,7 +86,7 @@ class CardsGridWidget extends StatelessWidget {
         mainAxisSpacing: 16,
       ),
       itemBuilder: (_, i) {
-        final card = cards[i];
+        final card = sortedCards[i];
         final isBlocked = blockedCards.contains(card.id);
         final isPending = card.status == 'pending';
         final isBuyingPhase = status == GameStatus.buying;
@@ -102,5 +114,18 @@ class CardsGridWidget extends StatelessWidget {
         );
       },
     );
+  }
+
+  int _getMatchCount(BingoCard card, Set<int> drawnSet) {
+    int count = 0;
+    for (int r = 0; r < 5; r++) {
+      for (int c = 0; c < 5; c++) {
+        if (r == 2 && c == 2) continue;
+        if (drawnSet.contains(card.numbers[r][c])) {
+          count++;
+        }
+      }
+    }
+    return count;
   }
 }
