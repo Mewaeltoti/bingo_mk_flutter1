@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
 import '../blocs/wallet_cubit.dart';
 import '../../core/theme/app_theme.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -19,9 +19,9 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     context.read<WalletCubit>().loadWallet();
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = Supabase.instance.client.auth.currentUser;
     final email = currentUser?.email ?? '';
-    final cleanPhone = email.contains('@') ? email.split('@').first : (currentUser?.phoneNumber ?? 'Player');
+    final cleanPhone = email.contains('@') ? email.split('@').first : (currentUser?.phone ?? 'Player');
     _nameController.text = cleanPhone;
   }
 
@@ -102,9 +102,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildForm() {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = Supabase.instance.client.auth.currentUser;
     final email = currentUser?.email ?? '';
-    final phoneNumber = email.contains('@') ? email.split('@').first : (currentUser?.phoneNumber ?? 'Unknown');
+    final phoneNumber = email.contains('@') ? email.split('@').first : (currentUser?.phone ?? 'Unknown');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

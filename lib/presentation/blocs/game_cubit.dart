@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/bingo_card.dart';
@@ -328,7 +327,9 @@ class GameCubit extends Cubit<GameState> {
                 : null,
             hasWon: newStatus == GameStatus.won && gameData['winnerId'] == userId,
             startTime: gameData['createdAt'] != null
-                ? (gameData['createdAt'] as dynamic).toDate()
+                ? (gameData['createdAt'] is DateTime
+                    ? gameData['createdAt'] as DateTime
+                    : DateTime.tryParse(gameData['createdAt'].toString()))
                 : null,
             statusStr: statusStr.toUpperCase(),
             broadcastMessage: gameData['broadcastMessage'],
@@ -342,11 +343,11 @@ class GameCubit extends Cubit<GameState> {
                     .toList() ??
                 const [],
             claimDeadline: gameData['claimDeadline'] == null ? null : 
-                (gameData['claimDeadline'] is Timestamp 
-                    ? (gameData['claimDeadline'] as Timestamp).toDate()
+                (gameData['claimDeadline'] is DateTime
+                    ? gameData['claimDeadline'] as DateTime
                     : (gameData['claimDeadline'] is int 
-                        ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'])
-                        : null)),
+                        ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
+                        : DateTime.tryParse(gameData['claimDeadline'].toString()))),
             markedCells: sessionChanged ? {} : null,
             blockedCardIds: sessionChanged ? {} : null,
             userCards: current.userCards

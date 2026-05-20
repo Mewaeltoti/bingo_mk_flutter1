@@ -28,15 +28,15 @@ class AuthCubit extends Cubit<AuthState> {
   final AuthRepository _authRepository;
 
   AuthCubit(this._authRepository) : super(AuthInitial()) {
-    _authRepository.user.listen((user) async {
-      if (user != null) {
+    _authRepository.userIdStream.listen((userId) async {
+      if (userId != null) {
         try {
-          final admin = await _authRepository.isAdmin(user.uid);
-          emit(AuthAuthenticated(user.uid, isAdmin: admin));
+          final admin = await _authRepository.isAdmin(userId);
+          emit(AuthAuthenticated(userId, isAdmin: admin));
         } catch (e) {
-          // Fallback to player role if Firestore is cold-starting, document doesn't exist yet,
+          // Fallback to player role if Postgres is cold-starting, document doesn't exist yet,
           // or network is offline, to ensure the login session completes successfully.
-          emit(AuthAuthenticated(user.uid, isAdmin: false));
+          emit(AuthAuthenticated(userId, isAdmin: false));
         }
       } else {
         emit(AuthUnauthenticated());
@@ -68,11 +68,7 @@ class AuthCubit extends Cubit<AuthState> {
     emit(AuthLoading());
     try {
       final email = _formatPhone(phone);
-      final creds = await _authRepository.signUpWithEmail(email, password);
-      if (creds != null && creds.user != null) {
-        // Store the original phone number in the user document
-        await _authRepository.createUserDocument(creds.user!.uid, phone);
-      }
+      await _authRepository.signUpWithEmail(email, password, phone);
     } catch (e) {
       emit(AuthError(e.toString()));
     }

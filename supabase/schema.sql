@@ -101,7 +101,7 @@ BEGIN
     VALUES (
         new.id,
         new.email,
-        new.phone,
+        COALESCE(new.phone, new.raw_user_meta_data->>'phone'),
         'player',
         0.0
     )
@@ -265,4 +265,414 @@ BEGIN
     RETURN jsonb_build_object('success', true);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- --- DEPOSITS, WITHDRAWALS & BANK NOTIFICATIONS TABLES ---
+
+-- 8. Create Deposits table
+CREATE TABLE IF NOT EXISTS public.deposits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    amount NUMERIC NOT NULL CHECK (amount > 0),
+    reference TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    verified_at TIMESTAMPTZ,
+    matched_via TEXT,
+    rejection_reason TEXT
+);
+
+-- 9. Create Withdrawals table
+CREATE TABLE IF NOT EXISTS public.withdrawals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    amount NUMERIC NOT NULL CHECK (amount > 0),
+    status TEXT DEFAULT 'pending',
+    is_reserved BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    reserved_at TIMESTAMPTZ,
+    refunded_at TIMESTAMPTZ,
+    rejection_reason TEXT
+);
+
+-- 10. Create Bank Notifications table (SMS records parsed from webhook)
+CREATE TABLE IF NOT EXISTS public.bank_notifications (
+    reference TEXT PRIMARY KEY,
+    amount NUMERIC NOT NULL,
+    bank TEXT NOT NULL,
+    sender TEXT NOT NULL,
+    text TEXT NOT NULL,
+    status TEXT DEFAULT 'unmatched',
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    deposit_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- --- ROW LEVEL SECURITY FOR DEPOSITS & WITHDRAWALS ---
+ALTER TABLE public.deposits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_notifications ENABLE ROW LEVEL SECURITY;
+
+-- Deposits policies: User can view and insert their own deposits
+DROP POLICY IF EXISTS "Users can view their own deposits" ON public.deposits;
+CREATE POLICY "Users can view their own deposits" ON public.deposits FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create their own deposits" ON public.deposits;
+CREATE POLICY "Users can create their own deposits" ON public.deposits FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Withdrawals policies: User can view and insert their own withdrawals
+DROP POLICY IF EXISTS "Users can view their own withdrawals" ON public.withdrawals;
+CREATE POLICY "Users can view their own withdrawals" ON public.withdrawals FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create their own withdrawals" ON public.withdrawals;
+CREATE POLICY "Users can create their own withdrawals" ON public.withdrawals FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Bank Notifications policies: Only service_role can access (by leaving policies empty with RLS enabled)
+
+-- --- PAYMENT AND BALANCE RECONCILIATION TRIGGERS ---
+
+-- Trigger 1: Auto-reconciliation of deposits with CBE/Telebirr notifications
+CREATE OR REPLACE FUNCTION public.process_deposit()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_approved_exists BOOLEAN;
+    v_bank_amount NUMERIC;
+    v_bank_status TEXT;
+BEGIN
+    -- 1. Check for duplicate references in approved deposits
+    SELECT EXISTS (
+        SELECT 1 FROM public.deposits
+        WHERE reference = NEW.reference
+          AND status = 'approved'
+          AND id != NEW.id
+    ) INTO v_approved_exists;
+
+    IF v_approved_exists THEN
+        NEW.status := 'rejected';
+        NEW.rejection_reason := 'This reference number has already been used for a successful deposit.';
+        RETURN NEW;
+    END IF;
+
+    -- 2. Fetch matched bank record
+    SELECT amount, status INTO v_bank_amount, v_bank_status
+    FROM public.bank_notifications
+    WHERE reference = NEW.reference;
+
+    IF FOUND THEN
+        IF v_bank_status = 'matched' THEN
+            NEW.status := 'rejected';
+            NEW.rejection_reason := 'This transaction reference has already been processed.';
+            RETURN NEW;
+        END IF;
+
+        IF v_bank_status = 'unmatched' THEN
+            IF v_bank_amount = NEW.amount THEN
+                -- Reconcile instantly!
+                NEW.status := 'approved';
+                NEW.verified_at := NOW();
+                NEW.matched_via := 'on_create_trigger';
+
+                -- Update bank notification
+                UPDATE public.bank_notifications
+                SET status = 'matched',
+                    user_id = NEW.user_id,
+                    deposit_id = NEW.id
+                WHERE reference = NEW.reference;
+
+                -- Credit user wallet
+                UPDATE public.profiles
+                SET balance = balance + NEW.amount
+                WHERE id = NEW.user_id;
+            ELSE
+                -- Amount mismatch
+                UPDATE public.bank_notifications
+                SET status = 'amount_mismatch'
+                WHERE reference = NEW.reference;
+
+                NEW.status := 'rejected';
+                NEW.rejection_reason := 'Amount mismatch. Bank records show a different amount.';
+            END IF;
+        END IF;
+    ELSE
+        -- Bank record not found, automatically reject per requirements
+        NEW.status := 'rejected';
+        NEW.rejection_reason := 'Invalid reference number. Transaction not found in bank records.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_deposit_created ON public.deposits;
+CREATE TRIGGER on_deposit_created
+    BEFORE INSERT ON public.deposits
+    FOR EACH ROW EXECUTE FUNCTION public.process_deposit();
+
+
+-- Trigger 2: Withdrawal balance reservation
+CREATE OR REPLACE FUNCTION public.process_withdrawal_creation()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_balance NUMERIC;
+BEGIN
+    IF NEW.amount IS NULL OR NEW.amount <= 0 THEN
+        NEW.status := 'rejected';
+        NEW.is_reserved := FALSE;
+        NEW.rejection_reason := 'Invalid withdrawal amount requested.';
+        RETURN NEW;
+    END IF;
+
+    -- Lock user profile row to prevent balance race condition
+    SELECT balance INTO v_balance
+    FROM public.profiles
+    WHERE id = NEW.user_id
+    FOR UPDATE;
+
+    IF v_balance IS NULL THEN
+        NEW.status := 'rejected';
+        NEW.is_reserved := FALSE;
+        NEW.rejection_reason := 'User profile not found.';
+        RETURN NEW;
+    END IF;
+
+    IF v_balance < NEW.amount THEN
+        NEW.status := 'rejected';
+        NEW.is_reserved := FALSE;
+        NEW.rejection_reason := 'Insufficient balance in your wallet.';
+    ELSE
+        -- Reserve balance
+        UPDATE public.profiles
+        SET balance = balance - NEW.amount
+        WHERE id = NEW.user_id;
+
+        NEW.status := 'pending';
+        NEW.is_reserved := TRUE;
+        NEW.reserved_at := NOW();
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_withdrawal_created ON public.withdrawals;
+CREATE TRIGGER on_withdrawal_created
+    BEFORE INSERT ON public.withdrawals
+    FOR EACH ROW EXECUTE FUNCTION public.process_withdrawal_creation();
+
+
+-- Trigger 3: Withdrawal refunding upon rejection
+CREATE OR REPLACE FUNCTION public.process_withdrawal_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- If status transitioned to rejected and we had actually reserved the funds, refund
+    IF OLD.status = 'pending' AND NEW.status = 'rejected' AND OLD.is_reserved = TRUE THEN
+        -- Refund user balance
+        UPDATE public.profiles
+        SET balance = balance + OLD.amount
+        WHERE id = OLD.user_id;
+
+        NEW.is_reserved := FALSE;
+        NEW.refunded_at := NOW();
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_withdrawal_updated ON public.withdrawals;
+CREATE TRIGGER on_withdrawal_updated
+    BEFORE UPDATE ON public.withdrawals
+    FOR EACH ROW EXECUTE FUNCTION public.process_withdrawal_update();
+
+
+-- --- GAME ENGINE ENGINE RPC FUNCTIONS ---
+
+-- Atomic reset of the game session
+CREATE OR REPLACE FUNCTION public.reset_game_session(
+    p_next_session INT,
+    p_draw_sequence INT[]
+)
+RETURNS VOID AS $$
+BEGIN
+    -- 1. Reset game state
+    UPDATE public.games
+    SET status = 'buying',
+        session_id = p_next_session,
+        drawn_numbers = '{}',
+        draw_sequence = p_draw_sequence,
+        is_paused = FALSE,
+        winners = '{}',
+        winner_id = NULL,
+        winning_card_no = NULL,
+        winning_card_numbers = NULL,
+        status_message = 'Waiting for players...',
+        cards_sold = 0,
+        players_count = 0,
+        start_time = NOW(),
+        end_time = NULL,
+        claim_deadline = NULL,
+        pending_claims = '{}',
+        confirmed_winners = '{}',
+        current_number = NULL,
+        last_draw_time = NULL,
+        heartbeat = NULL,
+        loop_id = NULL
+    WHERE id = 'live';
+
+    -- 2. Clear cards
+    DELETE FROM public.cards;
+
+    -- 3. Clear game winners
+    DELETE FROM public.game_winners;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Atomic payout of winners and recording results
+CREATE OR REPLACE FUNCTION public.payout_winners(
+    p_winners JSONB[],
+    p_drawn_numbers INT[],
+    p_cards_sold INT,
+    p_prize_pool NUMERIC,
+    p_session_id INT
+)
+RETURNS VOID AS $$
+DECLARE
+    v_winner_count INT;
+    v_prize_per_winner NUMERIC;
+    v_winner JSONB;
+    v_winner_user_id UUID;
+    v_winner_card_no INT;
+    v_winner_phone TEXT;
+    v_primary_winner_id UUID := NULL;
+    v_primary_winner_phone TEXT := NULL;
+    v_primary_winning_card_no INT := NULL;
+    v_winners_text TEXT[] := '{}';
+BEGIN
+    v_winner_count := array_length(p_winners, 1);
+    IF v_winner_count IS NULL OR v_winner_count = 0 THEN
+        RETURN;
+    END IF;
+
+    v_prize_per_winner := p_prize_pool / v_winner_count;
+
+    -- Loop through winners to pay out and record winners
+    FOR i IN 1..v_winner_count LOOP
+        v_winner := p_winners[i];
+        v_winner_user_id := (v_winner->>'userId')::UUID;
+        v_winner_card_no := (v_winner->>'cardNo')::INT;
+        v_winner_phone := v_winner->>'phone';
+        v_winners_text := array_append(v_winners_text, v_winner_card_no::TEXT);
+
+        IF i = 1 THEN
+            v_primary_winner_id := v_winner_user_id;
+            v_primary_winner_phone := v_winner_phone;
+            v_primary_winning_card_no := v_winner_card_no;
+        END IF;
+
+        -- 1. Credit balance
+        UPDATE public.profiles
+        SET balance = balance + v_prize_per_winner
+        WHERE id = v_winner_user_id;
+
+        -- 2. Insert into game_winners
+        INSERT INTO public.game_winners (card_no, session_id, user_id, phone, created_at)
+        VALUES (v_winner_card_no::TEXT, p_session_id::TEXT, v_winner_user_id, v_winner_phone, NOW())
+        ON CONFLICT (card_no) DO UPDATE
+        SET session_id = EXCLUDED.session_id,
+            user_id = EXCLUDED.user_id,
+            phone = EXCLUDED.phone,
+            created_at = NOW();
+    END LOOP;
+
+    -- 3. Insert into game history
+    INSERT INTO public.game_history (session_id, status, prize, drawn_numbers, cards_sold, winner_id, winner_name, winning_card_no, created_at)
+    VALUES (p_session_id::TEXT, 'won', p_prize_pool, p_drawn_numbers, p_cards_sold, v_primary_winner_id, v_primary_winner_phone, v_primary_winning_card_no, NOW());
+
+    -- 4. Update game state
+    UPDATE public.games
+    SET status = 'won',
+        winners = v_winners_text,
+        winner_id = v_primary_winner_id,
+        winning_card_no = v_primary_winning_card_no,
+        end_time = NOW(),
+        pending_claims = '{}',
+        confirmed_winners = p_winners,
+        claim_deadline = NULL,
+        status_message = 'Game Over! Winners have been paid.'
+    WHERE id = 'live';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Atomic process bank notification from webhook
+CREATE OR REPLACE FUNCTION public.process_bank_notification(
+    p_amount NUMERIC,
+    p_reference TEXT,
+    p_bank TEXT,
+    p_sender TEXT,
+    p_text TEXT
+)
+RETURNS TEXT AS $$
+DECLARE
+    v_notification_status TEXT;
+    v_deposit RECORD;
+BEGIN
+    -- 1. Check if reference already exists
+    SELECT status INTO v_notification_status
+    FROM public.bank_notifications
+    WHERE reference = p_reference;
+
+    IF FOUND THEN
+        IF v_notification_status = 'matched' THEN
+            RETURN 'already_matched';
+        END IF;
+        RETURN 'duplicate_unmatched';
+    END IF;
+
+    -- 2. Check if a pending deposit exists for this reference
+    SELECT id, user_id, amount INTO v_deposit
+    FROM public.deposits
+    WHERE reference = p_reference
+      AND status = 'pending'
+    LIMIT 1;
+
+    IF FOUND THEN
+        -- Verify amount matches
+        IF v_deposit.amount = p_amount THEN
+            -- Insert as matched bank notification
+            INSERT INTO public.bank_notifications (reference, amount, bank, sender, text, status, user_id, deposit_id)
+            VALUES (p_reference, p_amount, p_bank, p_sender, p_text, 'matched', v_deposit.user_id, v_deposit.id);
+
+            -- Approve deposit
+            UPDATE public.deposits
+            SET status = 'approved',
+                verified_at = NOW(),
+                matched_via = 'sms_webhook'
+            WHERE id = v_deposit.id;
+
+            -- Credit wallet
+            UPDATE public.profiles
+            SET balance = balance + p_amount
+            WHERE id = v_deposit.user_id;
+
+            RETURN 'matched_instantly';
+        ELSE
+            -- Save as amount_mismatch
+            INSERT INTO public.bank_notifications (reference, amount, bank, sender, text, status)
+            VALUES (p_reference, p_amount, p_bank, p_sender, p_text, 'amount_mismatch');
+
+            RETURN 'amount_mismatch';
+        END IF;
+    ELSE
+        -- Save as unmatched bank notification
+        INSERT INTO public.bank_notifications (reference, amount, bank, sender, text, status)
+        VALUES (p_reference, p_amount, p_bank, p_sender, p_text, 'saved_unmatched');
+
+        RETURN 'saved_unmatched';
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+
 
