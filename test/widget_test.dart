@@ -7,21 +7,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 
 import 'package:bingo_mk/main.dart';
-import 'package:bingo_mk/data/repositories/auth_repository_impl.dart';
-import 'package:bingo_mk/data/repositories/bingo_repository_impl.dart';
+import 'package:bingo_mk/core/services/service_locator.dart';
 
 void main() {
   testWidgets('Smoke test for BingoApp', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    final authRepository = AuthRepositoryImpl();
-    final bingoRepository = BingoRepositoryImpl();
+    // Register dependencies in service locator
+    GetIt.instance.reset();
+    await initServiceLocator();
 
-    await tester.pumpWidget(BingoApp(
-      authRepository: authRepository,
-      bingoRepository: bingoRepository,
-    ));
+    await tester.pumpWidget(const BingoApp());
 
     // Basic assertion to ensure app renders
     expect(find.byType(MaterialApp), findsOneWidget);
