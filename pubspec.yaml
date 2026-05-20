@@ -49,6 +49,7 @@ dependencies:
   google_fonts: ^6.2.1
   logger: ^2.0.0
   firebase_database: ^12.4.1
+  get_it: ^8.0.0
 
 dev_dependencies:
   flutter_test:

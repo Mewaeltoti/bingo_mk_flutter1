@@ -262,3 +262,27 @@ exports.drawNumberLoopHandler = async (context) => {
 
     return null;
 };
+
+// Immediately triggers the drawing loop when the game status transitions to active
+exports.onGameUpdatedHandler = async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+
+    if (!afterData) return null;
+
+    const beforeStatus = beforeData ? beforeData.status : null;
+    const afterStatus = afterData.status;
+
+    if (afterStatus === 'active' && beforeStatus !== 'active') {
+        console.log(`Game status transitioned to active (session: ${afterData.sessionId}). Initializing draw loop instantly.`);
+        try {
+            // Kick off draw loop immediately to prevent the 60-second start lag
+            await exports.drawNumberLoopHandler(null);
+        } catch (error) {
+            console.error("Error executing instant draw loop in onGameUpdatedHandler:", error);
+        }
+    }
+
+    return null;
+};
+

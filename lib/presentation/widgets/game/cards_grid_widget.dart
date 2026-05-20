@@ -92,26 +92,34 @@ class CardsGridWidget extends StatelessWidget {
         final isBuyingPhase = status == GameStatus.buying;
         final isUnregistered = (isPending && !isBuyingPhase) || status == GameStatus.waiting;
 
-        return FadeInUp(
-          duration: Duration(milliseconds: 300 + (i * 100).clamp(0, 500)),
-          child: BingoCardWidget(
-            card: card,
-            drawnNumbers: drawnSet,
-            markedCells: markedCells[card.id] ?? {},
-            isBlocked: isBlocked,
-            isUnregistered: isUnregistered,
-            isWinner: winningCardNo != null && card.cardNo == winningCardNo,
-            onMarkCell: (!isPending && !isBlocked)
-                ? (r, c) => context.read<GameCubit>().markCell(card.id, r, c)
-                : null,
-            onRegister: (status == GameStatus.buying)
-                ? () => context.read<GameCubit>().registerCard(card.id)
-                : null,
-            onBingoClaim: () => context.read<GameCubit>().claimBingo(card.id),
-            onRemove: () => context.read<GameCubit>().removeCard(card.id),
-            claimDeadline: (status == GameStatus.paused) ? claimDeadline : null,
-          ),
+        final cardWidget = BingoCardWidget(
+          key: ValueKey('card_${card.id}'),
+          card: card,
+          drawnNumbers: drawnSet,
+          markedCells: markedCells[card.id] ?? {},
+          isBlocked: isBlocked,
+          isUnregistered: isUnregistered,
+          isWinner: winningCardNo != null && card.cardNo == winningCardNo,
+          onMarkCell: (!isPending && !isBlocked)
+              ? (r, c) => context.read<GameCubit>().markCell(card.id, r, c)
+              : null,
+          onRegister: (status == GameStatus.buying)
+              ? () => context.read<GameCubit>().registerCard(card.id)
+              : null,
+          onBingoClaim: () => context.read<GameCubit>().claimBingo(card.id),
+          onRemove: () => context.read<GameCubit>().removeCard(card.id),
+          claimDeadline: (status == GameStatus.paused) ? claimDeadline : null,
         );
+
+        if (status == GameStatus.buying) {
+          return FadeInUp(
+            key: ValueKey('anim_${card.id}'),
+            duration: Duration(milliseconds: 300 + (i * 100).clamp(0, 500)),
+            child: cardWidget,
+          );
+        }
+
+        return cardWidget;
       },
     );
   }

@@ -30,6 +30,16 @@ exports.drawNumberLoop = functions.pubsub.schedule('every 1 minutes').onRun((con
     require("./gameEngine").drawNumberLoopHandler(context)
 );
 
+exports.onGameUpdated = functions.runWith({
+    timeoutSeconds: 540,
+    memory: '256MB'
+}).firestore
+    .document('games/live')
+    .onUpdate((change, context) => 
+        require("./gameEngine").onGameUpdatedHandler(change, context)
+    );
+
+
 // Auto-Reconciliation Services (Lazy Loaded)
 const { onRequest } = require("firebase-functions/v2/https");
 
