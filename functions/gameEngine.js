@@ -75,6 +75,12 @@ exports.drawNumberLoopHandler = async (context) => {
                         winners: [],
                         statusMessage: "Waiting for players..."
                     });
+
+                    await admin.database().ref('games/live').set({
+                        currentNumber: null,
+                        drawnNumbers: null,
+                        lastDrawTime: null
+                    });
                 }
             }
             
@@ -187,7 +193,16 @@ exports.drawNumberLoopHandler = async (context) => {
         }
 
                 const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
-        const drawnNumbers = rtdbSnap.val() || [];
+        const val = rtdbSnap.val();
+        let drawnNumbers = [];
+        if (val) {
+            if (Array.isArray(val)) {
+                drawnNumbers = val.filter(e => e !== null);
+            } else {
+                const keys = Object.keys(val).map(Number).sort((a, b) => a - b);
+                drawnNumbers = keys.map(k => val[k]);
+            }
+        }
         const drawSequence = game.drawSequence || [];
 
         // Fallback: if sequence is missing, generate one dynamically on the fly

@@ -172,7 +172,7 @@ class BingoRepositoryImpl implements BingoRepository {
     return cards;
   }
 
-    @override
+  @override
   Stream<List<int>> streamDrawnNumbers(String gameId) {
     return _database
         .ref('games/live/drawnNumbers')
@@ -182,6 +182,16 @@ class BingoRepositoryImpl implements BingoRepository {
           if (val == null) return <int>[];
           if (val is List) {
              return val.where((e) => e != null).map((e) => int.parse(e.toString())).toList();
+          }
+          if (val is Map) {
+             final sortedKeys = val.keys
+                 .map((k) => int.tryParse(k.toString()) ?? -1)
+                 .where((k) => k >= 0)
+                 .toList()
+               ..sort();
+             return sortedKeys
+                 .map((k) => int.parse((val[k] ?? val[k.toString()]).toString()))
+                 .toList();
           }
           return <int>[];
         });

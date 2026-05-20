@@ -24,6 +24,10 @@ exports.claimBingo = async (request) => {
             }
             if (cardDocs.length === 0) throw new Error("No valid cards found.");
 
+            const cardDoc = cardDocs[0].doc;
+            const cardId = cardDocs[0].id;
+            const cardRef = cardDocs[0].ref;
+
             const game = gameDoc.data();
             if (game.status !== 'active' && game.status !== 'paused') {
                 console.error(`Claim failed: Game status is ${game.status}`);
@@ -38,8 +42,17 @@ exports.claimBingo = async (request) => {
             }
 
             const cardNumbers = cardDoc.data().numbers;
-                        const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
-            const drawnNumbers = rtdbSnap.val() || [];
+            const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
+            const val = rtdbSnap.val();
+            let drawnNumbers = [];
+            if (val) {
+                if (Array.isArray(val)) {
+                    drawnNumbers = val.filter(e => e !== null);
+                } else {
+                    const keys = Object.keys(val).map(Number).sort((a, b) => a - b);
+                    drawnNumbers = keys.map(k => val[k]);
+                }
+            }
             const pattern = (game.gamePattern || 'full_house').toLowerCase().replace(/[\s_]/g, '');
 
             console.log(`Validating claim for card ${cardId}. Pattern: ${pattern}. Drawn numbers: ${JSON.stringify(drawnNumbers)}`);
@@ -70,7 +83,7 @@ exports.claimBingo = async (request) => {
                 const userRef = db.collection('users').doc(userId);
                 const userDoc = await transaction.get(userRef);
                 const phone = userDoc.exists ? (userDoc.data().phone || '') : '';
-                const markedCells = request.data.markedCells || [];
+                const markedCells = (request.data.markedCellsMap && request.data.markedCellsMap[cardId]) || request.data.markedCells || [];
 
                 pendingClaims.push({
                     cardId,

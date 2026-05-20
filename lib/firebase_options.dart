@@ -30,6 +30,7 @@ class DefaultFirebaseOptions {
     authDomain: 'my-bingo-mk.firebaseapp.com',
     storageBucket: 'my-bingo-mk.firebasestorage.app',
     measurementId: 'G-55GWKC8E3V',
+    databaseURL: 'https://my-bingo-mk-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -38,5 +39,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '717699093807',
     projectId: 'my-bingo-mk',
     storageBucket: 'my-bingo-mk.firebasestorage.app',
+    databaseURL: 'https://my-bingo-mk-default-rtdb.firebaseio.com',
   );
 }
