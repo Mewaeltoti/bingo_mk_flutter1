@@ -240,9 +240,9 @@ class BingoRepositorySupabase implements BingoRepository {
           .from('deposits')
           .select('*')
           .eq('user_id', userId)
-          .order('created_at', descending: true);
-      return (response as List<dynamic>).map((row) => {
-        ...row,
+          .order('created_at', ascending: false);
+      return (response as List<dynamic>).map<Map<String, dynamic>>((row) => <String, dynamic>{
+        ...row as Map<String, dynamic>,
         'id': row['id'].toString(),
         'userId': row['user_id'].toString(),
         'amount': (row['amount'] as num?)?.toDouble() ?? 0.0,
@@ -266,9 +266,9 @@ class BingoRepositorySupabase implements BingoRepository {
           .from('withdrawals')
           .select('*')
           .eq('user_id', userId)
-          .order('created_at', descending: true);
-      return (response as List<dynamic>).map((row) => {
-        ...row,
+          .order('created_at', ascending: false);
+      return (response as List<dynamic>).map<Map<String, dynamic>>((row) => <String, dynamic>{
+        ...row as Map<String, dynamic>,
         'id': row['id'].toString(),
         'userId': row['user_id'].toString(),
         'amount': (row['amount'] as num?)?.toDouble() ?? 0.0,
@@ -320,9 +320,9 @@ class BingoRepositorySupabase implements BingoRepository {
       final response = await _client
           .from('game_history')
           .select('*')
-          .order('created_at', descending: true)
+          .order('created_at', ascending: false)
           .limit(50);
-      return (response as List<dynamic>).map((row) => {
+      return (response as List<dynamic>).map<Map<String, dynamic>>((row) => <String, dynamic>{
         'id': row['id'].toString(),
         'sessionId': row['session_id'] ?? '',
         'status': row['status'] ?? '',
