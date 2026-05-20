@@ -33,3 +33,9 @@ jobs:
 
       - name: Deploy sms-webhook
         run: supabase functions deploy sms-webhook --project-ref $PROJECT_ID
+
+      - name: Deploy buy-card
+        run: supabase functions deploy buy-card --project-ref $PROJECT_ID
+
+      - name: Deploy register-card
+        run: supabase functions deploy register-card --project-ref $PROJECT_ID
