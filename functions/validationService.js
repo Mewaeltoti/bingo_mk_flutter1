@@ -42,17 +42,7 @@ exports.claimBingo = async (request) => {
             }
 
             const cardNumbers = cardDoc.data().numbers;
-            const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
-            const val = rtdbSnap.val();
-            let drawnNumbers = [];
-            if (val) {
-                if (Array.isArray(val)) {
-                    drawnNumbers = val.filter(e => e !== null);
-                } else {
-                    const keys = Object.keys(val).map(Number).sort((a, b) => a - b);
-                    drawnNumbers = keys.map(k => val[k]);
-                }
-            }
+            const drawnNumbers = game.drawnNumbers || [];
             const pattern = (game.gamePattern || 'full_house').toLowerCase().replace(/[\s_]/g, '');
 
             console.log(`Validating claim for card ${cardId}. Pattern: ${pattern}. Drawn numbers: ${JSON.stringify(drawnNumbers)}`);
@@ -423,7 +413,7 @@ exports.confirmBingoClaim = async (request) => {
                 sessionId: game.sessionId || 'N/A',
                 status: 'won',
                 prize: game.prizePool || 0,
-                drawnNumbers: (await admin.database().ref('games/live/drawnNumbers').once('value')).val() || [],
+                drawnNumbers: game.drawnNumbers || [],
                 cardsSold: game.cardsSold || 0,
                 winnerId: confirmedWinners[0].userId,
                 winnerName: confirmedWinners[0].phone || 'Player',
@@ -533,7 +523,7 @@ exports.finalizeGameAndPayout = async (request) => {
             sessionId: game.sessionId || 'N/A',
             status: 'won',
             prize: game.prizePool || 0,
-            drawnNumbers: (await admin.database().ref('games/live/drawnNumbers').once('value')).val() || [],
+            drawnNumbers: game.drawnNumbers || [],
             cardsSold: game.cardsSold || 0,
             winnerId: winners[0].userId,
             winnerName: winners[0].phone || 'Player',

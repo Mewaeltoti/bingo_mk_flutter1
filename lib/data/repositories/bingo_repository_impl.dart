@@ -174,34 +174,13 @@ class BingoRepositoryImpl implements BingoRepository {
 
   @override
   Stream<List<int>> streamDrawnNumbers(String gameId) {
-    return _database
-        .ref('games/live/drawnNumbers')
-        .onValue
-        .map((event) {
-          final val = event.snapshot.value;
-          if (val == null) return <int>[];
-          if (val is List) {
-            return val
-                .where((e) => e != null)
-                .map((e) => int.tryParse(e.toString()))
-                .where((e) => e != null)
-                .cast<int>()
-                .toList();
-          }
-          if (val is Map) {
-            final sortedKeys = val.keys
-                .map((k) => int.tryParse(k.toString()) ?? -1)
-                .where((k) => k >= 0)
-                .toList()
-              ..sort();
-            return sortedKeys
-                .map((k) => int.tryParse((val[k] ?? val[k.toString()]).toString()))
-                .where((e) => e != null)
-                .cast<int>()
-                .toList();
-          }
-          return <int>[];
-        });
+    return _firestore
+        .collection('games')
+        .doc('live')
+        .snapshots()
+        .map(
+          (doc) => (doc.data()?['drawnNumbers'] as List?)?.cast<int>() ?? [],
+        );
   }
 
   @override

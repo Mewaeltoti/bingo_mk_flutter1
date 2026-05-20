@@ -228,11 +228,7 @@ exports.startNewGame = async (request) => {
             return { success: true, sessionId: sessionNum };
         });
 
-        await admin.database().ref('games/live').set({
-            currentNumber: null,
-            drawnNumbers: null,
-            lastDrawTime: null
-        });
+
 
         // Delete all game winners for the new session
         const liveWinners = await db.collection('game_winners').get();
@@ -363,11 +359,7 @@ exports.cancelGame = async (request) => {
             return { success: true, oldSession: game.sessionId, newSession: nextSession };
         });
 
-        await admin.database().ref('games/live').set({
-            currentNumber: null,
-            drawnNumbers: null,
-            lastDrawTime: null
-        });
+
 
         // Delete all game winners for the new session
         const liveWinners = await db.collection('game_winners').get();

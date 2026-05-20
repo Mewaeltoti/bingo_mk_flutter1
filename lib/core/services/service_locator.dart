@@ -17,3 +17,5 @@ Future<void> initServiceLocator() async {
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl());
   sl.registerLazySingleton<BingoRepository>(() => BingoRepositoryImpl());
 }
+
+

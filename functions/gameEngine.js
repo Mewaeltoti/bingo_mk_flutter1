@@ -25,8 +25,10 @@ exports.onUserCreatedHandler = async (user) => {
 // Logic for drawing numbers loop
 exports.drawNumberLoopHandler = async (context) => {
     const db = admin.firestore();
+    const loopId = Math.random().toString(36).substring(2, 10);
+    console.log(`Starting draw loop with ID: ${loopId}`);
 
-    let cachedDrawnNumbers = null;
+
     const endTime = Date.now() + 55000;
     
     while (Date.now() < endTime) {
@@ -74,13 +76,12 @@ exports.drawNumberLoopHandler = async (context) => {
                         winningCardNo: null,
                         winningCardNumbers: null,
                         winners: [],
-                        statusMessage: "Waiting for players..."
-                    });
-
-                    await admin.database().ref('games/live').set({
+                        statusMessage: "Waiting for players...",
                         currentNumber: null,
-                        drawnNumbers: null,
-                        lastDrawTime: null
+                        drawnNumbers: [],
+                        lastDrawTime: null,
+                        heartbeat: null,
+                        loopId: null
                     });
                 }
             }
@@ -182,7 +183,6 @@ exports.drawNumberLoopHandler = async (context) => {
                 console.log("Game paused. Waiting for grace period to end...");
             }
             
-            cachedDrawnNumbers = null; // Clear cache on pauses
             await new Promise(resolve => setTimeout(resolve, 2000));
             continue;
         }
@@ -190,28 +190,21 @@ exports.drawNumberLoopHandler = async (context) => {
         const pendingClaims = game.pendingClaims || [];
         if (game.status !== 'active' || pendingClaims.length > 0) {
             console.log(`Game is in ${game.status} state with ${pendingClaims.length} pending claims. Skipping number draw.`);
-            cachedDrawnNumbers = null; // Clear cache on pauses
             await new Promise(resolve => setTimeout(resolve, 2000));
             continue; // Wait if not active or if there are pending claims
         }
 
-        let drawnNumbers = [];
-        if (cachedDrawnNumbers !== null) {
-            drawnNumbers = cachedDrawnNumbers;
-        } else {
-            const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
-            const val = rtdbSnap.val();
-            if (val) {
-                if (Array.isArray(val)) {
-                    drawnNumbers = val.filter(e => e !== null);
-                } else {
-                    const keys = Object.keys(val).map(Number).sort((a, b) => a - b);
-                    drawnNumbers = keys.map(k => val[k]);
-                }
-            }
-            cachedDrawnNumbers = drawnNumbers;
+        // --- DISTRIBUTED LOCK CHECK ---
+        const activeHeartbeat = game.heartbeat ? game.heartbeat.toDate().getTime() : 0;
+        const activeLoopId = game.loopId || '';
+
+        // If there's an active heartbeat less than 3.5 seconds old, and it is NOT us, exit this loop!
+        if (activeHeartbeat && (Date.now() - activeHeartbeat < 3500) && activeLoopId !== loopId) {
+            console.log(`[Lock] Another active drawing loop (${activeLoopId}) is running. Exiting loop ${loopId} to prevent duplicate draws.`);
+            break;
         }
 
+        const drawnNumbers = game.drawnNumbers || [];
         const drawSequence = game.drawSequence || [];
 
         // Fallback: if sequence is missing, generate one dynamically on the fly
@@ -237,16 +230,16 @@ exports.drawNumberLoopHandler = async (context) => {
             const nextIndex = drawnNumbers.length;
             const newNumber = drawSequence[nextIndex];
             drawnNumbers.push(newNumber);
-            cachedDrawnNumbers = drawnNumbers; // Update the cache!
 
             console.log(`Drawing number: ${newNumber}. Total drawn: ${drawnNumbers.length}`);
 
-            const updates = {};
-            await admin.database().ref('games/live').update({
+            const updates = {
                 currentNumber: newNumber,
                 drawnNumbers: drawnNumbers,
-                lastDrawTime: admin.database.ServerValue.TIMESTAMP
-            });
+                lastDrawTime: admin.firestore.FieldValue.serverTimestamp(),
+                heartbeat: admin.firestore.FieldValue.serverTimestamp(),
+                loopId: loopId
+            };
 
             // Clear "Waiting for players" message if it's still there
             if (game.statusMessage === "Waiting for players...") {
