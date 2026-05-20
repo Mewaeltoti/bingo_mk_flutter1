@@ -181,17 +181,24 @@ class BingoRepositoryImpl implements BingoRepository {
           final val = event.snapshot.value;
           if (val == null) return <int>[];
           if (val is List) {
-             return val.where((e) => e != null).map((e) => int.parse(e.toString())).toList();
+            return val
+                .where((e) => e != null)
+                .map((e) => int.tryParse(e.toString()))
+                .where((e) => e != null)
+                .cast<int>()
+                .toList();
           }
           if (val is Map) {
-             final sortedKeys = val.keys
-                 .map((k) => int.tryParse(k.toString()) ?? -1)
-                 .where((k) => k >= 0)
-                 .toList()
-               ..sort();
-             return sortedKeys
-                 .map((k) => int.parse((val[k] ?? val[k.toString()]).toString()))
-                 .toList();
+            final sortedKeys = val.keys
+                .map((k) => int.tryParse(k.toString()) ?? -1)
+                .where((k) => k >= 0)
+                .toList()
+              ..sort();
+            return sortedKeys
+                .map((k) => int.tryParse((val[k] ?? val[k.toString()]).toString()))
+                .where((e) => e != null)
+                .cast<int>()
+                .toList();
           }
           return <int>[];
         });

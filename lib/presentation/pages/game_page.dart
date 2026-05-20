@@ -331,10 +331,8 @@ class _GamePageState extends State<GamePage> {
 
                             if (_expanded) ...[
                               const SizedBox(height: 8),
-                              FadeIn(
-                                child: LiveBoardWidget(
-                                  drawnNumbers: state.drawnNumbers,
-                                ),
+                              LiveBoardWidget(
+                                drawnNumbers: state.drawnNumbers,
                               ),
                             ] else
                               RecentNumbersWidget(numbers: state.drawnNumbers),

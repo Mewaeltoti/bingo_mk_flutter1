@@ -26,6 +26,7 @@ exports.onUserCreatedHandler = async (user) => {
 exports.drawNumberLoopHandler = async (context) => {
     const db = admin.firestore();
 
+    let cachedDrawnNumbers = null;
     const endTime = Date.now() + 55000;
     
     while (Date.now() < endTime) {
@@ -181,28 +182,36 @@ exports.drawNumberLoopHandler = async (context) => {
                 console.log("Game paused. Waiting for grace period to end...");
             }
             
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            cachedDrawnNumbers = null; // Clear cache on pauses
+            await new Promise(resolve => setTimeout(resolve, 2000));
             continue;
         }
 
         const pendingClaims = game.pendingClaims || [];
         if (game.status !== 'active' || pendingClaims.length > 0) {
             console.log(`Game is in ${game.status} state with ${pendingClaims.length} pending claims. Skipping number draw.`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            cachedDrawnNumbers = null; // Clear cache on pauses
+            await new Promise(resolve => setTimeout(resolve, 2000));
             continue; // Wait if not active or if there are pending claims
         }
 
-                const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
-        const val = rtdbSnap.val();
         let drawnNumbers = [];
-        if (val) {
-            if (Array.isArray(val)) {
-                drawnNumbers = val.filter(e => e !== null);
-            } else {
-                const keys = Object.keys(val).map(Number).sort((a, b) => a - b);
-                drawnNumbers = keys.map(k => val[k]);
+        if (cachedDrawnNumbers !== null) {
+            drawnNumbers = cachedDrawnNumbers;
+        } else {
+            const rtdbSnap = await admin.database().ref('games/live/drawnNumbers').once('value');
+            const val = rtdbSnap.val();
+            if (val) {
+                if (Array.isArray(val)) {
+                    drawnNumbers = val.filter(e => e !== null);
+                } else {
+                    const keys = Object.keys(val).map(Number).sort((a, b) => a - b);
+                    drawnNumbers = keys.map(k => val[k]);
+                }
             }
+            cachedDrawnNumbers = drawnNumbers;
         }
+
         const drawSequence = game.drawSequence || [];
 
         // Fallback: if sequence is missing, generate one dynamically on the fly
@@ -228,10 +237,11 @@ exports.drawNumberLoopHandler = async (context) => {
             const nextIndex = drawnNumbers.length;
             const newNumber = drawSequence[nextIndex];
             drawnNumbers.push(newNumber);
+            cachedDrawnNumbers = drawnNumbers; // Update the cache!
 
             console.log(`Drawing number: ${newNumber}. Total drawn: ${drawnNumbers.length}`);
 
-                        const updates = {};
+            const updates = {};
             await admin.database().ref('games/live').update({
                 currentNumber: newNumber,
                 drawnNumbers: drawnNumbers,
@@ -246,8 +256,8 @@ exports.drawNumberLoopHandler = async (context) => {
             await gameDoc.ref.update(updates);
         }
 
-        // Wait for 5 seconds
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Wait for 2 seconds
+        await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     return null;

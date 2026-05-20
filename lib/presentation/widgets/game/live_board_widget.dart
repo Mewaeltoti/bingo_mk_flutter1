@@ -20,6 +20,7 @@ class LiveBoardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int? lastDrawn = drawnNumbers.isNotEmpty ? drawnNumbers.last : null;
+    final drawnSet = drawnNumbers.toSet();
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -90,7 +91,7 @@ class LiveBoardWidget extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: List.generate(15, (i) {
                         final num = row * 15 + i + 1;
-                        final isDrawn = drawnNumbers.contains(num);
+                        final isDrawn = drawnSet.contains(num);
                         final isLast = num == lastDrawn;
 
                         final cell = Container(
