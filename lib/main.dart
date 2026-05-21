@@ -13,15 +13,20 @@ import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/bingo_repository.dart';
 
 import 'presentation/pages/dashboard_page.dart';
+import 'package:flutter/services.dart'; // for rootBundle
+import 'dart:convert'; // for jsonDecode
 import 'presentation/pages/main_container.dart';
 import 'presentation/pages/splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load Supabase configuration from config.json asset
+  final configString = await rootBundle.loadString('config.json');
+  final config = jsonDecode(configString) as Map<String, dynamic>;
   await Supabase.initialize(
-    url: const String.fromEnvironment('SUPABASE_URL', defaultValue: 'https://your-supabase-url.supabase.co'),
-    anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: 'your-anon-key'),
+    url: config['SUPABASE_URL'] as String,
+    anonKey: config['SUPABASE_ANON_KEY'] as String,
   );
   await initServiceLocator();
 

@@ -21,7 +21,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 async function seed() {
-  const dataPath = path.join(__dirname, '..', 'functions', 'data.json');
+  const dataPath = path.join(__dirname, '..', 'assets', 'data.json');
   if (!fs.existsSync(dataPath)) {
     console.error(`Error: data.json not found at ${dataPath}`);
     process.exit(1);

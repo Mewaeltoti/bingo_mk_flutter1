@@ -176,32 +176,33 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
                  ),
                ),
              ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildInfoRow(
-                Icons.qr_code,
-                AppColors.textSecondary,
-                "ID",
-                state.sessionId.substring(0, state.sessionId.length.clamp(0, 6)).toUpperCase(),
-                Colors.white,
-              ),
-              _buildInfoRow(
-                Icons.schedule,
-                AppColors.textSecondary,
-                "START TIME",
-                _formatTime(),
-                Colors.white,
-              ),
-              _buildInfoRow(
-                Icons.attach_money,
-                AppColors.success,
-                "PRICE",
-                "${state.gamePrice.toInt()} ETB",
-                AppColors.success,
-              ),
-            ],
-          ),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                _buildInfoRow(
+                  Icons.qr_code,
+                  AppColors.textSecondary,
+                  "ID",
+                  state.sessionId.substring(0, state.sessionId.length.clamp(0, 6)).toUpperCase(),
+                  Colors.white,
+                ),
+                _buildInfoRow(
+                  Icons.schedule,
+                  AppColors.textSecondary,
+                  "START TIME",
+                  _formatTime(),
+                  Colors.white,
+                ),
+                _buildInfoRow(
+                  Icons.attach_money,
+                  AppColors.success,
+                  "PRICE",
+                  "${state.gamePrice.toInt()} ETB",
+                  AppColors.success,
+                ),
+              ],
+            ),
           const SizedBox(height: 16),
           // Prize Pool centered beautifully (Players removed)
           Center(
