@@ -317,37 +317,50 @@ class GameCubit extends Cubit<GameState> {
             gamePattern: gameData['gamePattern'] ?? 'full_house',
             prizePool: (gameData['prizePool'] ?? 0).toDouble(),
             gamePrice: (gameData['cardPrice'] ?? 10).toDouble(),
-            claimedCardIds: List<String>.from(gameData['claims'] ?? []),
+            claimedCardIds: sessionChanged ? [] : List<String>.from(gameData['claims'] ?? []),
             cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
             playerCount: gameData['playersCount'] ?? current.playerCount,
-            winnerId: gameData['winnerId'],
-            winningCardNo: gameData['winningCardNo'],
-            winningCardNumbers: gameData['winningCardNumbers'] != null
-                ? List<int>.from(gameData['winningCardNumbers'])
-                : null,
-            hasWon: newStatus == GameStatus.won && gameData['winnerId'] == userId,
+            // On session change, clear ALL result fields immediately so old
+            // winner data never bleeds into the new session.
+            winnerId: sessionChanged ? null : gameData['winnerId'],
+            winningCardNo: sessionChanged ? null : gameData['winningCardNo'],
+            winningCardNumbers: sessionChanged
+                ? null
+                : (gameData['winningCardNumbers'] != null
+                    ? List<int>.from(gameData['winningCardNumbers'])
+                    : null),
+            hasWon: sessionChanged ? false : (newStatus == GameStatus.won && gameData['winnerId'] == userId),
+            winners: sessionChanged ? [] : null,
+            rawWinnersData: sessionChanged ? [] : null,
+            rawClaimsData: sessionChanged
+                ? const []
+                : ((gameData['pendingClaims'] as List?)
+                        ?.map((c) => Map<String, dynamic>.from(c as Map))
+                        .toList() ??
+                    const []),
             startTime: gameData['createdAt'] != null
                 ? (gameData['createdAt'] is DateTime
                     ? gameData['createdAt'] as DateTime
                     : DateTime.tryParse(gameData['createdAt'].toString()))
                 : null,
             statusStr: statusStr.toUpperCase(),
-            broadcastMessage: gameData['broadcastMessage'],
+            broadcastMessage: sessionChanged ? null : gameData['broadcastMessage'],
             statusMessage: sessionChanged ? "New game session started!" : gameData['statusMessage'],
-            pendingClaims: (gameData['pendingClaims'] as List?)
-                    ?.map((c) => (c['cardNo'] ?? '').toString())
-                    .toList() ??
-                [],
-            rawClaimsData: (gameData['pendingClaims'] as List?)
-                    ?.map((c) => Map<String, dynamic>.from(c as Map))
-                    .toList() ??
-                const [],
-            claimDeadline: gameData['claimDeadline'] == null ? null : 
-                (gameData['claimDeadline'] is DateTime
-                    ? gameData['claimDeadline'] as DateTime
-                    : (gameData['claimDeadline'] is int 
-                        ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
-                        : DateTime.tryParse(gameData['claimDeadline'].toString()))),
+            pendingClaims: sessionChanged
+                ? []
+                : ((gameData['pendingClaims'] as List?)
+                        ?.map((c) => (c['cardNo'] ?? '').toString())
+                        .toList() ??
+                    []),
+            claimDeadline: sessionChanged
+                ? null
+                : (gameData['claimDeadline'] == null
+                    ? null
+                    : (gameData['claimDeadline'] is DateTime
+                        ? gameData['claimDeadline'] as DateTime
+                        : (gameData['claimDeadline'] is int
+                            ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
+                            : DateTime.tryParse(gameData['claimDeadline'].toString())))),
             markedCells: sessionChanged ? {} : null,
             blockedCardIds: sessionChanged ? {} : null,
             userCards: current.userCards

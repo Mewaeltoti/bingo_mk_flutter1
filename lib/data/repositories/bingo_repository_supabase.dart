@@ -17,30 +17,106 @@ class BingoRepositorySupabase implements BingoRepository {
 
   @override
   Stream<Map<String, dynamic>> streamGame(String gameId) {
-    return _client
+    final controller = StreamController<Map<String, dynamic>>.broadcast();
+
+    // Fetch current state immediately so the UI isn't blank on first load
+    _client
         .from('games')
-        .stream(primaryKey: ['id'])
+        .select('*')
         .eq('id', 'live')
-        .map((event) {
-          if (event.isEmpty) return <String, dynamic>{};
-          return _mapGameToCamelCase(event.first);
-        });
+        .maybeSingle()
+        .then((row) {
+      if (row != null && !controller.isClosed) {
+        controller.add(_mapGameToCamelCase(row));
+      }
+    }).catchError((_) {});
+
+    // True Postgres change subscription — fires instantly on every UPDATE
+    final channel = _client
+        .channel('db:games:live')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'games',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: 'live',
+          ),
+          callback: (payload) {
+            if (controller.isClosed) return;
+            controller.add(_mapGameToCamelCase(
+                Map<String, dynamic>.from(payload.newRecord)));
+          },
+        )
+        .subscribe();
+
+    controller.onCancel = () {
+      _client.removeChannel(channel);
+      controller.close();
+    };
+
+    return controller.stream;
   }
 
   @override
   Stream<List<Map<String, dynamic>>> streamGameWinners() {
-    return _client
+    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+
+    // Helper to map a raw row
+    Map<String, dynamic> mapRow(Map<String, dynamic> row) => {
+      'cardNo': row['card_no']?.toString() ?? '',
+      'sessionId': row['session_id']?.toString() ?? '',
+      'userId': row['user_id']?.toString() ?? '',
+      'phone': row['phone'] ?? '',
+      'createdAt': row['created_at'] != null
+          ? DateTime.parse(row['created_at'])
+          : null,
+    };
+
+    // Fetch current winners immediately
+    _client
         .from('game_winners')
-        .stream(primaryKey: ['card_no'])
-        .map((event) {
-          return event.map((row) => {
-            'cardNo': row['card_no']?.toString() ?? '',
-            'sessionId': row['session_id']?.toString() ?? '',
-            'userId': row['user_id']?.toString() ?? '',
-            'phone': row['phone'] ?? '',
-            'createdAt': row['created_at'] != null ? DateTime.parse(row['created_at']) : null,
-          }).toList();
-        });
+        .select('*')
+        .then((rows) {
+      if (!controller.isClosed) {
+        controller.add((rows as List).map((r) => mapRow(Map<String, dynamic>.from(r as Map))).toList());
+      }
+    }).catchError((_) {});
+
+    // Track all winners in memory so INSERT events can be accumulated
+    final List<Map<String, dynamic>> _current = [];
+
+    final channel = _client
+        .channel('db:game_winners')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'game_winners',
+          callback: (payload) {
+            if (controller.isClosed) return;
+            _current.add(mapRow(Map<String, dynamic>.from(payload.newRecord)));
+            controller.add(List.from(_current));
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'game_winners',
+          callback: (payload) {
+            if (controller.isClosed) return;
+            _current.clear(); // delete means session reset
+            controller.add([]);
+          },
+        )
+        .subscribe();
+
+    controller.onCancel = () {
+      _client.removeChannel(channel);
+      controller.close();
+    };
+
+    return controller.stream;
   }
 
   @override
@@ -196,14 +272,45 @@ class BingoRepositorySupabase implements BingoRepository {
 
   @override
   Stream<List<int>> streamDrawnNumbers(String gameId) {
-    return _client
+    // All clients share ONE broadcast channel 'game:draws'.
+    // The draw loop publishes each number there; we just subscribe.
+    // Late-join: fetch current drawn_numbers from DB on first subscribe.
+    final controller = StreamController<List<int>>();
+
+    // ── 1. Late-join: fetch what's already drawn ──────────────────────────────
+    _client
         .from('games')
-        .stream(primaryKey: ['id'])
+        .select('drawn_numbers')
         .eq('id', 'live')
-        .map((event) {
-          if (event.isEmpty) return [];
-          return List<int>.from(event.first['drawn_numbers'] ?? []);
-        });
+        .maybeSingle()
+        .then((row) {
+      if (row != null && !controller.isClosed) {
+        controller.add(List<int>.from(row['drawn_numbers'] ?? []));
+      }
+    }).catchError((_) {});
+
+    // ── 2. Live updates via shared broadcast channel ──────────────────────────
+    final channel = _client
+        .channel('game:draws')
+        .onBroadcast(
+          event: 'number_drawn',
+          callback: (payload) {
+            if (controller.isClosed) return;
+            final drawn = payload['drawn'];
+            if (drawn != null) {
+              controller.add(List<int>.from(drawn as List));
+            }
+          },
+        )
+        .subscribe();
+
+    // ── 3. Clean up on stream cancel ─────────────────────────────────────────
+    controller.onCancel = () {
+      _client.removeChannel(channel);
+      if (!controller.isClosed) controller.close();
+    };
+
+    return controller.stream;
   }
 
   @override
@@ -223,14 +330,46 @@ class BingoRepositorySupabase implements BingoRepository {
 
   @override
   Stream<double> streamBalance(String userId) {
-    return _client
+    final controller = StreamController<double>.broadcast();
+
+    // Fetch current balance immediately
+    _client
         .from('profiles')
-        .stream(primaryKey: ['id'])
+        .select('balance')
         .eq('id', userId)
-        .map((event) {
-          if (event.isEmpty) return 0.0;
-          return (event.first['balance'] as num?)?.toDouble() ?? 0.0;
-        });
+        .maybeSingle()
+        .then((row) {
+      if (row != null && !controller.isClosed) {
+        controller.add((row['balance'] as num?)?.toDouble() ?? 0.0);
+      }
+    }).catchError((_) {});
+
+    final channel = _client
+        .channel('db:profiles:$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'profiles',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: userId,
+          ),
+          callback: (payload) {
+            if (controller.isClosed) return;
+            final balance =
+                (payload.newRecord['balance'] as num?)?.toDouble() ?? 0.0;
+            controller.add(balance);
+          },
+        )
+        .subscribe();
+
+    controller.onCancel = () {
+      _client.removeChannel(channel);
+      controller.close();
+    };
+
+    return controller.stream;
   }
 
   @override
