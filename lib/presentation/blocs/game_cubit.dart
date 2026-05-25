@@ -201,6 +201,7 @@ class GameCubit extends Cubit<GameState> {
 
   StreamSubscription? _gameSub;
   StreamSubscription? _winnersSub;
+  StreamSubscription? _drawsSub;   // v2: lightweight game_draws INSERT stream
 
   GameCubit({required BingoRepository bingoRepository, required this.userId})
     : _bingoRepository = bingoRepository,
@@ -215,11 +216,16 @@ class GameCubit extends Cubit<GameState> {
       final cards = await _bingoRepository.getUserCartelas(userId, kLiveGameId);
 
       if (isClosed) return;
+
+      // Fetch the current session_id through the repository interface
+      final initialSessionId = await _bingoRepository.getLiveSessionId();
+
       emit(
         GameLoaded(
           drawnNumbers: [],
           markedCells: {},
           userCards: cards,
+          sessionId: initialSessionId,
           status: GameStatus.buying,
           buyingCountdown: kDefaultBuyingCountdown,
           playerCount: 0,
@@ -227,7 +233,13 @@ class GameCubit extends Cubit<GameState> {
         ),
       );
 
-      /// GAME SESSION DATA + DRAWN NUMBERS (from games/live — single subscription)
+      // Start the lightweight draws subscription immediately
+      if (initialSessionId.isNotEmpty) {
+        _resubscribeDraws(initialSessionId);
+      }
+
+      /// GAME SESSION DATA — slim realtime stream (status, session, prize, etc.)
+      /// drawn_numbers are handled by _drawsSub below for lightweight payloads.
       _gameSub = _bingoRepository.streamGame(kLiveGameId).listen((gameData) {
         if (state is! GameLoaded) return;
         final current = state as GameLoaded;
@@ -260,39 +272,16 @@ class GameCubit extends Cubit<GameState> {
           AudioService().playWin();
         }
 
-        // ── Drawn numbers + audio + auto-daub (moved from _drawnNumbersSub) ──
-        final newDrawnNumbers = List<int>.from(gameData['drawnNumbers'] ?? []);
-        if (newDrawnNumbers.length > current.drawnNumbers.length) {
-          final newNumber = newDrawnNumbers.last;
-          if (newStatus != GameStatus.paused) {
-            AudioService().callNumber(newNumber);
-          }
-        }
-
-        Map<String, Set<String>>? autoMarked;
-        if (current.isAutoDaubEnabled) {
-          final drawnSet = Set<int>.from(newDrawnNumbers);
-          final map = Map<String, Set<String>>.from(current.markedCells);
-          for (var card in current.userCards) {
-            if (card.status != 'registered') continue;
-            final cells = Set<String>.from(map[card.id] ?? {});
-            for (var r = 0; r < 5; r++) {
-              for (var col = 0; col < 5; col++) {
-                if (r == 2 && col == 2) continue;
-                if (drawnSet.contains(card.numbers[r][col])) {
-                  cells.add('\$r-\$col');
-                }
-              }
-            }
-            map[card.id] = cells;
-          }
-          autoMarked = map;
+        // On session change: re-subscribe draws stream for new session + reload drawn numbers
+        if (sessionChanged && newSessionId.isNotEmpty) {
+          _drawsSub?.cancel();
+          _resubscribeDraws(newSessionId);
         }
 
         if (isClosed) return;
         emit(
           current.copyWith(
-            drawnNumbers: newDrawnNumbers,
+            // Note: drawnNumbers NOT updated here — _drawsSub handles that
             status: newStatus,
             isPaused: gameData['isPaused'] ?? false,
             sessionId: newSessionId,
@@ -302,8 +291,6 @@ class GameCubit extends Cubit<GameState> {
             claimedCardIds: sessionChanged ? [] : List<String>.from(gameData['claims'] ?? []),
             cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
             playerCount: gameData['playersCount'] ?? current.playerCount,
-            // On session change, clear ALL result fields immediately so old
-            // winner data never bleeds into the new session.
             winnerId: sessionChanged ? null : gameData['winnerId'],
             winningCardNo: sessionChanged ? null : gameData['winningCardNo'],
             winningCardNumbers: sessionChanged
@@ -343,8 +330,9 @@ class GameCubit extends Cubit<GameState> {
                         : (gameData['claimDeadline'] is int
                             ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
                             : DateTime.tryParse(gameData['claimDeadline'].toString())))),
-            markedCells: sessionChanged ? {} : (autoMarked ?? null),
+            markedCells: sessionChanged ? {} : null,
             blockedCardIds: sessionChanged ? {} : null,
+            drawnNumbers: sessionChanged ? [] : null,
             userCards: current.userCards
                 .where((c) => c.sessionId == newSessionId)
                 .toList(),
@@ -754,10 +742,75 @@ class GameCubit extends Cubit<GameState> {
     ));
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // DRAWS SUBSCRIPTION (v2)
+  // Subscribes to lightweight game_draws INSERT events for a specific session.
+  // Each INSERT adds exactly one number — no full-array retransmission.
+  // ─────────────────────────────────────────────────────────────────────────
+  void _resubscribeDraws(String sessionId) {
+    _drawsSub?.cancel();
+
+    // Load existing drawn numbers for the session first, then subscribe to new ones
+    _bingoRepository.fetchDrawnNumbers(sessionId).then((existing) {
+      if (isClosed) return;
+      if (state is GameLoaded && existing.isNotEmpty) {
+        final current = state as GameLoaded;
+        final autoMarked = current.isAutoDaubEnabled
+            ? _applyAutoDaub(current, Set<int>.from(existing))
+            : null;
+        emit(current.copyWith(
+          drawnNumbers: existing,
+          markedCells: autoMarked,
+        ));
+      }
+    }).catchError((e) => Log.e('fetchDrawnNumbers failed', e));
+
+    _drawsSub = _bingoRepository.streamGameDraws(sessionId).listen((newNumber) {
+      if (state is! GameLoaded || isClosed) return;
+      final current = state as GameLoaded;
+
+      final newDrawnNumbers = [...current.drawnNumbers, newNumber];
+
+      // Audio
+      if (current.status != GameStatus.paused) {
+        AudioService().callNumber(newNumber);
+      }
+
+      // Auto-daub incrementally — only the new number, not the full list
+      final autoMarked = current.isAutoDaubEnabled
+          ? _applyAutoDaub(current, {newNumber})
+          : null;
+
+      emit(current.copyWith(
+        drawnNumbers: newDrawnNumbers,
+        markedCells: autoMarked,
+      ));
+    });
+  }
+
+  Map<String, Set<String>> _applyAutoDaub(GameLoaded current, Set<int> numbersToMark) {
+    final map = Map<String, Set<String>>.from(current.markedCells);
+    for (var card in current.userCards) {
+      if (card.status != 'registered') continue;
+      final cells = Set<String>.from(map[card.id] ?? {});
+      for (var r = 0; r < 5; r++) {
+        for (var col = 0; col < 5; col++) {
+          if (r == 2 && col == 2) continue;
+          if (numbersToMark.contains(card.numbers[r][col])) {
+            cells.add('$r-$col');
+          }
+        }
+      }
+      map[card.id] = cells;
+    }
+    return map;
+  }
+
   @override
   Future<void> close() {
     _gameSub?.cancel();
     _winnersSub?.cancel();
+    _drawsSub?.cancel();
     return super.close();
   }
 }

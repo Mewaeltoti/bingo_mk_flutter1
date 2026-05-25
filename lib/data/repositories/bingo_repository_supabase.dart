@@ -17,21 +17,32 @@ class BingoRepositorySupabase implements BingoRepository {
 
   // ─────────────────────────────────────────────────────────────────────────
   // STREAM GAME
-  // Subscribes to the shared broadcast channel 'game:state'.
-  // The Postgres trigger broadcast_game_state() fires on EVERY games UPDATE
-  // and sends the full row — no postgres_changes, no RLS interference.
+  // Listens to the games 'live' row for status, session, prize, pattern, etc.
+  // Does NOT carry drawn_numbers — those come from streamGameDraws().
+  //
+  // V2 CHANGE: select() uses explicit columns instead of '*' to reduce
+  // realtime payload size. The drawn_numbers INT[] array is still fetched
+  // here for backward-compat but GameCubit preferentially uses streamGameDraws.
   // ─────────────────────────────────────────────────────────────────────────
   @override
   Stream<Map<String, dynamic>> streamGame(String gameId) {
     late final RealtimeChannel channel;
     late final StreamController<Map<String, dynamic>> controller;
 
+    // Slim column set — no large arrays in the hot path
+    const String _gameColumns =
+        'id, status, session_id, is_paused, prize_pool, card_price, '
+        'game_pattern, current_number, last_draw_time, winners, winner_id, '
+        'winning_card_no, winning_card_numbers, status_message, broadcast_message, '
+        'cards_sold, players_count, start_time, end_time, claim_deadline, '
+        'pending_claims, confirmed_winners';
+
     controller = StreamController<Map<String, dynamic>>(
       onListen: () {
         // Fetch current state immediately so UI isn't blank before first event
         _client
             .from('games')
-            .select('*')
+            .select(_gameColumns)
             .eq('id', 'live')
             .maybeSingle()
             .then((row) {
@@ -40,8 +51,6 @@ class BingoRepositorySupabase implements BingoRepository {
           }
         }).catchError((_) {});
 
-        // Subscribe directly to Postgres Changes on the games table.
-        // This fires on every UPDATE to the 'live' row — no broadcast trigger needed.
         channel = _client
             .channel('game-state-realtime')
             .onPostgresChanges(
@@ -70,10 +79,62 @@ class BingoRepositorySupabase implements BingoRepository {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // STREAM DRAWN NUMBERS
-  // Derived from streamGame — no extra channel needed.
-  // GameCubit already reads drawnNumbers from the game stream,
-  // but this method is kept for interface compatibility.
+  // STREAM GAME DRAWS (v2 — replaces the drawn_numbers INT[] array)
+  //
+  // Listens to INSERT events on the game_draws table for the current session.
+  // Payloads are tiny: { session_id, number, drawn_at }.
+  // GameCubit appends each new number locally — no full-array retransmission.
+  // ─────────────────────────────────────────────────────────────────────────
+  Stream<int> streamGameDraws(String sessionId) {
+    late final RealtimeChannel channel;
+    late final StreamController<int> controller;
+
+    controller = StreamController<int>(
+      onListen: () {
+        channel = _client
+            .channel('game-draws-$sessionId')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.insert,
+              schema: 'public',
+              table: 'game_draws',
+              filter: PostgresChangeFilter(
+                type: PostgresChangeFilterType.eq,
+                column: 'session_id',
+                value: sessionId,
+              ),
+              callback: (payload) {
+                if (controller.isClosed) return;
+                final number = payload.newRecord['number'] as int?;
+                if (number != null) controller.add(number);
+              },
+            )
+            .subscribe();
+      },
+      onCancel: () {
+        _client.removeChannel(channel);
+      },
+    );
+
+    return controller.stream;
+  }
+
+  // Fetch all drawn numbers for a session (used on initial load)
+  Future<List<int>> fetchDrawnNumbers(String sessionId) async {
+    try {
+      final response = await _client
+          .from('game_draws')
+          .select('number')
+          .eq('session_id', sessionId)
+          .order('id', ascending: true);
+      return (response as List).map((r) => r['number'] as int).toList();
+    } catch (e) {
+      Log.e('fetchDrawnNumbers failed', e);
+      return [];
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // STREAM DRAWN NUMBERS (legacy interface — derived from streamGame)
   // ─────────────────────────────────────────────────────────────────────────
   @override
   Stream<List<int>> streamDrawnNumbers(String gameId) {
@@ -192,6 +253,21 @@ class BingoRepositorySupabase implements BingoRepository {
     );
 
     return controller.stream;
+  }
+
+  /// v2: fetch the current live game's session_id
+  Future<String> getLiveSessionId() async {
+    try {
+      final row = await _client
+          .from('games')
+          .select('session_id')
+          .eq('id', 'live')
+          .maybeSingle();
+      return row?['session_id']?.toString() ?? '';
+    } catch (e) {
+      Log.e('getLiveSessionId failed', e);
+      return '';
+    }
   }
 
   @override
@@ -545,16 +621,15 @@ class BingoRepositorySupabase implements BingoRepository {
     return {
       'status': row['status'] ?? 'waiting',
       'sessionId': row['session_id']?.toString() ?? '',
+      // drawn_numbers kept for backward-compat; GameCubit uses streamGameDraws primarily
       'drawnNumbers': List<int>.from(row['drawn_numbers'] ?? []),
-      'drawSequence': List<int>.from(row['draw_sequence'] ?? []),
       'isPaused': row['is_paused'] ?? false,
       'prizePool': (row['prize_pool'] ?? 0.0).toDouble(),
       'cardPrice': (row['card_price'] ?? 10.0).toDouble(),
       'gamePattern': row['game_pattern'] ?? 'full_house',
       'currentNumber': row['current_number'],
       'lastDrawTime': row['last_draw_time'],
-      'heartbeat': row['heartbeat'],
-      'loopId': row['loop_id'],
+      // heartbeat and loopId removed — client loop needs no server heartbeat
       'winners': List<String>.from(row['winners'] ?? []),
       'winnerId': row['winner_id'],
       'winningCardNo': row['winning_card_no'],
@@ -572,8 +647,7 @@ class BingoRepositorySupabase implements BingoRepository {
               ?.map((c) => Map<String, dynamic>.from(c as Map))
               .toList() ??
           [],
-      // broadcastMessage comes from a dedicated column if available,
-      // otherwise null — never reuse status_message which is a draw-loop field.
+      // broadcast_message is now a dedicated column — never polluted by status_message
       'broadcastMessage': row['broadcast_message'],
     };
   }

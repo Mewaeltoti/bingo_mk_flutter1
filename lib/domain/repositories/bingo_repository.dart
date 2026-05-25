@@ -18,6 +18,16 @@ abstract class BingoRepository {
   Future<void> createDeposit(String userId, Map<String, dynamic> data);
   Future<void> createWithdrawal(String userId, Map<String, dynamic> data);
   Stream<List<int>> streamDrawnNumbers(String gameId);
+
+  /// v2: lightweight per-number draw stream (game_draws table INSERTs)
+  Stream<int> streamGameDraws(String sessionId);
+
+  /// v2: fetch all drawn numbers for a session on initial load
+  Future<List<int>> fetchDrawnNumbers(String sessionId);
+
+  /// v2: fetch the current live game's session_id (used by GameCubit on init)
+  Future<String> getLiveSessionId();
+
   Future<List<Map<String, dynamic>>> getGameHistory();
   Future<List<Map<String, dynamic>>> getTopPlayers();
   Future<List<Map<String, dynamic>>> getPaymentAccounts();
