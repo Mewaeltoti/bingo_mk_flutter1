@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "games": {
+      "live": {
+        ".read": true,
+        ".write": false
+      }
+    }
+  }
+}
