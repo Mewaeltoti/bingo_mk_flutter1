@@ -199,7 +199,6 @@ class GameCubit extends Cubit<GameState> {
   final BingoRepository _bingoRepository;
   final String userId;
 
-  StreamSubscription? _drawnNumbersSub;
   StreamSubscription? _gameSub;
   StreamSubscription? _winnersSub;
 
@@ -228,54 +227,7 @@ class GameCubit extends Cubit<GameState> {
         ),
       );
 
-      /// LIVE DRAWN NUMBERS (from games/live)
-      _drawnNumbersSub = _bingoRepository.streamDrawnNumbers(kLiveGameId).listen((numbers) {
-        if (state is! GameLoaded) return;
-        final current = state as GameLoaded;
-        
-        final isTerminal =
-            current.status == GameStatus.won ||
-            current.status == GameStatus.waiting;
-            
-        if (numbers.length > current.drawnNumbers.length) {
-          final newNumber = numbers.last;
-          if (current.status != GameStatus.paused) {
-            AudioService().callNumber(newNumber);
-          }
-        }
-
-        // AUTO-DAUB MECHANIC
-        Map<String, Set<String>>? autoMarked;
-        if (current.isAutoDaubEnabled) {
-          final drawnSet = Set<int>.from(numbers);
-          final map = Map<String, Set<String>>.from(current.markedCells);
-          for (var card in current.userCards) {
-            if (card.status != 'registered') continue;
-            final cells = Set<String>.from(map[card.id] ?? {});
-            for (var r = 0; r < 5; r++) {
-              for (var c = 0; c < 5; c++) {
-                if (r == 2 && c == 2) continue;
-                if (drawnSet.contains(card.numbers[r][c])) {
-                  cells.add('$r-$c');
-                }
-              }
-            }
-            map[card.id] = cells;
-          }
-          autoMarked = map;
-        }
-
-        if (isClosed) return;
-        emit(
-          current.copyWith(
-            drawnNumbers: numbers,
-            markedCells: autoMarked,
-            status: isTerminal ? current.status : null,
-          ),
-        );
-      });
-
-      /// GAME SESSION DATA (from games/live)
+      /// GAME SESSION DATA + DRAWN NUMBERS (from games/live — single subscription)
       _gameSub = _bingoRepository.streamGame(kLiveGameId).listen((gameData) {
         if (state is! GameLoaded) return;
         final current = state as GameLoaded;
@@ -308,9 +260,39 @@ class GameCubit extends Cubit<GameState> {
           AudioService().playWin();
         }
 
+        // ── Drawn numbers + audio + auto-daub (moved from _drawnNumbersSub) ──
+        final newDrawnNumbers = List<int>.from(gameData['drawnNumbers'] ?? []);
+        if (newDrawnNumbers.length > current.drawnNumbers.length) {
+          final newNumber = newDrawnNumbers.last;
+          if (newStatus != GameStatus.paused) {
+            AudioService().callNumber(newNumber);
+          }
+        }
+
+        Map<String, Set<String>>? autoMarked;
+        if (current.isAutoDaubEnabled) {
+          final drawnSet = Set<int>.from(newDrawnNumbers);
+          final map = Map<String, Set<String>>.from(current.markedCells);
+          for (var card in current.userCards) {
+            if (card.status != 'registered') continue;
+            final cells = Set<String>.from(map[card.id] ?? {});
+            for (var r = 0; r < 5; r++) {
+              for (var col = 0; col < 5; col++) {
+                if (r == 2 && col == 2) continue;
+                if (drawnSet.contains(card.numbers[r][col])) {
+                  cells.add('\$r-\$col');
+                }
+              }
+            }
+            map[card.id] = cells;
+          }
+          autoMarked = map;
+        }
+
         if (isClosed) return;
         emit(
           current.copyWith(
+            drawnNumbers: newDrawnNumbers,
             status: newStatus,
             isPaused: gameData['isPaused'] ?? false,
             sessionId: newSessionId,
@@ -361,7 +343,7 @@ class GameCubit extends Cubit<GameState> {
                         : (gameData['claimDeadline'] is int
                             ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
                             : DateTime.tryParse(gameData['claimDeadline'].toString())))),
-            markedCells: sessionChanged ? {} : null,
+            markedCells: sessionChanged ? {} : (autoMarked ?? null),
             blockedCardIds: sessionChanged ? {} : null,
             userCards: current.userCards
                 .where((c) => c.sessionId == newSessionId)
@@ -774,7 +756,6 @@ class GameCubit extends Cubit<GameState> {
 
   @override
   Future<void> close() {
-    _drawnNumbersSub?.cancel();
     _gameSub?.cancel();
     _winnersSub?.cancel();
     return super.close();

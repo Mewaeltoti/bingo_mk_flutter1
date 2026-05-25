@@ -15,106 +15,181 @@ class BingoRepositorySupabase implements BingoRepository {
     throw UnimplementedError("Games are managed by the server.");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // STREAM GAME
+  // Subscribes to the shared broadcast channel 'game:state'.
+  // The Postgres trigger broadcast_game_state() fires on EVERY games UPDATE
+  // and sends the full row — no postgres_changes, no RLS interference.
+  // ─────────────────────────────────────────────────────────────────────────
   @override
   Stream<Map<String, dynamic>> streamGame(String gameId) {
-    final controller = StreamController<Map<String, dynamic>>.broadcast();
+    late final RealtimeChannel channel;
+    late final StreamController<Map<String, dynamic>> controller;
 
-    // Fetch current state immediately so the UI isn't blank on first load
-    _client
-        .from('games')
-        .select('*')
-        .eq('id', 'live')
-        .maybeSingle()
-        .then((row) {
-      if (row != null && !controller.isClosed) {
-        controller.add(_mapGameToCamelCase(row));
-      }
-    }).catchError((_) {});
+    controller = StreamController<Map<String, dynamic>>(
+      onListen: () {
+        // Fetch current state immediately so UI isn't blank before first event
+        _client
+            .from('games')
+            .select('*')
+            .eq('id', 'live')
+            .maybeSingle()
+            .then((row) {
+          if (row != null && !controller.isClosed) {
+            controller.add(_mapGameToCamelCase(row));
+          }
+        }).catchError((_) {});
 
-    // True Postgres change subscription — fires instantly on every UPDATE
-    final channel = _client
-        .channel('db:games:live')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'games',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: 'live',
-          ),
-          callback: (payload) {
-            if (controller.isClosed) return;
-            controller.add(_mapGameToCamelCase(
-                Map<String, dynamic>.from(payload.newRecord)));
-          },
-        )
-        .subscribe();
-
-    controller.onCancel = () {
-      _client.removeChannel(channel);
-      controller.close();
-    };
+        // Subscribe directly to Postgres Changes on the games table.
+        // This fires on every UPDATE to the 'live' row — no broadcast trigger needed.
+        channel = _client
+            .channel('game-state-realtime')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.update,
+              schema: 'public',
+              table: 'games',
+              filter: PostgresChangeFilter(
+                type: PostgresChangeFilterType.eq,
+                column: 'id',
+                value: 'live',
+              ),
+              callback: (payload) {
+                if (controller.isClosed) return;
+                controller.add(_mapGameToCamelCase(
+                    Map<String, dynamic>.from(payload.newRecord)));
+              },
+            )
+            .subscribe();
+      },
+      onCancel: () {
+        _client.removeChannel(channel);
+      },
+    );
 
     return controller.stream;
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // STREAM DRAWN NUMBERS
+  // Derived from streamGame — no extra channel needed.
+  // GameCubit already reads drawnNumbers from the game stream,
+  // but this method is kept for interface compatibility.
+  // ─────────────────────────────────────────────────────────────────────────
+  @override
+  Stream<List<int>> streamDrawnNumbers(String gameId) {
+    return streamGame(gameId).map((game) {
+      return List<int>.from(game['drawnNumbers'] ?? []);
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // STREAM GAME WINNERS
+  // ─────────────────────────────────────────────────────────────────────────
   @override
   Stream<List<Map<String, dynamic>>> streamGameWinners() {
-    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+    late final RealtimeChannel channel;
+    late final StreamController<List<Map<String, dynamic>>> controller;
+    final List<Map<String, dynamic>> current = [];
 
-    // Helper to map a raw row
-    Map<String, dynamic> mapRow(Map<String, dynamic> row) => {
-      'cardNo': row['card_no']?.toString() ?? '',
-      'sessionId': row['session_id']?.toString() ?? '',
-      'userId': row['user_id']?.toString() ?? '',
-      'phone': row['phone'] ?? '',
-      'createdAt': row['created_at'] != null
-          ? DateTime.parse(row['created_at'])
-          : null,
-    };
+    Map<String, dynamic> _mapRow(Map<String, dynamic> row) => {
+          'cardNo': row['card_no']?.toString() ?? '',
+          'sessionId': row['session_id']?.toString() ?? '',
+          'userId': row['user_id']?.toString() ?? '',
+          'phone': row['phone'] ?? '',
+          'createdAt': row['created_at'] != null
+              ? DateTime.parse(row['created_at'])
+              : null,
+        };
 
-    // Fetch current winners immediately
-    _client
-        .from('game_winners')
-        .select('*')
-        .then((rows) {
-      if (!controller.isClosed) {
-        controller.add((rows as List).map((r) => mapRow(Map<String, dynamic>.from(r as Map))).toList());
-      }
-    }).catchError((_) {});
+    controller = StreamController<List<Map<String, dynamic>>>(
+      onListen: () {
+        _client.from('game_winners').select('*').then((rows) {
+          if (controller.isClosed) return;
+          current.clear();
+          current.addAll((rows as List)
+              .map((r) => _mapRow(Map<String, dynamic>.from(r as Map)))
+              .toList());
+          controller.add(List.from(current));
+        }).catchError((_) {});
 
-    // Track all winners in memory so INSERT events can be accumulated
-    final List<Map<String, dynamic>> _current = [];
+        channel = _client
+            .channel('db-game-winners')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.insert,
+              schema: 'public',
+              table: 'game_winners',
+              callback: (payload) {
+                if (controller.isClosed) return;
+                current.add(_mapRow(
+                    Map<String, dynamic>.from(payload.newRecord)));
+                controller.add(List.from(current));
+              },
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.delete,
+              schema: 'public',
+              table: 'game_winners',
+              callback: (payload) {
+                if (controller.isClosed) return;
+                current.clear();
+                controller.add([]);
+              },
+            )
+            .subscribe();
+      },
+      onCancel: () {
+        _client.removeChannel(channel);
+      },
+    );
 
-    final channel = _client
-        .channel('db:game_winners')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'game_winners',
-          callback: (payload) {
-            if (controller.isClosed) return;
-            _current.add(mapRow(Map<String, dynamic>.from(payload.newRecord)));
-            controller.add(List.from(_current));
-          },
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.delete,
-          schema: 'public',
-          table: 'game_winners',
-          callback: (payload) {
-            if (controller.isClosed) return;
-            _current.clear(); // delete means session reset
-            controller.add([]);
-          },
-        )
-        .subscribe();
+    return controller.stream;
+  }
 
-    controller.onCancel = () {
-      _client.removeChannel(channel);
-      controller.close();
-    };
+  // ─────────────────────────────────────────────────────────────────────────
+  // STREAM BALANCE
+  // ─────────────────────────────────────────────────────────────────────────
+  @override
+  Stream<double> streamBalance(String userId) {
+    late final RealtimeChannel channel;
+    late final StreamController<double> controller;
+
+    controller = StreamController<double>(
+      onListen: () {
+        _client
+            .from('profiles')
+            .select('balance')
+            .eq('id', userId)
+            .maybeSingle()
+            .then((row) {
+          if (row != null && !controller.isClosed) {
+            controller.add((row['balance'] as num?)?.toDouble() ?? 0.0);
+          }
+        }).catchError((_) {});
+
+        channel = _client
+            .channel('db-profiles-$userId')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.update,
+              schema: 'public',
+              table: 'profiles',
+              filter: PostgresChangeFilter(
+                type: PostgresChangeFilterType.eq,
+                column: 'id',
+                value: userId,
+              ),
+              callback: (payload) {
+                if (controller.isClosed) return;
+                controller.add(
+                  (payload.newRecord['balance'] as num?)?.toDouble() ?? 0.0,
+                );
+              },
+            )
+            .subscribe();
+      },
+      onCancel: () {
+        _client.removeChannel(channel);
+      },
+    );
 
     return controller.stream;
   }
@@ -122,7 +197,7 @@ class BingoRepositorySupabase implements BingoRepository {
   @override
   Future<void> drawNumber(String gameId, int number) async {
     throw UnimplementedError(
-      "Server-authoritative architecture prevents clients from drawing numbers.",
+      "Server-authoritative: pg_cron drives all draws.",
     );
   }
 
@@ -149,7 +224,8 @@ class BingoRepositorySupabase implements BingoRepository {
         'numbers': numbers,
       });
       if (response.status != 200) {
-        throw Exception(response.data['error'] ?? 'Function register-card failed');
+        throw Exception(
+            response.data['error'] ?? 'Function register-card failed');
       }
     } catch (e) {
       Log.e("Repository registerCard failed", e);
@@ -179,7 +255,8 @@ class BingoRepositorySupabase implements BingoRepository {
         'markedCellsMap': {cardId: markedCells},
       });
       if (response.status != 200) {
-        throw Exception(response.data['error'] ?? 'Function claim-bingo failed');
+        throw Exception(
+            response.data['error'] ?? 'Function claim-bingo failed');
       }
       return response.data['success'] == true;
     } catch (e) {
@@ -200,7 +277,8 @@ class BingoRepositorySupabase implements BingoRepository {
         'markedCellsMap': markedCellsMap,
       });
       if (response.status != 200) {
-        throw Exception(response.data['error'] ?? 'Function claim-bingo failed');
+        throw Exception(
+            response.data['error'] ?? 'Function claim-bingo failed');
       }
       return response.data['success'] == true;
     } catch (e) {
@@ -218,37 +296,33 @@ class BingoRepositorySupabase implements BingoRepository {
           .eq('user_id', userId)
           .eq('game_id', 'live');
 
-      final List<dynamic> rows = response as List<dynamic>;
-
-      final cards = rows.map((row) {
+      final cards = (response as List).map((row) {
         final flatNumbers = List<int>.from(row['numbers'] ?? []);
         final status = row['status'] as String? ?? 'pending';
         final cardNo = row['card_no'] as int? ?? 0;
         final cardSessionId = (row['session_id'] ?? '').toString();
-        final createdAtStr = row['created_at'] as String?;
-        final createdAt = createdAtStr != null ? DateTime.parse(createdAtStr) : null;
+        final createdAt = row['created_at'] != null
+            ? DateTime.parse(row['created_at'])
+            : null;
 
-        final List<List<int>> grid = [];
+        List<List<int>> grid = [];
         if (flatNumbers.length == 25) {
           for (var i = 0; i < 5; i++) {
             grid.add(flatNumbers.sublist(i * 5, (i + 1) * 5));
           }
         } else if (flatNumbers.length == 24) {
-          final fullList = List<int>.from(flatNumbers);
-          fullList.insert(12, 0); // Insert middle free space cell 0
+          final full = List<int>.from(flatNumbers)..insert(12, 0);
           for (var i = 0; i < 5; i++) {
-            grid.add(fullList.sublist(i * 5, (i + 1) * 5));
+            grid.add(full.sublist(i * 5, (i + 1) * 5));
           }
         } else {
-          for (var i = 0; i < 5; i++) {
-            grid.add(List.filled(5, 0));
-          }
+          grid = List.generate(5, (_) => List.filled(5, 0));
         }
 
         return BingoCard(
           id: row['id'].toString(),
           numbers: grid,
-          price: 10.0, // Standard card price
+          price: 10.0,
           status: status,
           cardNo: cardNo,
           sessionId: cardSessionId,
@@ -256,7 +330,6 @@ class BingoRepositorySupabase implements BingoRepository {
         );
       }).toList();
 
-      // Sort locally by createdAt (newest first)
       cards.sort((a, b) {
         if (a.createdAt == null) return 1;
         if (b.createdAt == null) return -1;
@@ -268,49 +341,6 @@ class BingoRepositorySupabase implements BingoRepository {
       Log.e("Repository getUserCartelas failed", e);
       throw Exception('Failed to get user cards: $e');
     }
-  }
-
-  @override
-  Stream<List<int>> streamDrawnNumbers(String gameId) {
-    // All clients share ONE broadcast channel 'game:draws'.
-    // The draw loop publishes each number there; we just subscribe.
-    // Late-join: fetch current drawn_numbers from DB on first subscribe.
-    final controller = StreamController<List<int>>();
-
-    // ── 1. Late-join: fetch what's already drawn ──────────────────────────────
-    _client
-        .from('games')
-        .select('drawn_numbers')
-        .eq('id', 'live')
-        .maybeSingle()
-        .then((row) {
-      if (row != null && !controller.isClosed) {
-        controller.add(List<int>.from(row['drawn_numbers'] ?? []));
-      }
-    }).catchError((_) {});
-
-    // ── 2. Live updates via shared broadcast channel ──────────────────────────
-    final channel = _client
-        .channel('game:draws')
-        .onBroadcast(
-          event: 'number_drawn',
-          callback: (payload) {
-            if (controller.isClosed) return;
-            final drawn = payload['drawn'];
-            if (drawn != null) {
-              controller.add(List<int>.from(drawn as List));
-            }
-          },
-        )
-        .subscribe();
-
-    // ── 3. Clean up on stream cancel ─────────────────────────────────────────
-    controller.onCancel = () {
-      _client.removeChannel(channel);
-      if (!controller.isClosed) controller.close();
-    };
-
-    return controller.stream;
   }
 
   @override
@@ -329,50 +359,6 @@ class BingoRepositorySupabase implements BingoRepository {
   }
 
   @override
-  Stream<double> streamBalance(String userId) {
-    final controller = StreamController<double>.broadcast();
-
-    // Fetch current balance immediately
-    _client
-        .from('profiles')
-        .select('balance')
-        .eq('id', userId)
-        .maybeSingle()
-        .then((row) {
-      if (row != null && !controller.isClosed) {
-        controller.add((row['balance'] as num?)?.toDouble() ?? 0.0);
-      }
-    }).catchError((_) {});
-
-    final channel = _client
-        .channel('db:profiles:$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'profiles',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: userId,
-          ),
-          callback: (payload) {
-            if (controller.isClosed) return;
-            final balance =
-                (payload.newRecord['balance'] as num?)?.toDouble() ?? 0.0;
-            controller.add(balance);
-          },
-        )
-        .subscribe();
-
-    controller.onCancel = () {
-      _client.removeChannel(channel);
-      controller.close();
-    };
-
-    return controller.stream;
-  }
-
-  @override
   Future<List<Map<String, dynamic>>> getDeposits(String userId) async {
     try {
       final response = await _client
@@ -380,18 +366,21 @@ class BingoRepositorySupabase implements BingoRepository {
           .select('*')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
-      return (response as List<dynamic>).map<Map<String, dynamic>>((row) => <String, dynamic>{
-        ...row as Map<String, dynamic>,
-        'id': row['id'].toString(),
-        'userId': row['user_id'].toString(),
-        'amount': (row['amount'] as num?)?.toDouble() ?? 0.0,
-        'reference': row['reference'] ?? '',
-        'status': row['status'] ?? 'pending',
-        'createdAt': row['created_at'] != null ? DateTime.parse(row['created_at']) : null,
-        'verifiedAt': row['verified_at'] != null ? DateTime.parse(row['verified_at']) : null,
-        'matchedVia': row['matched_via'],
-        'rejectionReason': row['rejection_reason'],
-      }).toList();
+      return (response as List).map<Map<String, dynamic>>((row) => {
+            'id': row['id'].toString(),
+            'userId': row['user_id'].toString(),
+            'amount': (row['amount'] as num?)?.toDouble() ?? 0.0,
+            'reference': row['reference'] ?? '',
+            'status': row['status'] ?? 'pending',
+            'createdAt': row['created_at'] != null
+                ? DateTime.parse(row['created_at'])
+                : null,
+            'verifiedAt': row['verified_at'] != null
+                ? DateTime.parse(row['verified_at'])
+                : null,
+            'matchedVia': row['matched_via'],
+            'rejectionReason': row['rejection_reason'],
+          }).toList();
     } catch (e) {
       Log.e("Failed to get deposits", e);
       return [];
@@ -406,18 +395,23 @@ class BingoRepositorySupabase implements BingoRepository {
           .select('*')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
-      return (response as List<dynamic>).map<Map<String, dynamic>>((row) => <String, dynamic>{
-        ...row as Map<String, dynamic>,
-        'id': row['id'].toString(),
-        'userId': row['user_id'].toString(),
-        'amount': (row['amount'] as num?)?.toDouble() ?? 0.0,
-        'status': row['status'] ?? 'pending',
-        'isReserved': row['is_reserved'] ?? false,
-        'createdAt': row['created_at'] != null ? DateTime.parse(row['created_at']) : null,
-        'reservedAt': row['reserved_at'] != null ? DateTime.parse(row['reserved_at']) : null,
-        'refundedAt': row['refunded_at'] != null ? DateTime.parse(row['refunded_at']) : null,
-        'rejectionReason': row['rejection_reason'],
-      }).toList();
+      return (response as List).map<Map<String, dynamic>>((row) => {
+            'id': row['id'].toString(),
+            'userId': row['user_id'].toString(),
+            'amount': (row['amount'] as num?)?.toDouble() ?? 0.0,
+            'status': row['status'] ?? 'pending',
+            'isReserved': row['is_reserved'] ?? false,
+            'createdAt': row['created_at'] != null
+                ? DateTime.parse(row['created_at'])
+                : null,
+            'reservedAt': row['reserved_at'] != null
+                ? DateTime.parse(row['reserved_at'])
+                : null,
+            'refundedAt': row['refunded_at'] != null
+                ? DateTime.parse(row['refunded_at'])
+                : null,
+            'rejectionReason': row['rejection_reason'],
+          }).toList();
     } catch (e) {
       Log.e("Failed to get withdrawals", e);
       return [];
@@ -440,7 +434,8 @@ class BingoRepositorySupabase implements BingoRepository {
   }
 
   @override
-  Future<void> createWithdrawal(String userId, Map<String, dynamic> data) async {
+  Future<void> createWithdrawal(
+      String userId, Map<String, dynamic> data) async {
     try {
       await _client.from('withdrawals').insert({
         'user_id': userId,
@@ -461,18 +456,20 @@ class BingoRepositorySupabase implements BingoRepository {
           .select('*')
           .order('created_at', ascending: false)
           .limit(50);
-      return (response as List<dynamic>).map<Map<String, dynamic>>((row) => <String, dynamic>{
-        'id': row['id'].toString(),
-        'sessionId': row['session_id'] ?? '',
-        'status': row['status'] ?? '',
-        'prize': (row['prize'] as num?)?.toDouble() ?? 0.0,
-        'drawnNumbers': List<int>.from(row['drawn_numbers'] ?? []),
-        'cardsSold': row['cards_sold'] ?? 0,
-        'winnerId': row['winner_id'],
-        'winnerName': row['winner_name'],
-        'winningCardNo': row['winning_card_no'],
-        'createdAt': row['created_at'] != null ? DateTime.parse(row['created_at']) : null,
-      }).toList();
+      return (response as List).map<Map<String, dynamic>>((row) => {
+            'id': row['id'].toString(),
+            'sessionId': row['session_id'] ?? '',
+            'status': row['status'] ?? '',
+            'prize': (row['prize'] as num?)?.toDouble() ?? 0.0,
+            'drawnNumbers': List<int>.from(row['drawn_numbers'] ?? []),
+            'cardsSold': row['cards_sold'] ?? 0,
+            'winnerId': row['winner_id'],
+            'winnerName': row['winner_name'],
+            'winningCardNo': row['winning_card_no'],
+            'createdAt': row['created_at'] != null
+                ? DateTime.parse(row['created_at'])
+                : null,
+          }).toList();
     } catch (e) {
       Log.e("Failed to get game history", e);
       return [];
@@ -484,29 +481,24 @@ class BingoRepositorySupabase implements BingoRepository {
     try {
       final history = await getGameHistory();
       final Map<String, Map<String, dynamic>> players = {};
-
       for (var game in history) {
         final winnerId = game['winnerId'];
         if (winnerId == null) continue;
-
         if (!players.containsKey(winnerId)) {
           players[winnerId] = {
             'winnerId': winnerId,
             'wins': 0,
-            'totalPrize': 0,
+            'totalPrize': 0.0,
             'displayName': game['winnerName'] ?? 'Player',
           };
         }
-
         players[winnerId]!['wins'] = (players[winnerId]!['wins'] as int) + 1;
         players[winnerId]!['totalPrize'] =
             (players[winnerId]!['totalPrize'] as double) +
                 ((game['prize'] as num?)?.toDouble() ?? 0.0);
       }
-
-      final sorted = players.values.toList()
+      return players.values.toList()
         ..sort((a, b) => (b['wins'] as int).compareTo(a['wins'] as int));
-      return sorted;
     } catch (e) {
       Log.e("Failed to aggregate top players", e);
       return [];
@@ -515,36 +507,40 @@ class BingoRepositorySupabase implements BingoRepository {
 
   @override
   Future<List<Map<String, dynamic>>> getPaymentAccounts() async {
-    // Return standard CBE / Telebirr configurations for player deposit instructions
     return [
       {
         'bank': 'Commercial Bank of Ethiopia (CBE)',
         'accountName': 'Bingo MK Games',
         'accountNumber': '1000123456789',
-        'instructions': 'Send the amount to this CBE account and submit the transaction reference below.',
+        'instructions':
+            'Send to this CBE account and submit the transaction reference.',
       },
       {
         'bank': 'Telebirr',
         'accountName': 'Bingo MK Games Mobile',
         'accountNumber': '0912345678',
-        'instructions': 'Send the amount via Telebirr to this phone number and submit the transaction reference below.',
+        'instructions':
+            'Send via Telebirr to this number and submit the reference.',
       }
     ];
   }
 
   @override
   Future<void> initializeGame() async {
-    throw UnimplementedError("Initialization is handled automatically by Deno draw-loop.");
+    throw UnimplementedError(
+        "Initialization is handled automatically by the draw-loop.");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Map raw Postgres snake_case row → camelCase for GameCubit
+  // ─────────────────────────────────────────────────────────────────────────
   Map<String, dynamic> _mapGameToCamelCase(Map<String, dynamic> row) {
     final pendingClaims = (row['pending_claims'] as List?)
-        ?.map((c) => Map<String, dynamic>.from(c as Map))
-        .toList() ?? [];
-
-    final claims = pendingClaims
-        .map((c) => (c['cardId'] ?? '').toString())
-        .toList();
+            ?.map((c) => Map<String, dynamic>.from(c as Map))
+            .toList() ??
+        [];
+    final claims =
+        pendingClaims.map((c) => (c['cardId'] ?? '').toString()).toList();
 
     return {
       'status': row['status'] ?? 'waiting',
@@ -568,13 +564,17 @@ class BingoRepositorySupabase implements BingoRepository {
       'statusMessage': row['status_message'] ?? '',
       'cardsSold': row['cards_sold'] ?? 0,
       'playersCount': row['players_count'] ?? 0,
-      'createdAt': row['start_time'] ?? row['last_draw_time'], // map start_time/last_draw_time to createdAt
+      'createdAt': row['start_time'] ?? row['last_draw_time'],
       'claimDeadline': row['claim_deadline'],
       'pendingClaims': pendingClaims,
-      'claims': claims, // Synthesized claims list of UUIDs for claimedCardIds in GameCubit
+      'claims': claims,
       'confirmedWinners': (row['confirmed_winners'] as List?)
-          ?.map((c) => Map<String, dynamic>.from(c as Map))
-          .toList() ?? [],
+              ?.map((c) => Map<String, dynamic>.from(c as Map))
+              .toList() ??
+          [],
+      // broadcastMessage comes from a dedicated column if available,
+      // otherwise null — never reuse status_message which is a draw-loop field.
+      'broadcastMessage': row['broadcast_message'],
     };
   }
 }

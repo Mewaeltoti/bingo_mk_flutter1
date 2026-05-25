@@ -61,16 +61,13 @@ class _GamePageState extends State<GamePage> {
     return BlocConsumer<GameCubit, GameState>(
       listener: (context, state) {
         if (state is GameLoaded) {
-          if (state.statusMessage != null && state.statusMessage!.isNotEmpty) {
-            final message = state.statusMessage!;
-            final isGenericLoopMsg =
-                message.contains('drawn') ||
-                message.contains('Waiting') ||
-                message.contains('resumed') ||
-                message.contains('Playing') ||
-                message.contains('Verification');
-
-            if (message != _lastShownStatusMessage && !isGenericLoopMsg) {
+          // Only show snackbars for broadcastMessage (admin-sent messages)
+          // NOT for statusMessage (internal DB draw-loop field).
+          // Removing clearStatusMessage() here stops the double-emit
+          // that was preventing the UI board from updating every draw tick.
+          final message = state.broadcastMessage;
+          if (message != null && message.isNotEmpty) {
+            if (message != _lastShownStatusMessage) {
               _lastShownStatusMessage = message;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 ScaffoldMessenger.of(context).clearSnackBars();
@@ -85,15 +82,13 @@ class _GamePageState extends State<GamePage> {
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      ),
+                    ),
                     duration: const Duration(seconds: 4),
                   ),
                 );
               });
             }
-            context.read<GameCubit>().clearStatusMessage();
           } else {
-            // Reset tracker if server message is cleared
             _lastShownStatusMessage = null;
           }
 

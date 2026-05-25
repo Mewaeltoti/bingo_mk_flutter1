@@ -74,6 +74,36 @@ class AppRouter extends StatefulWidget {
 class _AppRouterState extends State<AppRouter> {
   bool _showSplash = true;
 
+  // Cubits are stored here so they survive AuthCubit re-emits (token refresh,
+  // etc.) and never get recreated mid-session. This preserves in-memory state
+  // like blockedCardIds across pull-to-refresh and navigation.
+  GameCubit? _gameCubit;
+  WalletCubit? _walletCubit;
+  String? _lastUserId;
+
+  @override
+  void dispose() {
+    _gameCubit?.close();
+    _walletCubit?.close();
+    super.dispose();
+  }
+
+  void _ensureCubits(String userId) {
+    if (_lastUserId == userId) return; // already created for this user
+    // User changed (logout → login as someone else) — dispose old ones
+    _gameCubit?.close();
+    _walletCubit?.close();
+    _gameCubit = GameCubit(
+      bingoRepository: sl<BingoRepository>(),
+      userId: userId,
+    );
+    _walletCubit = WalletCubit(
+      bingoRepository: sl<BingoRepository>(),
+      userId: userId,
+    );
+    _lastUserId = userId;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_showSplash) {
@@ -89,20 +119,11 @@ class _AppRouterState extends State<AppRouter> {
     return BlocBuilder<AuthCubit, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
+          _ensureCubits(state.userId);
           return MultiBlocProvider(
             providers: [
-              BlocProvider(
-                create: (_) => GameCubit(
-                  bingoRepository: sl<BingoRepository>(),
-                  userId: state.userId,
-                ),
-              ),
-              BlocProvider(
-                create: (_) => WalletCubit(
-                  bingoRepository: sl<BingoRepository>(),
-                  userId: state.userId,
-                ),
-              ),
+              BlocProvider.value(value: _gameCubit!),
+              BlocProvider.value(value: _walletCubit!),
             ],
             child: const MainContainer(),
           );
