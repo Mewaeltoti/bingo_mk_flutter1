@@ -63,16 +63,7 @@ class CardsGridWidget extends StatelessWidget {
     final drawnSet = Set<int>.from(drawnNumbers);
 
     final List<BingoCard> sortedCards = List.from(cards);
-    if (status != GameStatus.buying) {
-      sortedCards.sort((a, b) {
-        final matchA = _getMatchCount(a, drawnSet);
-        final matchB = _getMatchCount(b, drawnSet);
-        if (matchA != matchB) {
-          return matchB.compareTo(matchA);
-        }
-        return a.cardNo.compareTo(b.cardNo);
-      });
-    }
+    // Keep cards in their original order (no sorting during play)
 
     return GridView.builder(
       shrinkWrap: true,

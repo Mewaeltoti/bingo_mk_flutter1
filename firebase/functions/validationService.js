@@ -373,6 +373,10 @@ exports.confirmBingoClaim = async (request) => {
         if (!gameDoc.exists) throw new Error("Game not found.");
 
         const game = gameDoc.data();
+        const sessionIdStr = (game.sessionId || '').toString();
+        const payoutRef = db.collection('payouts').doc(sessionIdStr);
+        const payoutDoc = await transaction.get(payoutRef);
+
         const pendingClaims = game.pendingClaims || [];
         const confirmedWinners = game.confirmedWinners || [];
 
@@ -389,37 +393,48 @@ exports.confirmBingoClaim = async (request) => {
         if (pendingClaims.length === 0 && confirmedWinners.length > 0) {
             const prizePerWinner = (game.prizePool || 0) / confirmedWinners.length;
 
-            // Pay out each winner
-            for (const winner of confirmedWinners) {
-                const userRef = db.collection('users').doc(winner.userId);
-                const userDoc = await transaction.get(userRef);
-                const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
-                transaction.update(userRef, { balance: currentBalance + prizePerWinner });
+            if (payoutDoc.exists) {
+                console.log(`[Payout] Session ${sessionIdStr} already paid (confirmBingoClaim). Skipping.`);
+            } else {
+                // Pay out each winner
+                for (const winner of confirmedWinners) {
+                    const userRef = db.collection('users').doc(winner.userId);
+                    transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(prizePerWinner) });
 
-                // Write to game_winners collection
-                const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
-                transaction.set(winnerRef, {
+                    // Write to game_winners collection
+                    const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
+                    transaction.set(winnerRef, {
+                        sessionId: game.sessionId || 'N/A',
+                        cardNo: winner.cardNo.toString(),
+                        userId: winner.userId,
+                        phone: winner.phone || 'Player',
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+
+                // Write to game history
+                const historyRef = db.collection('game_history').doc();
+                transaction.set(historyRef, {
                     sessionId: game.sessionId || 'N/A',
-                    cardNo: winner.cardNo.toString(),
-                    userId: winner.userId,
-                    phone: winner.phone || 'Player',
+                    status: 'won',
+                    prize: game.prizePool || 0,
+                    drawnNumbers: game.drawnNumbers || [],
+                    cardsSold: game.cardsSold || 0,
+                    winnerId: confirmedWinners[0].userId,
+                    winnerName: confirmedWinners[0].phone || 'Player',
+                    winningCardNo: confirmedWinners[0].cardNo,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
-            }
 
-            // Write to game history
-            const historyRef = db.collection('game_history').doc();
-            transaction.set(historyRef, {
-                sessionId: game.sessionId || 'N/A',
-                status: 'won',
-                prize: game.prizePool || 0,
-                drawnNumbers: game.drawnNumbers || [],
-                cardsSold: game.cardsSold || 0,
-                winnerId: confirmedWinners[0].userId,
-                winnerName: confirmedWinners[0].phone || 'Player',
-                winningCardNo: confirmedWinners[0].cardNo,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+                // Write payout document
+                transaction.set(payoutRef, {
+                    sessionId: game.sessionId,
+                    prizePool: game.prizePool || 0,
+                    winnersCount: confirmedWinners.length,
+                    prizePerWinner: prizePerWinner,
+                    paidAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
 
             // Mark game as won and set end time so it auto-resets in 15 seconds!
             updates.status = 'won';
@@ -494,42 +509,57 @@ exports.finalizeGameAndPayout = async (request) => {
         if (!gameDoc.exists) throw new Error("Game not found.");
 
         const game = gameDoc.data();
+        const sessionIdStr = (game.sessionId || '').toString();
+        const payoutRef = db.collection('payouts').doc(sessionIdStr);
+        const payoutDoc = await transaction.get(payoutRef);
+
         const winners = game.confirmedWinners || [];
         if (winners.length === 0) throw new Error("No confirmed winners.");
 
         const prizePerWinner = (game.prizePool || 0) / winners.length;
 
-        // Pay out each winner
-        for (const winner of winners) {
-            const userRef = db.collection('users').doc(winner.userId);
-            const userDoc = await transaction.get(userRef);
-            const currentBalance = userDoc.data().balance || 0;
-            transaction.update(userRef, { balance: currentBalance + prizePerWinner });
+        if (payoutDoc.exists) {
+            console.log(`[Payout] Session ${sessionIdStr} already paid (finalizeGameAndPayout). Skipping.`);
+        } else {
+            // Pay out each winner
+            for (const winner of winners) {
+                const userRef = db.collection('users').doc(winner.userId);
+                transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(prizePerWinner) });
 
-            // Write to game_winners collection
-            const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
-            transaction.set(winnerRef, {
+                // Write to game_winners collection
+                const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
+                transaction.set(winnerRef, {
+                    sessionId: game.sessionId || 'N/A',
+                    cardNo: winner.cardNo.toString(),
+                    userId: winner.userId,
+                    phone: winner.phone || 'Player',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
+
+            // Write to game history
+            const historyRef = db.collection('game_history').doc();
+            transaction.set(historyRef, {
                 sessionId: game.sessionId || 'N/A',
-                cardNo: winner.cardNo.toString(),
-                userId: winner.userId,
-                phone: winner.phone || 'Player',
+                status: 'won',
+                prize: game.prizePool || 0,
+                drawnNumbers: game.drawnNumbers || [],
+                cardsSold: game.cardsSold || 0,
+                winnerId: winners[0].userId,
+                winnerName: winners[0].phone || 'Player',
+                winningCardNo: winners[0].cardNo,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
-        }
 
-        // Write to game history
-        const historyRef = db.collection('game_history').doc();
-        transaction.set(historyRef, {
-            sessionId: game.sessionId || 'N/A',
-            status: 'won',
-            prize: game.prizePool || 0,
-            drawnNumbers: game.drawnNumbers || [],
-            cardsSold: game.cardsSold || 0,
-            winnerId: winners[0].userId,
-            winnerName: winners[0].phone || 'Player',
-            winningCardNo: winners[0].cardNo,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+            // Write payout document
+            transaction.set(payoutRef, {
+                sessionId: game.sessionId,
+                prizePool: game.prizePool || 0,
+                winnersCount: winners.length,
+                prizePerWinner: prizePerWinner,
+                paidAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
 
         // Set game to won
         transaction.update(gameRef, {

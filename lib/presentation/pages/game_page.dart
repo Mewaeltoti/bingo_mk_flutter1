@@ -196,9 +196,16 @@ class _GamePageState extends State<GamePage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: AppColors.secondary.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withOpacity(0.12)),
+                            border: Border.all(color: AppColors.secondary.withOpacity(0.35), width: 1.2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.secondary.withOpacity(0.08),
+                                blurRadius: 10,
+                                spreadRadius: 1,
+                              ),
+                            ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -240,10 +247,11 @@ class _GamePageState extends State<GamePage> {
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           children: [
-                            FadeInUp(
-                              duration: const Duration(milliseconds: 500),
-                              child: SessionCardWidget(state: state),
-                            ),
+                            if (_expanded)
+                              FadeInUp(
+                                duration: const Duration(milliseconds: 500),
+                                child: SessionCardWidget(state: state),
+                              ),
 
                             if (state.claimDeadline != null &&
                                 state.status == GameStatus.paused)
@@ -251,33 +259,106 @@ class _GamePageState extends State<GamePage> {
 
                             const SizedBox(height: 10),
 
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: GestureDetector(
-                                onTap: () =>
-                                    setState(() => _expanded = !_expanded),
-                                child: Row(
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Auto Daub Toggle on the left
+                                Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      _expanded
-                                          ? Icons.keyboard_arrow_up
-                                          : Icons.keyboard_arrow_down,
+                                    const Icon(
+                                      Icons.brightness_auto,
                                       color: AppColors.secondary,
-                                      size: 20,
+                                      size: 18,
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _expanded ? "Show Less" : "Show More",
-                                      style: const TextStyle(
-                                        color: AppColors.secondary,
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      "AUTO-DAUB",
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 13,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    GestureDetector(
+                                      onTap: () {
+                                        context.read<GameCubit>().toggleAutoDaub(!state.isAutoDaubEnabled);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        width: 42,
+                                        height: 20,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(10),
+                                          color: state.isAutoDaubEnabled
+                                              ? AppColors.secondary.withOpacity(0.18)
+                                              : Colors.white.withOpacity(0.06),
+                                          border: Border.all(
+                                            color: state.isAutoDaubEnabled
+                                                ? AppColors.secondary
+                                                : Colors.white24,
+                                            width: 1.2,
+                                          ),
+                                          boxShadow: state.isAutoDaubEnabled
+                                              ? [
+                                                  BoxShadow(
+                                                    color: AppColors.secondary.withOpacity(0.2),
+                                                    blurRadius: 6,
+                                                    spreadRadius: 0.5,
+                                                  )
+                                                ]
+                                              : [],
+                                        ),
+                                        child: AnimatedAlign(
+                                          duration: const Duration(milliseconds: 180),
+                                          alignment: state.isAutoDaubEnabled
+                                              ? Alignment.centerRight
+                                              : Alignment.centerLeft,
+                                          child: Container(
+                                            width: 12,
+                                            height: 12,
+                                            margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: state.isAutoDaubEnabled
+                                                  ? AppColors.secondary
+                                                  : Colors.white54,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
+                                // Show Less/More Toggle on the right
+                                GestureDetector(
+                                  onTap: () =>
+                                      setState(() => _expanded = !_expanded),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _expanded
+                                            ? Icons.keyboard_arrow_up
+                                            : Icons.keyboard_arrow_down,
+                                        color: AppColors.secondary,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _expanded ? "Show Less" : "Show More",
+                                        style: const TextStyle(
+                                          color: AppColors.secondary,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
 
                             if (_expanded) ...[
@@ -285,8 +366,10 @@ class _GamePageState extends State<GamePage> {
                               LiveBoardWidget(
                                 drawnNumbers: state.drawnNumbers,
                               ),
-                            ] else
+                            ] else ...[
+                              const SizedBox(height: 8),
                               RecentNumbersWidget(numbers: state.drawnNumbers),
+                            ],
 
                             const SizedBox(height: 16),
 
@@ -364,20 +447,46 @@ class _GamePageState extends State<GamePage> {
               floatingActionButton:
                   (state is GameLoaded && state.status == GameStatus.buying)
                   ? ZoomIn(
-                      child: FloatingActionButton.extended(
-                        backgroundColor: AppColors.secondary,
-                        onPressed: () =>
-                            _showBuyCartelaBottomSheet(context, state),
-                        label: const Text(
-                          "BUY CARDS",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.secondary, Color(0xFFFF9800)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.secondary.withOpacity(0.35),
+                              blurRadius: 15,
+                              spreadRadius: 1.5,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                        icon: const Icon(
-                          Icons.add_shopping_cart,
-                          color: Colors.black,
+                        child: FloatingActionButton.extended(
+                          backgroundColor: Colors.transparent,
+                          elevation: 0,
+                          hoverElevation: 0,
+                          focusElevation: 0,
+                          highlightElevation: 0,
+                          onPressed: () =>
+                              _showBuyCartelaBottomSheet(context, state),
+                          label: const Text(
+                            "BUY CARDS",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: Colors.black,
+                              fontFamily: 'Orbitron',
+                              letterSpacing: 1.1,
+                              fontSize: 13,
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.add_shopping_cart,
+                            color: Colors.black,
+                            size: 18,
+                          ),
                         ),
                       ),
                     )

@@ -123,11 +123,18 @@ exports.drawNumberLoopHandler = async (context) => {
                     
                     // Transaction for payouts
                     await db.runTransaction(async (transaction) => {
+                        const sessionIdStr = (game.sessionId || '').toString();
+                        const payoutRef = db.collection('payouts').doc(sessionIdStr);
+                        const payoutDoc = await transaction.get(payoutRef);
+
+                        if (payoutDoc.exists) {
+                            console.log(`[Payout] Session ${sessionIdStr} already paid (auto-finalize). Skipping.`);
+                            return;
+                        }
+
                         for (const winner of allWinners) {
                             const userRef = db.collection('users').doc(winner.userId);
-                            const userDoc = await transaction.get(userRef);
-                            const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
-                            transaction.update(userRef, { balance: currentBalance + prizePerWinner });
+                            transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(prizePerWinner) });
 
                             // Write to game_winners collection
                             const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
@@ -152,6 +159,15 @@ exports.drawNumberLoopHandler = async (context) => {
                             winnerName: allWinners[0].phone || 'Player',
                             winningCardNo: allWinners[0].cardNo,
                             createdAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+
+                        // Set the payout document
+                        transaction.set(payoutRef, {
+                            sessionId: game.sessionId,
+                            prizePool: game.prizePool || 0,
+                            winnersCount: allWinners.length,
+                            prizePerWinner: prizePerWinner,
+                            paidAt: admin.firestore.FieldValue.serverTimestamp()
                         });
                     });
 
@@ -247,6 +263,40 @@ exports.drawNumberLoopHandler = async (context) => {
             }
 
             await gameDoc.ref.update(updates);
+
+            // Persist draw event and state snapshot
+            const sessionId = game.sessionId;
+            if (sessionId) {
+                try {
+                    const sessionIdStr = sessionId.toString();
+                    const eventRef = db.collection('games').doc(sessionIdStr).collection('events').doc();
+                    const stateRef = db.collection('games').doc(sessionIdStr).collection('state').doc('state');
+                    const drawRef = db.collection('games').doc('live').collection('draws').doc();
+
+                    await eventRef.set({
+                        type: 'NUMBER_DRAWN',
+                        number: newNumber,
+                        timestamp: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    await drawRef.set({
+                        sessionId: sessionIdStr,
+                        number: newNumber,
+                        drawnAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    await stateRef.set({
+                        currentNumber: newNumber,
+                        drawnNumbers: drawnNumbers,
+                        drawnCount: drawnNumbers.length,
+                        status: 'active',
+                        lastDrawTime: admin.firestore.FieldValue.serverTimestamp(),
+                        sessionId: sessionId
+                    }, { merge: true });
+                } catch (persistError) {
+                    console.error(`Failed to persist draw for session ${sessionId}:`, persistError);
+                }
+            }
         }
 
         // Wait for 2 seconds

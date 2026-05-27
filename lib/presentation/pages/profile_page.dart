@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
 import '../blocs/wallet_cubit.dart';
 import '../../core/theme/app_theme.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,16 +13,11 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final _nameController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     context.read<WalletCubit>().loadWallet();
-    final currentUser = Supabase.instance.client.auth.currentUser;
-    final email = currentUser?.email ?? '';
-    final cleanPhone = email.contains('@') ? email.split('@').first : (currentUser?.phone ?? 'Player');
-    _nameController.text = cleanPhone;
   }
 
   @override
@@ -37,7 +32,8 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: true,
+        iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           'Profile',
           style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold),
@@ -102,9 +98,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildForm() {
-    final currentUser = Supabase.instance.client.auth.currentUser;
+    final currentUser = FirebaseAuth.instance.currentUser;
     final email = currentUser?.email ?? '';
-    final phoneNumber = email.contains('@') ? email.split('@').first : (currentUser?.phone ?? 'Unknown');
+    final phoneNumber = email.contains('@') ? email.split('@').first : (currentUser?.phoneNumber ?? 'Unknown');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,25 +110,6 @@ class _ProfilePageState extends State<ProfilePage> {
           style: TextStyle(fontSize: 12, color: Colors.white70),
         ),
         const SizedBox(height: 8),
-        TextField(
-          controller: _nameController,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            labelText: 'Display Name',
-            labelStyle: const TextStyle(color: Colors.white70),
-            filled: true,
-            fillColor: AppColors.darkCard,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.white10),
-            ),
-            prefixIcon: const Icon(Icons.person, color: AppColors.secondary),
-          ),
-          onChanged: (val) {
-            // Future update logic
-          },
-        ),
-        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),

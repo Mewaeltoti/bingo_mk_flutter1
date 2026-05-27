@@ -78,7 +78,8 @@ class _PaymentPageState extends State<PaymentPage>
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: true,
+        iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           'Wallet Ledger',
           style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold),

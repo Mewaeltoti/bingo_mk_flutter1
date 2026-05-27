@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/repositories/bingo_repository.dart';
 
 abstract class WalletState extends Equatable {
@@ -140,10 +140,12 @@ class WalletCubit extends Cubit<WalletState> {
 
   Future<void> deleteTransaction(String collectionPath, String docId) async {
     try {
-      await Supabase.instance.client
-          .from(collectionPath)
-          .delete()
-          .eq('id', docId);
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection(collectionPath)
+          .doc(docId)
+          .delete();
       await loadWallet();
     } catch (e) {
       print("Error deleting transaction: $e");

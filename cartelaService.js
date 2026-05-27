@@ -52,6 +52,7 @@ exports.buyCard = async (request) => {
 
             batch.set(cardRef, {
                 gameId: 'live',
+                game_id: 'live',
                 sessionId: sessionId,
                 cardNo: randomId,
                 numbers: poolDoc.data().numbers,
@@ -105,26 +106,15 @@ exports.registerCard = async (request) => {
 
             const sessionId = (gameData.sessionId || '').toString();
 
-            // Enforce duplicate check session-wide: Check if ANOTHER player has registered this cardNo in this session!
-            const duplicateSnapshot = await db.collectionGroup('cards')
-                .where('cardNo', '==', Number(cardId))
-                .where('sessionId', '==', sessionId)
-                .where('status', '==', 'registered')
-                .get();
+            // Atomic transaction check using cardAssignments/{sessionId_cardNo}
+            const assignmentRef = db.collection('cardAssignments').doc(`${sessionId}_${cardId}`);
+            const assignmentDoc = await transaction.get(assignmentRef);
 
-            let isDuplicate = false;
-            if (!duplicateSnapshot.empty) {
-                for (const doc of duplicateSnapshot.docs) {
-                    const docUserId = doc.ref.parent.parent.id;
-                    if (docUserId !== userId) {
-                        isDuplicate = true;
-                        break;
-                    }
+            if (assignmentDoc.exists) {
+                const assignedUserId = assignmentDoc.data().userId;
+                if (assignedUserId !== userId) {
+                    throw new Error("This card number has already been purchased by another player!");
                 }
-            }
-
-            if (isDuplicate) {
-                throw new Error("This card number has already been purchased by another player!");
             }
 
             let balance = 0;
@@ -151,6 +141,7 @@ exports.registerCard = async (request) => {
             transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(-price) });
             transaction.set(cardRef, {
                 gameId: 'live',
+                game_id: 'live',
                 sessionId: sessionId,
                 cardNo: Number(cardId),
                 numbers: numbers25,
@@ -159,6 +150,14 @@ exports.registerCard = async (request) => {
                 expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 2 * 60 * 60 * 1000))
             });
             transaction.update(gameRef, { cardsSold: admin.firestore.FieldValue.increment(1) });
+
+            // Record assignment atomically
+            transaction.set(assignmentRef, {
+                userId: userId,
+                cardNo: Number(cardId),
+                sessionId: sessionId,
+                registeredAt: admin.firestore.FieldValue.serverTimestamp()
+            });
 
             return { success: true };
         });
@@ -419,6 +418,10 @@ exports.removeCard = async (request) => {
                         transaction.update(userRef, { balance: currentBalance + price });
                     }
                 }
+
+                // Clean up card assignment atomically!
+                const assignmentRef = db.collection('cardAssignments').doc(`${cardData.sessionId}_${cardId}`);
+                transaction.delete(assignmentRef);
             }
 
             transaction.delete(cardRef);
