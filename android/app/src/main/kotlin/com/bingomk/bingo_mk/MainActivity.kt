@@ -1,4 +1,4 @@
-package com.bingomk.bingo_mk
+package com.bingo.app
 
 import io.flutter.embedding.android.FlutterActivity
 
