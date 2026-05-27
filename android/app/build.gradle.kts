@@ -6,7 +6,7 @@ plugins {
     id("com.google.gms.google-services")
 }
 android {
-    namespace = "com.bingomk.bingo_mk"
+    namespace = "com.bingo.app"
     compileSdk = 35
     
 
