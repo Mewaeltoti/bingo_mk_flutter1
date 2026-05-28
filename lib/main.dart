@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -8,28 +8,22 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'firebase_options.dart';
 
-import 'core/theme/app_theme.dart';
 import 'core/services/service_locator.dart';
+import 'core/theme/app_theme.dart';
 
 import 'presentation/blocs/auth_cubit.dart';
-import 'presentation/blocs/game_cubit.dart';
-import 'presentation/blocs/wallet_cubit.dart';
-
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/bingo_repository.dart';
 
 import 'presentation/pages/dashboard_page.dart';
-import 'presentation/pages/main_container.dart';
 import 'presentation/pages/splash_page.dart';
+import 'presentation/pages/main_container.dart';
 
 /// ======================================================
 /// BACKGROUND HANDLER
 /// ======================================================
-/// Must be top-level and annotated
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(
-  RemoteMessage message,
-) async {
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -38,244 +32,60 @@ Future<void> _firebaseMessagingBackgroundHandler(
 /// ======================================================
 /// MAIN
 /// ======================================================
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
+  runApp(const BootstrapApp());
+
+  // Heavy initialization AFTER first frame
+  Future.microtask(() async {
+    await _initApp();
+  });
+}
+
+/// ======================================================
+/// SAFE INIT (NO UI BLOCKING)
+/// ======================================================
+Future<void> _initApp() async {
   try {
-    /// --------------------------------------------------
-    /// Firebase Init
-    /// --------------------------------------------------
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    /// --------------------------------------------------
-    /// Firebase Messaging Background Handler
-    /// --------------------------------------------------
-    FirebaseMessaging.onBackgroundMessage(
-      _firebaseMessagingBackgroundHandler,
-    );
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-    /// --------------------------------------------------
-    /// Notifications Setup (Android)
-    /// --------------------------------------------------
     if (!kIsWeb) {
-      final FlutterLocalNotificationsPlugin flnp =
-          FlutterLocalNotificationsPlugin();
+      final flnp = FlutterLocalNotificationsPlugin();
 
-      /// Android initialization
-      const AndroidInitializationSettings
-          initializationSettingsAndroid =
+      const androidInit =
           AndroidInitializationSettings('@mipmap/ic_launcher');
 
-      /// Global init settings
-      const InitializationSettings initializationSettings =
-          InitializationSettings(
-        android: initializationSettingsAndroid,
-      );
+      const initSettings =
+          InitializationSettings(android: androidInit);
 
-      /// Initialize plugin
-      await flnp.initialize(initializationSettings);
+      await flnp.initialize(initSettings);
 
-      /// Notification channel
-      const AndroidNotificationChannel channel =
-          AndroidNotificationChannel(
+      const channel = AndroidNotificationChannel(
         'wallet_notifications',
         'Wallet Notifications',
         description: 'Deposit and withdrawal status updates',
         importance: Importance.high,
       );
 
-      /// Create notification channel
       await flnp
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(channel);
 
-      /// Request permissions (Android 13+)
       await FirebaseMessaging.instance.requestPermission();
-
-      debugPrint("Notifications initialized successfully");
     }
 
-    /// --------------------------------------------------
-    /// Dependency Injection / Service Locator
-    /// --------------------------------------------------
     await initServiceLocator();
 
-    debugPrint("Service locator initialized successfully");
-
-    /// --------------------------------------------------
-    /// Run App
-    /// --------------------------------------------------
-    runApp(const BingoApp());
+    debugPrint("✅ App initialized successfully");
   } catch (e, s) {
-    debugPrint("APP STARTUP CRASH:");
+    debugPrint("❌ INIT ERROR");
     debugPrint(e.toString());
     debugPrintStack(stackTrace: s);
-  }
-}
-
-/// ======================================================
-/// ROOT APP
-/// ======================================================
-class BingoApp extends StatelessWidget {
-  const BingoApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<AuthRepository>.value(
-          value: sl<AuthRepository>(),
-        ),
-        RepositoryProvider<BingoRepository>.value(
-          value: sl<BingoRepository>(),
-        ),
-      ],
-      child: BlocProvider(
-        create: (_) => AuthCubit(sl<AuthRepository>()),
-        child: MaterialApp(
-          title: 'Bingo MK',
-          debugShowCheckedModeBanner: false,
-
-          theme: AppTheme.darkTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: ThemeMode.dark,
-
-          home: const AppRouter(),
-        ),
-      ),
-    );
-  }
-}
-
-/// ======================================================
-/// APP ROUTER
-/// ======================================================
-class AppRouter extends StatefulWidget {
-  const AppRouter({super.key});
-
-  @override
-  State<AppRouter> createState() => _AppRouterState();
-}
-
-class _AppRouterState extends State<AppRouter> {
-  bool _showSplash = true;
-
-  GameCubit? _gameCubit;
-  WalletCubit? _walletCubit;
-
-  String? _lastUserId;
-
-  @override
-  void dispose() {
-    _gameCubit?.close();
-    _walletCubit?.close();
-    super.dispose();
-  }
-
-  /// --------------------------------------------------
-  /// Ensure Cubits
-  /// --------------------------------------------------
-  void _ensureCubits(String userId) {
-    if (_lastUserId == userId) return;
-
-    _gameCubit?.close();
-    _walletCubit?.close();
-
-    _gameCubit = GameCubit(
-      bingoRepository: sl<BingoRepository>(),
-      userId: userId,
-    );
-
-    _walletCubit = WalletCubit(
-      bingoRepository: sl<BingoRepository>(),
-      userId: userId,
-    );
-
-    _lastUserId = userId;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    /// --------------------------------------------------
-    /// Splash
-    /// --------------------------------------------------
-    if (_showSplash) {
-      return SplashPage(
-        onFinish: () {
-          setState(() {
-            _showSplash = false;
-          });
-        },
-      );
-    }
-
-    /// --------------------------------------------------
-    /// Auth Router
-    /// --------------------------------------------------
-    return BlocBuilder<AuthCubit, AuthState>(
-      builder: (context, state) {
-        /// --------------------------
-        /// Authenticated
-        /// --------------------------
-        if (state is AuthAuthenticated) {
-          try {
-            _ensureCubits(state.userId);
-
-            if (_gameCubit == null || _walletCubit == null) {
-              return const Scaffold(
-                body: Center(
-                  child: Text("Cubit initialization failed"),
-                ),
-              );
-            }
-
-            return MultiBlocProvider(
-              providers: [
-                BlocProvider.value(value: _gameCubit!),
-                BlocProvider.value(value: _walletCubit!),
-              ],
-              child: const MainContainer(),
-            );
-          } catch (e, s) {
-            debugPrint("Cubit creation failed:");
-            debugPrint(e.toString());
-            debugPrintStack(stackTrace: s);
-
-            return Scaffold(
-              backgroundColor: Colors.black,
-              body: Center(
-                child: Text(
-                  "Startup Error:\n$e",
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
-        }
-
-        /// --------------------------
-        /// Loading
-        /// --------------------------
-        if (state is AuthInitial || state is AuthLoading) {
-          return const Scaffold(
-            backgroundColor: AppColors.darkBackground,
-            body: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.secondary,
-              ),
-            ),
-          );
-        }
-
-        /// --------------------------
-        /// Logged Out
-        /// --------------------------
-        return const DashboardPage();
-      },
-    );
   }
 }
