@@ -563,41 +563,58 @@ class GameCubit extends Cubit<GameState> {
       statusMessage: "Activating ${pendingCards.length} cards...",
     ));
 
-    try {
-      for (var card in pendingCards) {
-        final List<int> flatNumbers = [];
-        for (var row in card.numbers) {
-          flatNumbers.addAll(row);
-        }
-        if (flatNumbers.length == 25) {
-          flatNumbers.removeAt(12);
-        }
-        await _bingoRepository.registerCard(card.id, flatNumbers);
+    // Build flat-number lists up front (pure CPU work, no await needed)
+    List<int> _flatNumbers(BingoCard card) {
+      final flat = card.numbers.expand((row) => row).toList();
+      if (flat.length == 25) flat.removeAt(12);
+      return flat;
+    }
+
+    // Fire all registrations in parallel. catchError converts each failure into
+    // an Exception so Future.wait never short-circuits on a single bad card.
+    // Previously a serial for-await loop meant the first failure (e.g. a
+    // duplicate card or insufficient balance) silently blocked every card after it.
+    final results = await Future.wait(
+      pendingCards.map((card) => _bingoRepository
+          .registerCard(card.id, _flatNumbers(card))
+          .then((_) => null)          // success → null
+          .catchError((e) => e)),     // failure → the error object
+    );
+
+    final failedIndices = [
+      for (var i = 0; i < results.length; i++)
+        if (results[i] != null) i,
+    ];
+    final successCount = pendingCards.length - failedIndices.length;
+
+    // Mark succeeded cards as registered in local state immediately to prevent
+    // duplicates when refreshCards() re-fetches from Firestore.
+    final failedIds = {for (var i in failedIndices) pendingCards[i].id};
+    final updatedCards = current.userCards.map((c) {
+      if (c.status == 'pending' && !failedIds.contains(c.id)) {
+        return c.copyWith(status: 'registered', sessionId: current.sessionId);
       }
+      return c;
+    }).toList();
+    emit(current.copyWith(userCards: updatedCards));
 
-      // Clear the local pending status of these cards in-memory first to prevent duplicates!
-      final updatedCards = current.userCards.map((c) {
-        if (c.status == 'pending') {
-          return c.copyWith(status: 'registered', sessionId: current.sessionId);
-        }
-        return c;
-      }).toList();
-      emit(current.copyWith(userCards: updatedCards));
+    await refreshCards();
 
-      await refreshCards();
+    if (isClosed) return;
+    if (failedIndices.isEmpty) {
       emit((state as GameLoaded).copyWith(
         isActionLoading: false,
-        statusMessage: "All pending cards activated successfully!",
+        statusMessage: "All $successCount cards activated successfully!",
       ));
-    } catch (e, stack) {
-      Log.e("Failed to register all cards", e, stack);
-      await refreshCards();
-      if (state is GameLoaded) {
-        emit((state as GameLoaded).copyWith(
-          isActionLoading: false,
-          statusMessage: "Activation failed: ${e.toString()}",
-        ));
-      }
+    } else {
+      Log.e("registerAllPending: ${failedIndices.length} card(s) failed",
+          results[failedIndices.first]);
+      emit((state as GameLoaded).copyWith(
+        isActionLoading: false,
+        statusMessage: successCount > 0
+            ? "$successCount activated, ${failedIndices.length} failed. Try again."
+            : "Activation failed: ${results[failedIndices.first]}",
+      ));
     }
   }
 
@@ -768,6 +785,11 @@ class GameCubit extends Cubit<GameState> {
     _drawsSub = _bingoRepository.streamGameDraws(sessionId).listen((newNumber) {
       if (state is! GameLoaded || isClosed) return;
       final current = state as GameLoaded;
+
+      // Guard: skip if this number was already loaded by fetchDrawnNumbers.
+      // This race occurs when the fetch resolves after the stream has already
+      // emitted some of the same numbers.
+      if (current.drawnNumbers.contains(newNumber)) return;
 
       final newDrawnNumbers = [...current.drawnNumbers, newNumber];
 

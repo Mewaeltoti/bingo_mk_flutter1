@@ -54,18 +54,25 @@ exports.drawNumberLoopHandler = async (context) => {
 
                     // TTL handles card deletion; no manual batch deletion needed.
 
-                    // Generate pre-shuffled sequence of 75 numbers
+                    // Generate pre-shuffled sequence of 75 numbers.
+                    // SECURITY: stored in game_sequences/{sessionId} (server-only collection),
+                    // NOT in games/live where any authenticated client can read it.
                     const drawSequence = Array.from({ length: 75 }, (_, i) => i + 1);
                     for (let i = drawSequence.length - 1; i > 0; i--) {
                         const j = Math.floor(Math.random() * (i + 1));
                         [drawSequence[i], drawSequence[j]] = [drawSequence[j], drawSequence[i]];
                     }
+                    await db.collection('game_sequences').doc(sessionNum.toString()).set({
+                        sessionId: sessionNum,
+                        drawSequence: drawSequence,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
 
                     await gameDoc.ref.update({
                         status: 'buying',
                         sessionId: sessionNum,
                         startTime: admin.firestore.FieldValue.serverTimestamp(),
-                        drawSequence: drawSequence,
+                        // drawSequence intentionally omitted — kept in game_sequences only
                         cardsSold: 0,
                         playersCount: 0,
                         isPaused: false,
@@ -221,17 +228,25 @@ exports.drawNumberLoopHandler = async (context) => {
         }
 
         const drawnNumbers = game.drawnNumbers || [];
-        const drawSequence = game.drawSequence || [];
 
-        // Fallback: if sequence is missing, generate one dynamically on the fly
+        // SECURITY: read draw sequence from server-only collection, never from games/live
+        const seqDoc = await db.collection('game_sequences').doc(game.sessionId.toString()).get();
+        let drawSequence = seqDoc.exists ? (seqDoc.data().drawSequence || []) : [];
+
+        // Fallback: if sequence is missing (e.g. first-ever session), generate and store it privately
         if (drawSequence.length === 0) {
             const tempSeq = Array.from({ length: 75 }, (_, i) => i + 1);
             for (let i = tempSeq.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [tempSeq[i], tempSeq[j]] = [tempSeq[j], tempSeq[i]];
             }
-            await gameDoc.ref.update({ drawSequence: tempSeq });
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await db.collection('game_sequences').doc(game.sessionId.toString()).set({
+                sessionId: game.sessionId,
+                drawSequence: tempSeq,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            drawSequence = tempSeq;
+            await new Promise(resolve => setTimeout(resolve, 500));
             continue;
         }
 

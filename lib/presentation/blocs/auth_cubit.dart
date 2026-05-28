@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -26,24 +27,32 @@ class AuthError extends AuthState {
 
 class AuthCubit extends Cubit<AuthState> {
   final AuthRepository _authRepository;
+  StreamSubscription? _authSub;
 
   AuthCubit(this._authRepository) : super(AuthInitial()) {
-    _authRepository.userIdStream.listen((userId) async {
+    _authSub = _authRepository.userIdStream.listen((userId) async {
+      if (isClosed) return;
       if (userId != null) {
         try {
           final admin = await _authRepository.isAdmin(userId);
-          emit(AuthAuthenticated(userId, isAdmin: admin));
+          if (!isClosed) emit(AuthAuthenticated(userId, isAdmin: admin));
         } catch (e) {
           // Fallback to player role if Postgres is cold-starting, document doesn't exist yet,
           // or network is offline, to ensure the login session completes successfully.
-          emit(AuthAuthenticated(userId, isAdmin: false));
+          if (!isClosed) emit(AuthAuthenticated(userId, isAdmin: false));
         }
       } else {
-        emit(AuthUnauthenticated());
+        if (!isClosed) emit(AuthUnauthenticated());
       }
     }, onError: (e) {
-      emit(AuthUnauthenticated());
+      if (!isClosed) emit(AuthUnauthenticated());
     });
+  }
+
+  @override
+  Future<void> close() {
+    _authSub?.cancel();
+    return super.close();
   }
 
   String _formatPhone(String phone) {

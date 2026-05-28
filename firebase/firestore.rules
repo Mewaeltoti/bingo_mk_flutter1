@@ -59,8 +59,16 @@ service cloud.firestore {
       allow write: if isAdmin(); // Allowed for admins during manual matching too!
     }
 
-    // ---- Metadata Rules (Payment Settings) ----------------------------------
+    // ---- Metadata Rules (Limits, etc.) --------------------------------------
     match /metadata/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ---- Payment Settings (Bank accounts displayed to players) --------------
+    // Admin web saves to payment_settings/current
+    // Flutter app reads from payment_settings/current (after fix)
+    match /payment_settings/{docId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }

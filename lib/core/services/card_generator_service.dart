@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:uuid/uuid.dart';
 import '../../domain/entities/bingo_card.dart';
 import 'logger_service.dart';
 
@@ -38,14 +39,20 @@ class CardGeneratorService {
     }
 
     final random = Random();
+    const uuid = Uuid();
     final List<BingoCard> newCards = [];
 
     for (int i = 0; i < count; i++) {
       if (availableCards.isEmpty) break;
       final randomIndex = random.nextInt(availableCards.length);
       final cardData = availableCards.removeAt(randomIndex);
-      
-      final cardId = cardData['cartela_no'].toString();
+
+      // UUID is the local document id sent to Firestore on registerCard.
+      // cartela_no is display-only (shown to the user as "Card #142").
+      // Using cartela_no as the doc id caused collisions when two players
+      // held the same card number in different sessions.
+      final cardId = uuid.v4();
+      final cardNo = cardData['cartela_no'] as int;
       final originalNumbers = List<int>.from(cardData['bingo_numbers']);
       final numbers25 = [...originalNumbers];
 
@@ -61,7 +68,7 @@ class CardGeneratorService {
 
       newCards.add(BingoCard(
         id: cardId,
-        cardNo: int.parse(cardId),
+        cardNo: cardNo,
         numbers: matrix,
         price: gamePrice,
         status: 'pending',

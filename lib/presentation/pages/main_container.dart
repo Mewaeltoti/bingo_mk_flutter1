@@ -15,16 +15,21 @@ class MainContainer extends StatefulWidget {
   @override
   State<MainContainer> createState() => _MainContainerState();
 }
+
 class _MainContainerState extends State<MainContainer> {
   int _currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Color unselectedColor = isDark ? Colors.white60 : Colors.black54;
+    final Color selectedColor   = isDark ? AppColors.secondary : AppColors.primary;
+    final Color navBg           = isDark ? AppColors.darkCard   : Colors.white;
+
     final List<Widget> pages = [
       GamePage(onTabChanged: (index) {
-        setState(() {
-          _currentIndex = index;
-        });
+        setState(() => _currentIndex = index);
       }),
       const PaymentPage(),
       const ProfilePage(),
@@ -49,9 +54,7 @@ class _MainContainerState extends State<MainContainer> {
         ),
         BlocListener<WalletCubit, WalletState>(
           listenWhen: (previous, current) {
-            if (previous is! WalletLoaded || current is! WalletLoaded) {
-              return true;
-            }
+            if (previous is! WalletLoaded || current is! WalletLoaded) return true;
             return previous.isActionLoading != current.isActionLoading;
           },
           listener: (context, state) {
@@ -64,58 +67,51 @@ class _MainContainerState extends State<MainContainer> {
         ),
       ],
       child: Scaffold(
-        backgroundColor: AppColors.darkBackground,
         body: IndexedStack(
           index: _currentIndex,
           children: pages,
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
-            border: const Border(
-              top: BorderSide(color: Colors.white10, width: 1),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 10,
-                offset: const Offset(0, -5),
+            color: navBg,
+            border: Border(
+              top: BorderSide(
+                color: isDark ? Colors.white10 : Colors.black12,
+                width: 0.5,
               ),
-            ],
+            ),
           ),
           child: BottomNavigationBar(
             currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            backgroundColor: AppColors.darkCard,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: Colors.white38,
+            onTap: (index) => setState(() => _currentIndex = index),
+            backgroundColor: navBg,
+            selectedItemColor: selectedColor,
+            unselectedItemColor: unselectedColor,
             selectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 12,
-              letterSpacing: 0.5,
+              fontSize: 11,
+              letterSpacing: 0.3,
             ),
             unselectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.w500,
               fontSize: 11,
             ),
             type: BottomNavigationBarType.fixed,
-            items: const [
+            elevation: 0,
+            items: [
               BottomNavigationBarItem(
-                icon: Icon(Icons.sports_esports_outlined),
-                activeIcon: Icon(Icons.sports_esports, color: AppColors.primary),
-                label: 'Play Bingo',
+                icon: Icon(Icons.sports_esports_outlined, color: unselectedColor),
+                activeIcon: Icon(Icons.sports_esports, color: selectedColor),
+                label: 'Play',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                activeIcon: Icon(Icons.account_balance_wallet, color: AppColors.primary),
-                label: 'My Wallet',
+                icon: Icon(Icons.account_balance_wallet_outlined, color: unselectedColor),
+                activeIcon: Icon(Icons.account_balance_wallet, color: selectedColor),
+                label: 'Wallet',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline),
-                activeIcon: Icon(Icons.person, color: AppColors.primary),
+                icon: Icon(Icons.person_outline, color: unselectedColor),
+                activeIcon: Icon(Icons.person, color: selectedColor),
                 label: 'Profile',
               ),
             ],

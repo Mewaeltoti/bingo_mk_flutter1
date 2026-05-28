@@ -49,7 +49,15 @@ class LoadingDialog extends StatelessWidget {
     );
   }
 
+  // Guards against stacked dialogs: rapid state updates (e.g. during
+  // registerAllPending) can trigger multiple show() calls before any hide().
+  // Without this flag, each call pushes a new dialog route — hide() then only
+  // pops one, leaving a ghost dialog covering the screen forever.
+  static bool _isShowing = false;
+
   static void show(BuildContext context, {String message = 'Processing...'}) {
+    if (_isShowing) return;
+    _isShowing = true;
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
@@ -68,10 +76,16 @@ class LoadingDialog extends StatelessWidget {
           ),
         );
       },
-    );
+    ).whenComplete(() {
+      // Reset the flag when the dialog is dismissed by any means (hide, back
+      // button, or system navigation) so future calls work correctly.
+      _isShowing = false;
+    });
   }
 
   static void hide(BuildContext context) {
+    if (!_isShowing) return;
+    _isShowing = false;
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
     }

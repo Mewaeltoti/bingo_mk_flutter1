@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-
 import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 
 class SplashPage extends StatefulWidget {
   final VoidCallback onFinish;
-
   const SplashPage({super.key, required this.onFinish});
 
   @override
@@ -15,38 +13,35 @@ class SplashPage extends StatefulWidget {
 class _SplashPageState extends State<SplashPage>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnim;
+  late Animation<double> _scaleAnim;
+  late Animation<double> _taglineFade;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1800),
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
-      ),
+    _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller,
+          curve: const Interval(0.0, 0.45, curve: Curves.easeIn)),
     );
-
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack),
-      ),
+    _scaleAnim = Tween<double>(begin: 0.75, end: 1.0).animate(
+      CurvedAnimation(parent: _controller,
+          curve: const Interval(0.0, 0.45, curve: Curves.easeOutBack)),
+    );
+    _taglineFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller,
+          curve: const Interval(0.45, 0.85, curve: Curves.easeIn)),
     );
 
     _controller.forward();
 
-    // Force a minimum delay of 2.5 seconds
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        widget.onFinish();
-      }
+    Future.delayed(const Duration(milliseconds: 2800), () {
+      if (mounted) widget.onFinish();
     });
   }
 
@@ -62,51 +57,112 @@ class _SplashPageState extends State<SplashPage>
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0F172A)],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: AppColors.splashGradient),
         child: AnimatedBuilder(
           animation: _controller,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _fadeAnimation.value,
-              child: Transform.scale(
-                scale: _scaleAnimation.value,
-                child: Center(
+          builder: (context, _) {
+            return Stack(
+              children: [
+                // Subtle decorative circle behind logo
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: _fadeAnim.value * 0.06,
+                    child: Center(
+                      child: Container(
+                        width: 320,
+                        height: 320,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: AppColors.secondary, width: 1),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildLogo(),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'BINGO MEKELE',
-                        style: TextStyle(
-                          fontFamily: 'Orbitron',
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 4,
+                      // Logo badge
+                      Opacity(
+                        opacity: _fadeAnim.value,
+                        child: Transform.scale(
+                          scale: _scaleAnim.value,
+                          child: _buildLogo(),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(2),
+                      const SizedBox(height: 28),
+                      // Brand name
+                      Opacity(
+                        opacity: _fadeAnim.value,
+                        child: Transform.scale(
+                          scale: _scaleAnim.value,
+                          child: const Text(
+                            'AMBASSADOR',
+                            style: TextStyle(
+                              fontFamily: 'Orbitron',
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.secondary,
+                              letterSpacing: 6,
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 48),
-                      const AppSpinner(size: 40, strokeWidth: 3),
+                      const SizedBox(height: 6),
+                      Opacity(
+                        opacity: _fadeAnim.value,
+                        child: Transform.scale(
+                          scale: _scaleAnim.value,
+                          child: const Text(
+                            'BINGO',
+                            style: TextStyle(
+                              fontFamily: 'Orbitron',
+                              fontSize: 42,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Gold divider
+                      Opacity(
+                        opacity: _fadeAnim.value,
+                        child: Container(
+                          width: 60,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: AppColors.secondary,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Tagline
+                      Opacity(
+                        opacity: _taglineFade.value,
+                        child: const Text(
+                          'Play Smart. Win Big.',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 13,
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 56),
+                      Opacity(
+                        opacity: _taglineFade.value,
+                        child: const AppSpinner(size: 36, strokeWidth: 2.5),
+                      ),
                     ],
                   ),
                 ),
-              ),
+              ],
             );
           },
         ),
@@ -116,22 +172,25 @@ class _SplashPageState extends State<SplashPage>
 
   Widget _buildLogo() {
     return Container(
-      width: 120,
-      height: 120,
+      width: 110,
+      height: 110,
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.primary.withOpacity(0.5), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.2),
-            blurRadius: 30,
-            spreadRadius: 10,
-          ),
-        ],
+        color: AppColors.secondary.withOpacity(0.08),
+        border: Border.all(
+            color: AppColors.secondary.withOpacity(0.6), width: 2),
       ),
-      child: const Center(
-        child: Icon(Icons.gamepad_rounded, size: 60, color: AppColors.primary),
+      child: Center(
+        child: Text(
+          'AB',
+          style: TextStyle(
+            fontFamily: 'Orbitron',
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            color: AppColors.secondary,
+            letterSpacing: 2,
+          ),
+        ),
       ),
     );
   }

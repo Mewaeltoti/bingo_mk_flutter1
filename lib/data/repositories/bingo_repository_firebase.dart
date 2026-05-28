@@ -41,6 +41,10 @@ class BingoRepositoryFirebase implements BingoRepository {
   @override
   Stream<int> streamGameDraws(String sessionId) {
     final controller = StreamController<int>();
+    // Tracks numbers already emitted so Firestore reconnect re-fires don't
+    // cause duplicate audio/state updates (Firestore re-delivers all existing
+    // docs as DocumentChangeType.added after a network interruption).
+    final emittedNumbers = <int>{};
 
     final sub = _firestore
         .collection('games')
@@ -53,7 +57,8 @@ class BingoRepositoryFirebase implements BingoRepository {
       for (final change in snapshot.docChanges) {
         if (change.type == DocumentChangeType.added) {
           final number = change.doc.data()?['number'] as int?;
-          if (number != null && !controller.isClosed) {
+          if (number != null && !emittedNumbers.contains(number) && !controller.isClosed) {
+            emittedNumbers.add(number);
             controller.add(number);
           }
         }
@@ -467,24 +472,34 @@ class BingoRepositoryFirebase implements BingoRepository {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // GET PAYMENT ACCOUNTS
+  // Fetched from metadata/paymentAccounts so the admin can update bank
+  // details without a new app release. Falls back to an empty list —
+  // the UI shows a "no accounts configured" message instead of stale
+  // hardcoded numbers.
+  // ─────────────────────────────────────────────────────────────────────────
   @override
   Future<List<Map<String, dynamic>>> getPaymentAccounts() async {
-    return [
-      {
-        'bank': 'Commercial Bank of Ethiopia (CBE)',
-        'accountName': 'Bingo MK Games',
-        'accountNumber': '1000123456789',
-        'instructions':
-            'Send to this CBE account and submit the transaction reference.',
-      },
-      {
-        'bank': 'Telebirr',
-        'accountName': 'Bingo MK Games Mobile',
-        'accountNumber': '0912345678',
-        'instructions':
-            'Send via Telebirr to this number and submit the reference.',
-      }
-    ];
+    try {
+      final doc = await _firestore
+          .collection('payment_settings')
+          .doc('current')
+          .get();
+
+      if (!doc.exists || doc.data() == null) return [];
+
+      final accounts = doc.data()!['accounts'];
+      if (accounts is! List) return [];
+
+      return accounts
+          .whereType<Map>()
+          .map((a) => Map<String, dynamic>.from(a))
+          .toList();
+    } catch (e) {
+      Log.e('getPaymentAccounts failed', e);
+      return [];
+    }
   }
 
   @override

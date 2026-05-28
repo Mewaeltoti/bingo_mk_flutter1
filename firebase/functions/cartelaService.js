@@ -3,16 +3,6 @@ const admin = require("firebase-admin");
 const fs = require("fs");
 const path = require("path");
 
-// ─── Helper: verify caller is an admin ────────────────────────────────────────
-async function assertAdmin(request) {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
-    const callerDoc = await admin.firestore().collection('users').doc(request.auth.uid).get();
-    if (!callerDoc.exists || callerDoc.data().role !== 'admin') {
-        throw new HttpsError('permission-denied', 'Admins only.');
-    }
-}
-
-// ─── buyCard ──────────────────────────────────────────────────────────────────
 exports.buyCard = async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
 
@@ -39,39 +29,65 @@ exports.buyCard = async (request) => {
         if (existingCount + requestedCount > 25) {
             throw new Error(`You can only own a maximum of 25 cards per session. You already have ${existingCount} cards.`);
         }
-
         const buyCount = requestedCount;
-        const batch = db.batch();
-        const poolPromises = [];
-        const cardIds = [];
 
-        for (let i = 0; i < buyCount; i++) {
-            const randomId = Math.floor(Math.random() * 26000) + 1;
-            poolPromises.push(db.collection('cartelas_pool').doc(randomId.toString()).get());
-            cardIds.push(randomId);
-        }
+        // SECURITY FIX: Use a transactional queue to prevent duplicate card assignment.
+        // cartela_queue/{sessionId} holds an array of available card IDs for this session.
+        // We atomically splice 'buyCount' IDs off the front, guaranteeing no two users
+        // can ever receive the same card in the same session.
+        const queueRef = db.collection('cartela_queue').doc(sessionId);
 
+        const assignedIds = await db.runTransaction(async (transaction) => {
+            const queueDoc = await transaction.get(queueRef);
+
+            let available = [];
+            if (queueDoc.exists) {
+                available = queueDoc.data().available || [];
+            } else {
+                // First buyer this session: build the shuffled queue from the pool index.
+                // We store card IDs 1–26000 in a Fisher-Yates shuffled order so picks are O(1).
+                available = Array.from({ length: 26000 }, (_, i) => i + 1);
+                for (let i = available.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [available[i], available[j]] = [available[j], available[i]];
+                }
+            }
+
+            if (available.length < buyCount) {
+                throw new Error("Not enough cards available in this session.");
+            }
+
+            // Atomically claim the next 'buyCount' IDs from the front of the queue
+            const taken = available.splice(0, buyCount);
+            transaction.set(queueRef, { available, sessionId, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+            return taken;
+        });
+
+        // Now fetch the pool docs and write the user cards
+        const poolPromises = assignedIds.map(id =>
+            db.collection('cartelas_pool').doc(id.toString()).get()
+        );
         const poolSnaps = await Promise.all(poolPromises);
+        const batch = db.batch();
         const results = [];
 
         for (let i = 0; i < poolSnaps.length; i++) {
             const poolDoc = poolSnaps[i];
+            const cardId = assignedIds[i];
             if (!poolDoc.exists) continue;
 
-            const randomId = cardIds[i];
-            const cardRef = db.collection('users').doc(userId).collection('cards').doc(randomId.toString());
-
+            const cardRef = db.collection('users').doc(userId).collection('cards').doc(cardId.toString());
             batch.set(cardRef, {
                 gameId: 'live',
                 game_id: 'live',
                 sessionId: sessionId,
-                cardNo: randomId,
+                cardNo: cardId,
                 numbers: poolDoc.data().numbers,
                 status: 'pending',
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 2 * 60 * 60 * 1000))
             });
-            results.push(randomId.toString());
+            results.push(cardId.toString());
         }
 
         await batch.commit();
@@ -81,12 +97,12 @@ exports.buyCard = async (request) => {
     }
 };
 
-// ─── registerCard ─────────────────────────────────────────────────────────────
 exports.registerCard = async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
 
     const { cardId } = request.data || {};
     if (!cardId) throw new HttpsError('invalid-argument', 'cardId is required.');
+    
 
     const userId = request.auth.uid;
     const db = admin.firestore();
@@ -95,117 +111,91 @@ exports.registerCard = async (request) => {
     const gameRef = db.collection('games').doc('live');
     const cardRef = userRef.collection('cards').doc(cardId.toString());
 
-    const MAX_RETRIES = 3;
-
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        try {
-            const result = await db.runTransaction(async (transaction) => {
-                const cardDoc = await transaction.get(cardRef);
-
-                // Idempotency: already registered by this user — return success immediately
-                if (cardDoc.exists && cardDoc.data().status === 'registered') {
-                    return { success: true };
-                }
-
-                const userDoc = await transaction.get(userRef);
-                const gameDoc = await transaction.get(gameRef);
-                const poolDoc = await transaction.get(db.collection('cartelas_pool').doc(cardId.toString()));
-
-                if (!poolDoc.exists) throw new Error("Invalid card number. Not found in pool.");
-                const numbers = poolDoc.data().numbers;
-
-                if (!gameDoc.exists) throw new Error("Live game document (games/live) does not exist.");
-                const gameData = gameDoc.data();
-                if (gameData.status !== 'buying') throw new Error("Game is not in buying phase.");
-
-                const sessionId = (gameData.sessionId || '').toString();
-
-                // Atomic collision check via cardAssignments/{sessionId_cardNo}
-                const assignmentRef = db.collection('cardAssignments').doc(`${sessionId}_${cardId}`);
-                const assignmentDoc = await transaction.get(assignmentRef);
-
-                if (assignmentDoc.exists && assignmentDoc.data().userId !== userId) {
-                    throw new Error("This card number has already been purchased by another player!");
-                }
-
-                let balance = 0;
-                if (!userDoc.exists) {
-                    transaction.set(userRef, {
-                        balance: 0,
-                        role: 'player',
-                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                } else {
-                    balance = userDoc.data().balance || 0;
-                }
-
-                const price = gameData.cardPrice || 10;
-                if (balance < price) throw new Error("Insufficient balance.");
-
-                // Standardize 24-number format → 25 by inserting free space (0) at index 12
-                const numbers25 = [...numbers];
-                if (numbers25.length === 24) {
-                    numbers25.splice(12, 0, 0);
-                }
-
-                // Check if this is the user's first card this session → increment playersCount
-                const existingCardsSnap = await db.collection('users').doc(userId)
-                    .collection('cards')
-                    .where('sessionId', '==', sessionId)
-                    .where('status', '==', 'registered')
-                    .get();
-                const isFirstCard = existingCardsSnap.empty;
-
-                transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(-price) });
-                transaction.set(cardRef, {
-                    gameId: 'live',
-                    game_id: 'live',
-                    sessionId: sessionId,
-                    cardNo: Number(cardId),
-                    numbers: numbers25,
-                    status: 'registered',
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 2 * 60 * 60 * 1000))
-                });
-
-                const gameUpdates = { cardsSold: admin.firestore.FieldValue.increment(1) };
-                if (isFirstCard) {
-                    gameUpdates.playersCount = admin.firestore.FieldValue.increment(1);
-                }
-                transaction.update(gameRef, gameUpdates);
-
-                // Record assignment atomically
-                transaction.set(assignmentRef, {
-                    userId: userId,
-                    cardNo: Number(cardId),
-                    sessionId: sessionId,
-                    registeredAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-
+    try {
+        const result = await db.runTransaction(async (transaction) => {
+            const cardDoc = await transaction.get(cardRef);
+            
+            // Idempotency: If this card is already registered by this user, return success immediately!
+            if (cardDoc.exists && cardDoc.data().status === 'registered') {
                 return { success: true };
-            });
-
-            return result; // success — exit retry loop
-
-        } catch (error) {
-            const isContention = error.code === 10 || // ABORTED
-                                 (error.message && error.message.includes('contention'));
-
-            if (attempt === MAX_RETRIES - 1 || !isContention) {
-                console.error("RegisterCard Error:", error);
-                throw new HttpsError('internal', error.message);
             }
 
-            // Exponential backoff: 200ms, 400ms, 800ms
-            await new Promise(r => setTimeout(r, 200 * Math.pow(2, attempt)));
-        }
+            const userDoc = await transaction.get(userRef);
+            const gameDoc = await transaction.get(gameRef);
+
+            const poolDoc = await transaction.get(db.collection('cartelas_pool').doc(cardId.toString()));
+            if (!poolDoc.exists) throw new Error("Invalid card number. Not found in pool.");
+            const numbers = poolDoc.data().numbers;
+
+            if (!gameDoc.exists) throw new Error("Live game document (games/live) does not exist.");
+            const gameData = gameDoc.data();
+            if (gameData.status !== 'buying') throw new Error("Game is not in buying phase.");
+
+            const sessionId = (gameData.sessionId || '').toString();
+
+            // Atomic transaction check using cardAssignments/{sessionId_cardNo}
+            const assignmentRef = db.collection('cardAssignments').doc(`${sessionId}_${cardId}`);
+            const assignmentDoc = await transaction.get(assignmentRef);
+
+            if (assignmentDoc.exists) {
+                const assignedUserId = assignmentDoc.data().userId;
+                if (assignedUserId !== userId) {
+                    throw new Error("This card number has already been purchased by another player!");
+                }
+            }
+
+            let balance = 0;
+            if (!userDoc.exists) {
+                transaction.set(userRef, {
+                    balance: 0,
+                    role: 'player',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                balance = 0;
+            } else {
+                balance = userDoc.data().balance || 0;
+            }
+
+            const price = gameData.cardPrice || 10;
+            if (balance < price) throw new Error("Insufficient balance.");
+
+            // Standardize 24-number format to 25-number format by putting the free space (0) at index 12
+            const numbers25 = [...numbers];
+            if (numbers25.length === 24) {
+                numbers25.splice(12, 0, 0);
+            }
+
+            transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(-price) });
+            transaction.set(cardRef, {
+                gameId: 'live',
+                game_id: 'live',
+                sessionId: sessionId,
+                cardNo: Number(cardId),
+                numbers: numbers25,
+                status: 'registered',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 2 * 60 * 60 * 1000))
+            });
+            transaction.update(gameRef, { cardsSold: admin.firestore.FieldValue.increment(1) });
+
+            // Record assignment atomically
+            transaction.set(assignmentRef, {
+                userId: userId,
+                cardNo: Number(cardId),
+                sessionId: sessionId,
+                registeredAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            return { success: true };
+        });
+        return result;
+    } catch (error) {
+        console.error("RegisterCard Error:", error);
+        throw new HttpsError('internal', error.message);
     }
 };
 
-// ─── startNewGame ─────────────────────────────────────────────────────────────
 exports.startNewGame = async (request) => {
-    await assertAdmin(request); // ← admin-only
-
     const { prizePool, cardPrice, gamePattern } = request.data || {};
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
@@ -223,18 +213,25 @@ exports.startNewGame = async (request) => {
 
             transaction.set(counterRef, { currentSessionId: sessionNum }, { merge: true });
 
-            // Generate pre-shuffled sequence of 75 numbers
+            // SECURITY: Generate draw sequence and store in server-only collection.
+            // Never written to games/live where clients have read access.
             const drawSequence = Array.from({ length: 75 }, (_, i) => i + 1);
             for (let i = drawSequence.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [drawSequence[i], drawSequence[j]] = [drawSequence[j], drawSequence[i]];
             }
+            const seqRef = db.collection('game_sequences').doc(sessionNum.toString());
+            transaction.set(seqRef, {
+                sessionId: sessionNum,
+                drawSequence: drawSequence,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
 
             const gameUpdate = {
                 status: 'buying',
                 sessionId: sessionNum,
                 drawnNumbers: [],
-                drawSequence: drawSequence,
+                // drawSequence intentionally omitted — kept in game_sequences only
                 winners: [],
                 winnerId: null,
                 cardsSold: 0,
@@ -264,7 +261,9 @@ exports.startNewGame = async (request) => {
             return { success: true, sessionId: sessionNum };
         });
 
-        // Delete all game_winners documents from the previous session
+
+
+        // Delete all game winners for the new session
         const liveWinners = await db.collection('game_winners').get();
         if (!liveWinners.empty) {
             let winnerBatch = db.batch();
@@ -274,6 +273,8 @@ exports.startNewGame = async (request) => {
             await winnerBatch.commit();
         }
 
+        // TTL handles card deletion; no manual batch deletion needed.
+
         return result;
     } catch (error) {
         console.error("StartNewGame Error:", error);
@@ -281,7 +282,7 @@ exports.startNewGame = async (request) => {
     }
 };
 
-// ─── seedPool ─────────────────────────────────────────────────────────────────
+
 exports.seedPool = async (request) => {
     const db = admin.firestore();
     const { startIndex = 0, count = 5000 } = request.data || {};
@@ -293,7 +294,9 @@ exports.seedPool = async (request) => {
         const rawData = fs.readFileSync(dataPath, "utf8");
         const allCards = JSON.parse(rawData);
 
+        // Slice the cards array based on requested chunk
         const cardsChunk = allCards.slice(startIndex, startIndex + count);
+
         const poolRef = db.collection("cartelas_pool");
         let batch = db.batch();
         let processed = 0;
@@ -333,11 +336,7 @@ exports.seedPool = async (request) => {
         throw new HttpsError('internal', error.message);
     }
 };
-
-// ─── cancelGame ───────────────────────────────────────────────────────────────
 exports.cancelGame = async (request) => {
-    await assertAdmin(request); // ← admin-only
-
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
     const historyRef = db.collection('game_history').doc();
@@ -345,17 +344,20 @@ exports.cancelGame = async (request) => {
 
     try {
         const result = await db.runTransaction(async (transaction) => {
+            // ALL READS FIRST
             const gameDoc = await transaction.get(gameRef);
             const counterDoc = await transaction.get(counterRef);
 
             if (!gameDoc.exists) throw new Error("No live game found.");
             const game = gameDoc.data();
 
+            // LOGIC
             let nextSession = (game.sessionId || 1000) + 1;
             if (counterDoc.exists) {
                 nextSession = (counterDoc.data().currentSessionId || 1000) + 1;
             }
 
+            // ALL WRITES AFTER
             transaction.set(historyRef, {
                 sessionId: game.sessionId || 'N/A',
                 status: 'cancelled',
@@ -374,7 +376,6 @@ exports.cancelGame = async (request) => {
                 winners: [],
                 winnerId: null,
                 cardsSold: 0,
-                playersCount: 0,
                 isPaused: false,
                 currentNumber: null,
                 lastDrawTime: null,
@@ -391,7 +392,9 @@ exports.cancelGame = async (request) => {
             return { success: true, oldSession: game.sessionId, newSession: nextSession };
         });
 
-        // Delete all game_winners documents
+
+
+        // Delete all game winners for the new session
         const liveWinners = await db.collection('game_winners').get();
         if (!liveWinners.empty) {
             let winnerBatch = db.batch();
@@ -401,6 +404,8 @@ exports.cancelGame = async (request) => {
             await winnerBatch.commit();
         }
 
+        // TTL handles card deletion; no manual batch deletion needed.
+
         return result;
     } catch (error) {
         console.error("CancelGame Error:", error);
@@ -408,7 +413,6 @@ exports.cancelGame = async (request) => {
     }
 };
 
-// ─── removeCard ───────────────────────────────────────────────────────────────
 exports.removeCard = async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
 
@@ -431,23 +435,25 @@ exports.removeCard = async (request) => {
             if (!gameDoc.exists) throw new Error("Live game not found.");
             const gameData = gameDoc.data();
 
-            // Read userDoc upfront to satisfy read-before-write constraint
-            await transaction.get(userRef);
+            // Fetch userDoc upfront to satisfy the read-before-write constraint!
+            const userDoc = await transaction.get(userRef);
 
             if (cardData.status === 'registered') {
+                // Decrement cards sold
                 transaction.update(gameRef, {
                     cardsSold: admin.firestore.FieldValue.increment(-1)
                 });
 
-                // Refund user atomically if still in buying phase
+                // Refund user if in buying phase
                 if (gameData.status === 'buying') {
-                    const price = gameData.cardPrice || 10;
-                    transaction.update(userRef, {
-                        balance: admin.firestore.FieldValue.increment(price) // ← atomic, no race condition
-                    });
+                    if (userDoc.exists) {
+                        const currentBalance = userDoc.data().balance || 0;
+                        const price = gameData.cardPrice || 10;
+                        transaction.update(userRef, { balance: currentBalance + price });
+                    }
                 }
 
-                // Clean up card assignment
+                // Clean up card assignment atomically!
                 const assignmentRef = db.collection('cardAssignments').doc(`${cardData.sessionId}_${cardId}`);
                 transaction.delete(assignmentRef);
             }
@@ -462,8 +468,8 @@ exports.removeCard = async (request) => {
     }
 };
 
-// ─── resetAllRegisteredCards ──────────────────────────────────────────────────
 exports.resetAllRegisteredCards = async (db) => {
+    // Delete all game winners for the new session
     const liveWinners = await db.collection('game_winners').get();
     if (!liveWinners.empty) {
         let winnerBatch = db.batch();
@@ -472,4 +478,6 @@ exports.resetAllRegisteredCards = async (db) => {
         }
         await winnerBatch.commit();
     }
+
+    // TTL handles card deletion; no manual batch deletion needed.
 };

@@ -6,7 +6,7 @@ plugins {
     id("com.google.gms.google-services")
 }
 android {
-    namespace = "com.bingomk.bingo_mk"
+    namespace = "com.bingo.app"
     compileSdk = 35
     
 
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.bingomk.bingo_mk"
+        applicationId = "com.bingo.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

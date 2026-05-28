@@ -209,12 +209,10 @@ exports.onDepositCreatedHandler = async (snap, context) => {
                     }
                 }
             } else {
-                // Bank transaction not found, automatically reject per requirements
-                transaction.update(snap.ref, {
-                    status: "rejected",
-                    rejectionReason: "Invalid reference number. Transaction not found in bank records."
-                });
-                console.log(`Auto-rejected deposit for user ${userId} - Reference ${reference} not found in bank_notifications.`);
+                // Bank SMS not yet received — leave deposit PENDING for later matching.
+                // The smsWebhook will reconcile it automatically when the SMS arrives,
+                // or the admin can approve manually from the finance page.
+                console.log(`Deposit ${depositId} for user ${userId} left PENDING — bank SMS for Ref: ${reference} not yet received.`);
             }
         });
     } catch (error) {
