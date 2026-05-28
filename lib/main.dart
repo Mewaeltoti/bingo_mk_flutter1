@@ -173,34 +173,27 @@ class _AppRouterState extends State<AppRouter> {
     }
 
     // ---------------- AUTH ROUTING ----------------
-    return BlocProvider(
-      create: (_) => AuthCubit(sl<AuthRepository>()),
-      child: BlocBuilder<AuthCubit, AuthState>(
-        builder: (context, state) {
-          // AUTHENTICATED
-          if (state is AuthAuthenticated) {
-            _ensureCubits(state.userId);
+   return BlocBuilder<AuthCubit, AuthState>(
+  builder: (context, state) {
+    if (state is AuthAuthenticated) {
+      return MainContainer();
+    }
 
-            return MultiBlocProvider(
-              providers: [
-                BlocProvider.value(value: _gameCubit!),
-                BlocProvider.value(value: _walletCubit!),
-              ],
-              child: const MainContainer(),
-            );
-          }
+    if (state is AuthLoading || state is AuthInitial) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-          // LOADING
-          if (state is AuthInitial || state is AuthLoading) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
+    if (state is AuthUnauthenticated) {
+      return const DashboardPage();
+    }
 
-          // LOGGED OUT
-          return const DashboardPage();
-        },
-      ),
+    // 🔴 SAFE FALLBACK (prevents white screen)
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     );
+  },
+);
   }
 }
