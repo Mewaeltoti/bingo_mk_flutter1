@@ -68,9 +68,9 @@ class BingoApp extends StatelessWidget {
         child: MaterialApp(
           title: 'Bingo MK',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
+          theme: AppTheme.darkTheme,
           darkTheme: AppTheme.darkTheme,
-          themeMode: ThemeMode.system,
+          themeMode: ThemeMode.dark,
           home: const AppRouter(),
         ),
       ),

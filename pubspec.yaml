@@ -13,22 +13,21 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
-  # ── Firebase (replaces supabase_flutter + supabase) ──────────────────────
+  # Firebase
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
   cloud_functions: ^5.1.3
-  # pubspec.yaml
   firebase_messaging: ^15.1.0
   flutter_local_notifications: ^18.0.0
 
-  # ── State management & utilities ─────────────────────────────────────────
+  # State management & utilities
   flutter_bloc: ^9.1.1
   equatable: ^2.0.8
   get_it: ^8.0.0
   uuid: ^4.5.1
 
-  # ── UI & audio ───────────────────────────────────────────────────────────
+  # UI & audio
   confetti: ^0.8.0
   audioplayers: ^6.1.0
   flutter_tts: ^4.2.2
@@ -40,7 +39,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
@@ -48,4 +49,15 @@ flutter:
   assets:
     - assets/
     - assets/sounds/
-  
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+
+  web:
+    generate: true
+
+  image_path: "assets/icon/app_icon.png"
+
+  adaptive_icon_background: "#1A0033"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"

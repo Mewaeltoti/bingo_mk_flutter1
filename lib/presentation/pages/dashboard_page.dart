@@ -14,7 +14,7 @@ class DashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.darkBackground,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -60,7 +60,7 @@ class DashboardPage extends StatelessWidget {
         const Text(
           'Play. Win. Celebrate.',
           style: TextStyle(
-            color: AppColors.textSecondary,
+            color: AppColors.darkTextSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -102,7 +102,7 @@ class DashboardPage extends StatelessWidget {
                           ),
                         );
                       },
-                      color: AppColors.card,
+                      color: AppColors.darkCard,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -180,7 +180,7 @@ class DashboardPage extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          foregroundColor: isPrimary ? Colors.black : AppColors.secondary,
+          foregroundColor: isPrimary ? Colors.white : AppColors.secondary,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -212,7 +212,7 @@ class DashboardPage extends StatelessWidget {
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          foregroundColor: textColor ?? AppColors.textPrimary,
+          foregroundColor: textColor ?? AppColors.darkTextPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),

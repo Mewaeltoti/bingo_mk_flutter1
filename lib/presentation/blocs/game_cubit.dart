@@ -479,7 +479,10 @@ class GameCubit extends Cubit<GameState> {
         flatNumbers.removeAt(12);
       }
 
-      await _bingoRepository.registerCard(cardId, flatNumbers);
+      // The Cloud Function looks up cards by cartela_no (the pool key),
+      // NOT by the local UUID doc-id. Pass cardNo here so the CF can find
+      // the card in the pool, while cardId (UUID) remains the Firestore doc id.
+      await _bingoRepository.registerCard(card.cardNo.toString(), flatNumbers);
 
       // Update local state first to prevent duplicate merging!
       final updatedCards = current.userCards.map((c) {
@@ -574,9 +577,12 @@ class GameCubit extends Cubit<GameState> {
     // an Exception so Future.wait never short-circuits on a single bad card.
     // Previously a serial for-await loop meant the first failure (e.g. a
     // duplicate card or insufficient balance) silently blocked every card after it.
+    //
+    // Pass cardNo (the pool key) — not the local UUID — so the CF can find
+    // the card in the pool. See registerCard() above for the same fix.
     final results = await Future.wait(
       pendingCards.map((card) => _bingoRepository
-          .registerCard(card.id, _flatNumbers(card))
+          .registerCard(card.cardNo.toString(), _flatNumbers(card))
           .then((_) => null)          // success → null
           .catchError((e) => e)),     // failure → the error object
     );

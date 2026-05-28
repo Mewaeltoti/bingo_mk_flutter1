@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:690827139986:android:2013c2bbae0a11c0c2ff4b",
+        "mobilesdk_app_id": "1:690827139986:android:436f292d8364c2cdc2ff4b",
         "android_client_info": {
-          "package_name": "com.bingo.app"
+          "package_name": "com.bingomk.bingo_mk"
         }
       },
       "oauth_client": [],

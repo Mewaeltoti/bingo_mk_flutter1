@@ -300,7 +300,7 @@ class _PaymentPageState extends State<PaymentPage>
           borderRadius: BorderRadius.circular(8),
           color: AppColors.secondary,
         ),
-        labelColor: Colors.black,
+        labelColor: Colors.white,
         unselectedLabelColor: Colors.white70,
         labelStyle: const TextStyle(
             fontWeight: FontWeight.bold,
