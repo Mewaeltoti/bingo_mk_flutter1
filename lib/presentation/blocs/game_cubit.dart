@@ -773,47 +773,36 @@ class GameCubit extends Cubit<GameState> {
   void _resubscribeDraws(String sessionId) {
     _drawsSub?.cancel();
 
-    // Load existing drawn numbers for the session first, then subscribe to new ones
-    _bingoRepository.fetchDrawnNumbers(sessionId).then((existing) {
-      if (isClosed) return;
-      if (state is GameLoaded && existing.isNotEmpty) {
-        final current = state as GameLoaded;
-        final autoMarked = current.isAutoDaubEnabled
-            ? _applyAutoDaub(current, Set<int>.from(existing))
-            : null;
-        emit(current.copyWith(
-          drawnNumbers: existing,
-          markedCells: autoMarked,
-        ));
-      }
-    }).catchError((e) => Log.e('fetchDrawnNumbers failed', e));
-
-    _drawsSub = _bingoRepository.streamGameDraws(sessionId).listen((newNumber) {
+    _drawsSub = _bingoRepository.streamGameDraws(sessionId).listen((allNumbers) {
       if (state is! GameLoaded || isClosed) return;
       final current = state as GameLoaded;
 
-      // Guard: skip if this number was already loaded by fetchDrawnNumbers.
-      // This race occurs when the fetch resolves after the stream has already
-      // emitted some of the same numbers.
-      if (current.drawnNumbers.contains(newNumber)) return;
+      // The stream now delivers the FULL list every time — no race condition.
+      // Only update if something actually changed.
+      if (allNumbers.length == current.drawnNumbers.length) return;
 
-      final newDrawnNumbers = [...current.drawnNumbers, newNumber];
-
-      // Audio
-      if (current.status != GameStatus.paused) {
-        AudioService().callNumber(newNumber);
+      // Play audio only for newly added numbers (not on initial load)
+      if (current.drawnNumbers.isNotEmpty && allNumbers.length > current.drawnNumbers.length) {
+        final newNumbers = allNumbers.sublist(current.drawnNumbers.length);
+        for (final n in newNumbers) {
+          if (current.status != GameStatus.paused) {
+            AudioService().callNumber(n);
+          }
+        }
       }
 
-      // Auto-daub incrementally — only the new number, not the full list
-      final autoMarked = current.isAutoDaubEnabled
-          ? _applyAutoDaub(current, {newNumber})
-          : null;
+      // Auto-daub: mark any newly drawn numbers
+      Map<String, Set<String>>? autoMarked;
+      if (current.isAutoDaubEnabled && allNumbers.length > current.drawnNumbers.length) {
+        final newSet = allNumbers.sublist(current.drawnNumbers.length).toSet();
+        autoMarked = _applyAutoDaub(current, newSet);
+      }
 
       emit(current.copyWith(
-        drawnNumbers: newDrawnNumbers,
+        drawnNumbers: allNumbers,
         markedCells: autoMarked,
       ));
-    });
+    }, onError: (e) => Log.e('streamGameDraws error', e));
   }
 
   Map<String, Set<String>> _applyAutoDaub(GameLoaded current, Set<int> numbersToMark) {

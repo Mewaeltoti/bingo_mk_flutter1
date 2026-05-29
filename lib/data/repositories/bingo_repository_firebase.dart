@@ -39,34 +39,18 @@ class BingoRepositoryFirebase implements BingoRepository {
   // STREAM GAME DRAWS
   // ─────────────────────────────────────────────────────────────────────────
   @override
-  Stream<int> streamGameDraws(String sessionId) {
-    final controller = StreamController<int>();
-    // Tracks numbers already emitted so Firestore reconnect re-fires don't
-    // cause duplicate audio/state updates (Firestore re-delivers all existing
-    // docs as DocumentChangeType.added after a network interruption).
-    final emittedNumbers = <int>{};
-
-    final sub = _firestore
+  Stream<List<int>> streamGameDraws(String sessionId) {
+    return _firestore
         .collection('games')
         .doc('live')
         .collection('draws')
         .where('sessionId', isEqualTo: sessionId)
         .orderBy('drawnAt')
         .snapshots()
-        .listen((snapshot) {
-      for (final change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.added) {
-          final number = change.doc.data()?['number'] as int?;
-          if (number != null && !emittedNumbers.contains(number) && !controller.isClosed) {
-            emittedNumbers.add(number);
-            controller.add(number);
-          }
-        }
-      }
-    });
-
-    controller.onCancel = () => sub.cancel();
-    return controller.stream;
+        .map((snapshot) => snapshot.docs
+            .map((d) => d.data()['number'] as int? ?? 0)
+            .where((n) => n > 0)
+            .toList());
   }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ void showCardTransparencyDialog(
   Map<String, dynamic>? found;
   List<int> numbersList = [];
   String cardNo = item;
-  String phone = "Phone";
+  String phone = "ስልክ ቁጥር: 0910117997";
 
   if (isBlocked) {
     final userCard = state.userCards.firstWhere(
@@ -28,7 +28,7 @@ void showCardTransparencyDialog(
     if (userCard.id.isNotEmpty) {
       numbersList = userCard.numbers.expand((row) => row).toList();
       cardNo = userCard.cardNo.toString();
-      phone = "Your Blocked Card";
+      phone = "የእርስዎ የታገደ ካርቴላ";
     }
   } else {
     final searchList = isWinner ? state.rawWinnersData : state.rawClaimsData;
@@ -242,7 +242,7 @@ void showCardTransparencyDialog(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: const Text(
-                        "Back",
+                        "ዕድሉ",
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,

@@ -20,7 +20,7 @@ abstract class BingoRepository {
   Stream<List<int>> streamDrawnNumbers(String gameId);
 
   /// v2: lightweight per-number draw stream (game_draws table INSERTs)
-  Stream<int> streamGameDraws(String sessionId);
+  Stream<List<int>> streamGameDraws(String sessionId);
 
   /// v2: fetch all drawn numbers for a session on initial load
   Future<List<int>> fetchDrawnNumbers(String sessionId);
