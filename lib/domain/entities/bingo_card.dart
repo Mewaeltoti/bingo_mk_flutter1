@@ -69,6 +69,7 @@ class BingoCard {
   final int cardNo;
   final String sessionId;
   final DateTime? createdAt;
+  final bool isBlocked;
 
   BingoCard({
     required this.id,
@@ -78,6 +79,7 @@ class BingoCard {
     this.cardNo = 0,
     this.sessionId = '',
     this.createdAt,
+    this.isBlocked = false,
   });
 
   BingoCard copyWith({
@@ -88,6 +90,7 @@ class BingoCard {
     int? cardNo,
     String? sessionId,
     DateTime? createdAt,
+    bool? isBlocked,
   }) {
     return BingoCard(
       id: id ?? this.id,
@@ -97,6 +100,7 @@ class BingoCard {
       cardNo: cardNo ?? this.cardNo,
       sessionId: sessionId ?? this.sessionId,
       createdAt: createdAt ?? this.createdAt,
+      isBlocked: isBlocked ?? this.isBlocked,
     );
   }
 }

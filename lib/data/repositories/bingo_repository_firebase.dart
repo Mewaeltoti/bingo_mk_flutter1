@@ -205,6 +205,24 @@ class BingoRepositoryFirebase implements BingoRepository {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // BLOCK CARD  (persists failed claim to Firestore so it survives restarts)
+  // ─────────────────────────────────────────────────────────────────────────
+  @override
+  Future<void> blockCard(String userId, String cardId) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('cards')
+          .doc(cardId)
+          .update({'blocked': true});
+    } catch (e) {
+      Log.e('blockCard failed', e);
+      // Non-fatal — blocked state will at least survive the current session
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // CLAIM BINGO  (calls Cloud Function)
   // ─────────────────────────────────────────────────────────────────────────
   @override
@@ -272,6 +290,7 @@ class BingoRepositoryFirebase implements BingoRepository {
         final cardNo = row['cardNo'] as int? ?? 0;
         final cardSessionId = (row['sessionId'] ?? '').toString();
         final createdAt = (row['createdAt'] as Timestamp?)?.toDate();
+        final isBlocked = row['blocked'] as bool? ?? false;
 
         List<List<int>> grid = [];
         if (flatNumbers.length == 25) {
@@ -295,6 +314,7 @@ class BingoRepositoryFirebase implements BingoRepository {
           cardNo: cardNo,
           sessionId: cardSessionId,
           createdAt: createdAt,
+          isBlocked: isBlocked,
         );
       }).toList();
     } catch (e) {
