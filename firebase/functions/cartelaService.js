@@ -133,6 +133,19 @@ exports.registerCard = async (request) => {
 
             const sessionId = (gameData.sessionId || '').toString();
 
+            // Enforce 25-card max per user per session — server-side guard
+            // (client UI also blocks this, but clients can be bypassed).
+            const existingCardsSnap = await transaction.get(
+                userRef.collection('cards').where('sessionId', '==', sessionId)
+            );
+            const existingCardCount = existingCardsSnap.size;
+            if (existingCardCount >= 25) {
+                throw new Error(
+                    `You already have ${existingCardCount} cards this session. ` +
+                    `Maximum allowed is 25.`
+                );
+            }
+
             // Atomic transaction check using cardAssignments/{sessionId_cardNo}
             const assignmentRef = db.collection('cardAssignments').doc(`${sessionId}_${cardId}`);
             const assignmentDoc = await transaction.get(assignmentRef);

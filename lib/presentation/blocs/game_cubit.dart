@@ -402,7 +402,9 @@ class GameCubit extends Cubit<GameState> {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
     try {
-      final dbCards = await _bingoRepository.getUserCartelas(userId, kLiveGameId);
+      final dbCards = await _bingoRepository.getUserCartelas(
+          userId, kLiveGameId,
+          sessionId: current.sessionId.isNotEmpty ? current.sessionId : null);
       
       // Filter database cards to only keep cards that belong to the current active session
       final activeDbCards = dbCards.where((c) => c.sessionId == current.sessionId).toList();
@@ -489,7 +491,7 @@ class GameCubit extends Cubit<GameState> {
       Log.e("Failed to select local card", e, stack);
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
-            isActionLoading: false, statusMessage: "Failed: ${e.toString()}"));
+            isActionLoading: false, statusMessage: _friendlyError(e)));
       }
     }
   }
@@ -536,7 +538,7 @@ class GameCubit extends Cubit<GameState> {
         emit((state as GameLoaded).copyWith(
             userCards: updatedCards,
             isActionLoading: false,
-            statusMessage: "Registration failed: ${e.toString()}"));
+            statusMessage: _friendlyError(e, prefix: "Registration failed")));
       }
     }
   }
@@ -580,7 +582,7 @@ class GameCubit extends Cubit<GameState> {
       Log.e("Failed to remove card", e, stack);
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
-            isActionLoading: false, statusMessage: "Failed to remove card: ${e.toString()}"));
+            isActionLoading: false, statusMessage: _friendlyError(e, prefix: "Could not remove card")));
       }
     }
   }
@@ -713,7 +715,7 @@ class GameCubit extends Cubit<GameState> {
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
             isActionLoading: false,
-            statusMessage: "Failed to claim bingo: ${e.toString()}"));
+            statusMessage: _friendlyError(e, prefix: "Claim failed")));
       }
     }
   }
@@ -759,7 +761,7 @@ class GameCubit extends Cubit<GameState> {
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
             isActionLoading: false,
-            statusMessage: "Failed to claim bingos: ${e.toString()}"));
+            statusMessage: _friendlyError(e, prefix: "Claims failed")));
       }
     }
   }
@@ -859,6 +861,45 @@ class GameCubit extends Cubit<GameState> {
       map[card.id] = cells;
     }
     return map;
+  }
+
+  /// Called when the app returns to foreground.
+  /// Re-subscribes draws stream and refreshes cards in case the OS dropped
+  /// the stream while the app was backgrounded.
+  void onAppResumed() {
+    if (state is! GameLoaded) return;
+    final current = state as GameLoaded;
+    if (current.sessionId.isNotEmpty) {
+      _resubscribeDraws(current.sessionId);
+    }
+    refreshCards();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Returns a user-friendly error message.
+  /// Raw Firebase/exception strings are logged but never shown to the user.
+  String _friendlyError(Object e, {String? prefix}) {
+    String message;
+    final s = e.toString().toLowerCase();
+    if (s.contains('permission') || s.contains('permission-denied')) {
+      message = 'Permission denied. Please sign in again.';
+    } else if (s.contains('network') || s.contains('unavailable') || s.contains('deadline')) {
+      message = 'Network error. Please check your connection.';
+    } else if (s.contains('not-found') || s.contains('not found')) {
+      message = 'Item not found. Please refresh and try again.';
+    } else if (s.contains('unauthenticated')) {
+      message = 'Session expired. Please sign in again.';
+    } else if (s.contains('insufficient balance') || s.contains('insufficient')) {
+      // Preserve balance-related messages since they're already user-friendly
+      message = e.toString().replaceAll('Exception: ', '');
+    } else {
+      message = 'Something went wrong. Please try again.';
+    }
+    if (prefix != null) return '$prefix: $message';
+    return message;
   }
 
   @override

@@ -32,7 +32,7 @@ class GamePage extends StatefulWidget {
   State<GamePage> createState() => _GamePageState();
 }
 
-class _GamePageState extends State<GamePage> {
+class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late ConfettiController _confettiController;
 
@@ -48,10 +48,21 @@ class _GamePageState extends State<GamePage> {
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 10),
     );
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-subscribe draws and refresh cards if streams were dropped.
+      final cubit = context.read<GameCubit>();
+      cubit.onAppResumed();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _confettiController.dispose();
     super.dispose();
   }

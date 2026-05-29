@@ -273,15 +273,19 @@ class BingoRepositoryFirebase implements BingoRepository {
   // GET USER CARTELAS
   // ─────────────────────────────────────────────────────────────────────────
   @override
-  Future<List<BingoCard>> getUserCartelas(String userId, String gameId) async {
+  Future<List<BingoCard>> getUserCartelas(String userId, String gameId, {String? sessionId}) async {
     try {
-      final snap = await _firestore
+      // Pass sessionId to filter at the Firestore level, avoiding loading
+      // all historic cards on every call (MEDIUM fix #7).
+      var query = _firestore
           .collection('users')
           .doc(userId)
           .collection('cards')
-          .where('game_id', isEqualTo: 'live')
-          .orderBy('createdAt', descending: true)
-          .get();
+          .where('game_id', isEqualTo: 'live');
+      if (sessionId != null && sessionId.isNotEmpty) {
+        query = query.where('sessionId', isEqualTo: sessionId);
+      }
+      final snap = await query.orderBy('createdAt', descending: true).get();
 
       return snap.docs.map((doc) {
         final row = doc.data();
@@ -381,17 +385,38 @@ class BingoRepositoryFirebase implements BingoRepository {
   @override
   Future<void> createDeposit(String userId, Map<String, dynamic> data) async {
     try {
+      final reference = (data['reference'] as String?)?.trim() ?? '';
+
+      // Guard against duplicate submissions of the same bank transfer reference.
+      if (reference.isNotEmpty) {
+        final existing = await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('deposits')
+            .where('reference', isEqualTo: reference)
+            .limit(1)
+            .get();
+        if (existing.docs.isNotEmpty) {
+          throw Exception(
+              'A deposit with reference "$reference" has already been submitted. '
+              'Please wait for it to be verified.');
+        }
+      }
+
       await _firestore
           .collection('users')
           .doc(userId)
           .collection('deposits')
           .add({
         'amount': data['amount'],
-        'reference': data['reference'],
+        'reference': reference,
         'bank': data['bank'] ?? '',
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
+    } on FirebaseException catch (e) {
+      Log.e('createDeposit Firebase error', e);
+      throw Exception(_mapFirebaseError(e));
     } catch (e) {
       Log.e('createDeposit failed', e);
       rethrow;
@@ -400,21 +425,22 @@ class BingoRepositoryFirebase implements BingoRepository {
 
   @override
   Future<void> createWithdrawal(String userId, Map<String, dynamic> data) async {
+    // Balance reservation is handled atomically by the Cloud Function.
+    // Direct Firestore writes are blocked by security rules.
     try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('withdrawals')
-          .add({
+      final callable = _functions.httpsCallable('createWithdrawal');
+      await callable.call({
         'amount': data['amount'],
         'bank': data['bank'] ?? '',
         'accountNumber': data['accountNumber'] ?? '',
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
       });
+    } on FirebaseFunctionsException catch (e) {
+      Log.e('createWithdrawal CF failed', e);
+      // Surface the CF message directly — it is already user-friendly.
+      throw Exception(e.message ?? 'Withdrawal request failed. Please try again.');
     } catch (e) {
       Log.e('createWithdrawal failed', e);
-      rethrow;
+      throw Exception('Something went wrong. Please try again.');
     }
   }
 
@@ -573,5 +599,28 @@ class BingoRepositoryFirebase implements BingoRepository {
       'broadcastMessage':
           row['broadcastMessage'] ?? row['broadcast_message'],
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ERROR MAPPING — never leak raw Firebase internals to the UI
+  // ─────────────────────────────────────────────────────────────────────────
+  String _mapFirebaseError(FirebaseException e) {
+    switch (e.code) {
+      case 'permission-denied':
+        return 'You do not have permission to do that. Please sign in again.';
+      case 'unavailable':
+      case 'deadline-exceeded':
+        return 'Network error. Please check your connection and try again.';
+      case 'not-found':
+        return 'The requested item was not found.';
+      case 'already-exists':
+        return 'This item already exists.';
+      case 'resource-exhausted':
+        return 'Too many requests. Please wait a moment and try again.';
+      case 'unauthenticated':
+        return 'Session expired. Please sign in again.';
+      default:
+        return 'Something went wrong. Please try again.';
+    }
   }
 }

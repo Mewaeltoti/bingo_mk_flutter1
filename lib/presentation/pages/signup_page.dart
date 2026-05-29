@@ -238,6 +238,17 @@ class _SignupPageState extends State<SignupPage> {
                     );
                     return;
                   }
+                  if (password.length < 8) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Password must be at least 8 characters'),
+                        backgroundColor: AppColors.danger,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
 
                   context.read<AuthCubit>().signUp(phone, password);
                 },

@@ -125,6 +125,29 @@ class WalletCubit extends Cubit<WalletState> {
     });
   }
 
+
+  /// Returns a user-friendly error message, never exposing raw Firebase strings.
+  String _friendlyError(Object e, {String? prefix}) {
+    String message;
+    final s = e.toString().toLowerCase();
+    if (s.contains('permission') || s.contains('permission-denied')) {
+      message = 'Permission denied. Please sign in again.';
+    } else if (s.contains('network') || s.contains('unavailable')) {
+      message = 'Network error. Please check your connection.';
+    } else if (s.contains('unauthenticated')) {
+      message = 'Session expired. Please sign in again.';
+    } else if (s.contains('already been submitted') || s.contains('already exists')) {
+      // Preserve duplicate-reference messages — already user-friendly
+      message = e.toString().replaceAll('Exception: ', '');
+    } else if (s.contains('insufficient')) {
+      message = e.toString().replaceAll('Exception: ', '');
+    } else {
+      message = 'Something went wrong. Please try again.';
+    }
+    if (prefix != null) return '$prefix: $message';
+    return message;
+  }
+
   @override
   Future<void> close() {
     _balanceSubscription?.cancel();
@@ -230,7 +253,7 @@ class WalletCubit extends Cubit<WalletState> {
       if (!isClosed) {
         emit(loaded?.copyWith(
               isActionLoading: false,
-              statusMessage: 'Deposit failed: ${e.toString()}',
+              statusMessage: _friendlyError(e, prefix: 'Deposit failed'),
             ) ??
             WalletError(e.toString()));
       }
@@ -254,7 +277,7 @@ class WalletCubit extends Cubit<WalletState> {
       if (!isClosed) {
         emit(loaded?.copyWith(
               isActionLoading: false,
-              statusMessage: 'Withdrawal failed: ${e.toString()}',
+              statusMessage: _friendlyError(e, prefix: 'Withdrawal failed'),
             ) ??
             WalletError(e.toString()));
       }

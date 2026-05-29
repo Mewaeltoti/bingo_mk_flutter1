@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Games ──────────────────────────────────────────────────────────────
+    // Clients may only READ the live game document and its sub-collections.
+    // All writes to games must come from Cloud Functions (admin SDK bypasses rules).
+    match /games/{gameId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Cloud Functions only
+
+      match /draws/{drawId} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
+    }
+
+    // ── Game History (read-only for authenticated users) ───────────────────
+    match /game_history/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Top Players (read-only leaderboard) ───────────────────────────────
+    match /top_players/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Metadata (payment limits etc – read-only) ─────────────────────────
+    match /metadata/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────
+    // Each user can only access their own document and sub-collections.
+    // The `balance` field must NEVER be written directly by the client.
+    match /users/{uid} {
+      // Allow read of own profile (but not balance field – see below)
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list: if false; // Never list all users
+
+      // Allow write to own profile fields EXCEPT balance
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && !('balance' in request.resource.data.diff(resource.data).affectedKeys());
+      allow create: if false; // Created by Cloud Function on signup
+      allow delete: if false;
+
+      // ── Cards ────────────────────────────────────────────────────────────
+      // Clients can read their own cards; writes go through Cloud Functions.
+      match /cards/{cardId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false; // registerCard / removeCard Cloud Functions only
+      }
+
+      // ── Deposits ─────────────────────────────────────────────────────────
+      // Clients can read and CREATE their own deposits (pending only).
+      // Updates/deletes are admin / Cloud Function only.
+      match /deposits/{depositId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.amount is number
+                      && request.resource.data.amount > 0;
+        allow update: if false; // Cloud Functions only
+        allow delete: if false;
+      }
+
+      // ── Withdrawals ───────────────────────────────────────────────────────
+      // Clients can read their own withdrawals.
+      // createWithdrawal Cloud Function handles creation (balance reservation).
+      // Direct client writes are blocked to prevent double-spend.
+      match /withdrawals/{withdrawalId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false; // createWithdrawal Cloud Function only
+      }
+    }
+  }
+}
