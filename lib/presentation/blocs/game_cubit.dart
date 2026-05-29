@@ -225,6 +225,7 @@ class GameCubit extends Cubit<GameState> {
           drawnNumbers: [],
           markedCells: {},
           userCards: cards,
+          blockedCardIds: cards.where((c) => c.isBlocked).map((c) => c.id).toSet(),
           sessionId: initialSessionId,
           status: GameStatus.buying,
           buyingCountdown: kDefaultBuyingCountdown,
@@ -388,7 +389,11 @@ class GameCubit extends Cubit<GameState> {
       // Combine database cards with local pending cards
       final combinedCards = [...activeDbCards, ...localPendingCards];
 
-      emit(current.copyWith(userCards: combinedCards));
+      // Rebuild blockedCardIds from persisted isBlocked flags
+      final persistedBlocked = combinedCards.where((c) => c.isBlocked).map((c) => c.id).toSet();
+      final mergedBlocked = {...current.blockedCardIds, ...persistedBlocked};
+
+      emit(current.copyWith(userCards: combinedCards, blockedCardIds: mergedBlocked));
     } catch (e, stack) {
       Log.e("Failed to refresh cards", e, stack);
     }
@@ -665,6 +670,8 @@ class GameCubit extends Cubit<GameState> {
       if (!success) {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
+        // Persist to Firestore so block survives app restart
+        _bingoRepository.blockCard(userId, cardId);
         emit(current.copyWith(
             isActionLoading: false,
             blockedCardIds: blocked,
@@ -707,6 +714,10 @@ class GameCubit extends Cubit<GameState> {
       if (!success) {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..addAll(cardIds);
+        // Persist to Firestore so blocks survive app restart
+        for (final id in cardIds) {
+          _bingoRepository.blockCard(userId, id);
+        }
         emit(current.copyWith(
             isActionLoading: false,
             blockedCardIds: blocked,
