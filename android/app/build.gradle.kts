@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.bingomk.app"
+    namespace = "com.bingomk.bingo_mk"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.bingomk.app"
+        applicationId = "com.bingomk.bingo_mk"
         minSdk = 21
         targetSdk = 36
         versionCode = flutter.versionCode
