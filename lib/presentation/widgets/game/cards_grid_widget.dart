@@ -14,6 +14,9 @@ class CardsGridWidget extends StatelessWidget {
   final GameStatus status;
   final int? winningCardNo;
   final DateTime? claimDeadline;
+  // FIX (bug 2): track which cards the user has already successfully claimed
+  // so we can disable the BINGO button on them and allow claiming others.
+  final List<String> claimedCardIds;
 
   const CardsGridWidget({
     super.key,
@@ -24,6 +27,7 @@ class CardsGridWidget extends StatelessWidget {
     required this.status,
     this.winningCardNo,
     this.claimDeadline,
+    this.claimedCardIds = const [],
   });
 
   @override
@@ -82,6 +86,9 @@ class CardsGridWidget extends StatelessWidget {
         final isPending = card.status == 'pending';
         final isBuyingPhase = status == GameStatus.buying;
         final isUnregistered = (isPending && !isBuyingPhase) || status == GameStatus.waiting;
+        // FIX (bug 2): cards the user already claimed should show as claimed,
+        // not allow a second submission, while other cards remain claimable.
+        final isAlreadyClaimed = claimedCardIds.contains(card.id);
 
         final cardWidget = BingoCardWidget(
           key: ValueKey('card_${card.id}'),
@@ -91,13 +98,18 @@ class CardsGridWidget extends StatelessWidget {
           isBlocked: isBlocked,
           isUnregistered: isUnregistered,
           isWinner: winningCardNo != null && card.cardNo == winningCardNo,
+          isAlreadyClaimed: isAlreadyClaimed,
           onMarkCell: (!isPending && !isBlocked)
               ? (r, c) => context.read<GameCubit>().markCell(card.id, r, c)
               : null,
           onRegister: (status == GameStatus.buying)
               ? () => context.read<GameCubit>().registerCard(card.id)
               : null,
-          onBingoClaim: () => context.read<GameCubit>().claimBingo(card.id),
+          // Null when already claimed — BingoCardWidget renders a "CLAIMED"
+          // state and other cards keep their active BINGO button.
+          onBingoClaim: isAlreadyClaimed
+              ? null
+              : () => context.read<GameCubit>().claimBingo(card.id),
           onRemove: () => context.read<GameCubit>().removeCard(card.id),
           claimDeadline: (status == GameStatus.paused) ? claimDeadline : null,
         );

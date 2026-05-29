@@ -88,7 +88,7 @@ class GameLoaded extends GameState {
     this.pendingClaims = const [],
     this.isActionLoading = false,
     this.claimDeadline,
-    this.isAutoDaubEnabled = false,
+    this.isAutoDaubEnabled = true, // ON by default; user can turn it off
   });
 
   List<int> get lastDrawnNumbers {
@@ -280,9 +280,33 @@ class GameCubit extends Cubit<GameState> {
         }
 
         if (isClosed) return;
+
+        // FIX (drawing stuck): always sync drawnNumbers from the root game
+        // document as a fallback. _drawsSub is the primary source, but if
+        // the draws subcollection query returns nothing (index not built,
+        // sessionId mismatch, cold-start race) Flutter shows a frozen board
+        // while the admin dashboard (which reads the root doc) draws normally.
+        // We take whichever list is longer so we never go backwards.
+        final gameDocNumbers = sessionChanged
+            ? <int>[]
+            : List<int>.from(gameData['drawnNumbers'] ?? []);
+        final mergedDrawnNumbers = gameDocNumbers.length > current.drawnNumbers.length
+            ? gameDocNumbers
+            : (sessionChanged ? <int>[] : null);
+
+        // Auto-daub any numbers we got from the fallback that _drawsSub missed.
+        Map<String, Set<String>>? fallbackAutoMarked;
+        if (mergedDrawnNumbers != null &&
+            mergedDrawnNumbers.length > current.drawnNumbers.length &&
+            current.isAutoDaubEnabled) {
+          final newNums = mergedDrawnNumbers
+              .sublist(current.drawnNumbers.length)
+              .toSet();
+          fallbackAutoMarked = _applyAutoDaub(current, newNums);
+        }
+
         emit(
           current.copyWith(
-            // Note: drawnNumbers NOT updated here — _drawsSub handles that
             status: newStatus,
             isPaused: gameData['isPaused'] ?? false,
             sessionId: newSessionId,
@@ -331,9 +355,11 @@ class GameCubit extends Cubit<GameState> {
                         : (gameData['claimDeadline'] is int
                             ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
                             : DateTime.tryParse(gameData['claimDeadline'].toString())))),
-            markedCells: sessionChanged ? {} : null,
+            markedCells: sessionChanged ? {} : fallbackAutoMarked,
             blockedCardIds: sessionChanged ? {} : null,
-            drawnNumbers: sessionChanged ? [] : null,
+            // Use merged numbers (fallback from root doc) when available,
+            // otherwise preserve what _drawsSub already wrote.
+            drawnNumbers: mergedDrawnNumbers,
             userCards: current.userCards
                 .where((c) => c.sessionId == newSessionId)
                 .toList(),
@@ -389,9 +415,10 @@ class GameCubit extends Cubit<GameState> {
       // Combine database cards with local pending cards
       final combinedCards = [...activeDbCards, ...localPendingCards];
 
-      // Rebuild blockedCardIds from persisted isBlocked flags
-      final persistedBlocked = combinedCards.where((c) => c.isBlocked).map((c) => c.id).toSet();
-      final mergedBlocked = {...current.blockedCardIds, ...persistedBlocked};
+      // Rebuild blockedCardIds strictly from persisted isBlocked flags in DB.
+      // Do NOT merge with current.blockedCardIds — that in-memory state is
+      // lost on logout/re-init and would shadow the authoritative Firestore value.
+      final mergedBlocked = combinedCards.where((c) => c.isBlocked).map((c) => c.id).toSet();
 
       emit(current.copyWith(userCards: combinedCards, blockedCardIds: mergedBlocked));
     } catch (e, stack) {

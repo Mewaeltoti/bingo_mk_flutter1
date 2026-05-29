@@ -436,6 +436,7 @@ class _GamePageState extends State<GamePage> {
                               status: state.status,
                               winningCardNo: state.status == GameStatus.buying ? null : state.winningCardNo,
                               claimDeadline: state.claimDeadline,
+                              claimedCardIds: state.claimedCardIds,
                             ),
 
                             const SizedBox(height: 100),

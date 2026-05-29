@@ -18,6 +18,9 @@ class BingoCardWidget extends StatelessWidget {
   final int? lastDrawn;
   final bool isWinner;
   final DateTime? claimDeadline;
+  // FIX (bug 2): signals this card was already submitted as a bingo claim
+  // so the button shows CLAIMED and a duplicate submission is never fired.
+  final bool isAlreadyClaimed;
 
   const BingoCardWidget({
     super.key,
@@ -35,6 +38,7 @@ class BingoCardWidget extends StatelessWidget {
     this.lastDrawn,
     this.isWinner = false,
     this.claimDeadline,
+    this.isAlreadyClaimed = false,
   });
 
   @override
@@ -75,6 +79,10 @@ class BingoCardWidget extends StatelessWidget {
         } else if (isWinner) {
           badgeText = "WINNER!";
           badgeColor = AppColors.success;
+        } else if (isAlreadyClaimed) {
+          // FIX (bug 2): show a distinct badge for already-claimed cards
+          badgeText = "CLAIMED";
+          badgeColor = AppColors.accent;
         } else if (card.status == 'claiming') {
           badgeText = "CLAIMING";
           badgeColor = AppColors.secondary;
@@ -185,10 +193,16 @@ class BingoCardWidget extends StatelessWidget {
                               final bool isRegistered =
                                   card.status.toLowerCase().contains('reg') &&
                                   !isUnregistered;
+                              // FIX (bug 2): canClaim also requires onBingoClaim != null,
+                              // which is null for already-claimed cards. This prevents
+                              // a second claim from being submitted and allows other
+                              // unclaimed cards to keep their active BINGO button.
                               final bool canClaim =
                                   isRegistered &&
                                   drawnNumbers.isNotEmpty &&
-                                  !isExpired;
+                                  !isExpired &&
+                                  !isAlreadyClaimed &&
+                                  onBingoClaim != null;
 
                               return Padding(
                                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
@@ -213,6 +227,16 @@ class BingoCardWidget extends StatelessWidget {
                                         return;
                                       }
 
+                                      if (isAlreadyClaimed) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text("This card has already been claimed!"),
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                        return;
+                                      }
+
                                       if (canClaim) {
                                         onBingoClaim!();
                                       } else {
@@ -234,13 +258,15 @@ class BingoCardWidget extends StatelessWidget {
                                       }
                                     },
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: isRegistered
-                                          ? (canClaim
-                                                ? AppColors.success
-                                                : Colors.grey.withOpacity(0.2))
-                                          : (onRegister == null
-                                                ? Colors.grey.withOpacity(0.5)
-                                                : AppColors.secondary),
+                                      backgroundColor: isAlreadyClaimed
+                                          ? AppColors.accent.withOpacity(0.4)
+                                          : isRegistered
+                                              ? (canClaim
+                                                    ? AppColors.success
+                                                    : Colors.grey.withOpacity(0.2))
+                                              : (onRegister == null
+                                                    ? Colors.grey.withOpacity(0.5)
+                                                    : AppColors.secondary),
                                       foregroundColor: isRegistered
                                           ? Colors.white
                                           : Colors.black,
@@ -253,7 +279,9 @@ class BingoCardWidget extends StatelessWidget {
                                     child: Text(
                                       !isRegistered
                                           ? "ACTIVATE"
-                                          : (isExpired ? "CLOSED" : "BINGO"),
+                                          : isAlreadyClaimed
+                                              ? "CLAIMED"
+                                              : (isExpired ? "CLOSED" : "BINGO"),
                                       style: TextStyle(
                                         fontWeight: FontWeight.w900,
                                         fontSize: isRegistered ? 12 : 10,
