@@ -39,6 +39,11 @@ class AuthRepositoryFirebase implements AuthRepository {
   }
 
   @override
+  Future<String?> getCurrentUserId() async {
+    return _auth.currentUser?.uid;
+  }
+
+  @override
   Future<bool> isAdmin(String userId) async {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();

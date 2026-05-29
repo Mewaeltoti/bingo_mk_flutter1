@@ -33,17 +33,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 /// ======================================================
-/// MAIN ENTRY (IMPORTANT FIX)
+/// MAIN ENTRY
 /// ======================================================
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  runApp(const BootstrapApp());
+  // Initialize Firebase FIRST before runApp
+  await _initializeApp();
 
-  // Run heavy initialization AFTER UI starts
-  Future.microtask(() async {
-    await _initializeApp();
-  });
+  runApp(const BootstrapApp());
 }
 
 /// ======================================================
@@ -132,13 +130,24 @@ class AppRouter extends StatefulWidget {
 
 class _AppRouterState extends State<AppRouter> {
   bool _showSplash = true;
+  bool _serviceReady = false;
 
+  AuthCubit? _authCubit;
   GameCubit? _gameCubit;
   WalletCubit? _walletCubit;
   String? _lastUserId;
 
   @override
+  void initState() {
+    super.initState();
+    // Services are already ready (initialized before runApp)
+    _authCubit = AuthCubit(sl<AuthRepository>());
+    _serviceReady = true;
+  }
+
+  @override
   void dispose() {
+    _authCubit?.close();
     _gameCubit?.close();
     _walletCubit?.close();
     super.dispose();
@@ -172,28 +181,53 @@ class _AppRouterState extends State<AppRouter> {
       );
     }
 
-    // ---------------- AUTH ROUTING ----------------
-   return BlocBuilder<AuthCubit, AuthState>(
-  builder: (context, state) {
-    if (state is AuthAuthenticated) {
-      return MainContainer();
-    }
-
-    if (state is AuthLoading || state is AuthInitial) {
+    // Wait for services to be ready
+    if (!_serviceReady || _authCubit == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    if (state is AuthUnauthenticated) {
-      return const DashboardPage();
-    }
+    // ---------------- AUTH ROUTING ----------------
+    return BlocProvider<AuthCubit>.value(
+      value: _authCubit!,
+      child: BlocBuilder<AuthCubit, AuthState>(
+        builder: (context, state) {
+          if (state is AuthAuthenticated) {
+            _ensureCubits(state.userId);
+            if (_gameCubit == null || _walletCubit == null) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider<GameCubit>.value(value: _gameCubit!),
+                BlocProvider<WalletCubit>.value(value: _walletCubit!),
+              ],
+              child: const MainContainer(),
+            );
+          }
 
-    // 🔴 SAFE FALLBACK (prevents white screen)
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+          if (state is AuthLoading || state is AuthInitial) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          if (state is AuthUnauthenticated || state is AuthError) {
+            return BlocProvider<AuthCubit>.value(
+              value: _authCubit!,
+              child: const DashboardPage(),
+            );
+          }
+
+          // Safe fallback
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        },
+      ),
     );
-  },
-);
   }
 }
