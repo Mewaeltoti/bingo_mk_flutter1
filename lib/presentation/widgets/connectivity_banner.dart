@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/connectivity_service.dart';
+import '../../core/services/connectivity_service.dart';
 
 /// Wraps any child widget and shows a persistent "No internet connection"
 /// banner at the top whenever the device goes offline.
