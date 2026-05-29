@@ -228,7 +228,12 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SignupPage()),
+                    MaterialPageRoute(
+                      builder: (_) => BlocProvider.value(
+                        value: context.read<AuthCubit>(),
+                        child: const SignupPage(),
+                      ),
+                    ),
                   );
                 },
               ),

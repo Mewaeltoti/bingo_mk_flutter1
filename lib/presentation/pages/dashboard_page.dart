@@ -127,7 +127,12 @@ class DashboardPage extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  MaterialPageRoute(
+                    builder: (_) => BlocProvider.value(
+                      value: context.read<AuthCubit>(),
+                      child: const LoginPage(),
+                    ),
+                  ),
                 );
               },
               isPrimary: true,
@@ -138,7 +143,12 @@ class DashboardPage extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SignupPage()),
+                  MaterialPageRoute(
+                    builder: (_) => BlocProvider.value(
+                      value: context.read<AuthCubit>(),
+                      child: const SignupPage(),
+                    ),
+                  ),
                 );
               },
               isPrimary: false,
