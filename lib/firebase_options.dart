@@ -21,8 +21,8 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBD6nf3n1r3s2UTnoj-B7joz3bX-p37r1Y',
-    appId: '1:690827139986:android:436f292d8364c2cdc2ff4b',
+    apiKey: 'AIzaSyBvJDre_XABERFvFydJq0Eve1BJ1503arc',
+    appId: '1:690827139986:web:2bacba6d3a753d85c2ff4b',
     messagingSenderId: '690827139986',
     projectId: 'bingo-be44c',
     authDomain: 'bingo-be44c.firebaseapp.com',

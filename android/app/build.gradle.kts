@@ -7,8 +7,8 @@ plugins {
 
 android {
     namespace = "com.bingomk.bingo_mk"
-    compileSdk = 36
-    ndkVersion = "28.2.13676358"
+    compileSdk = 35
+
     defaultConfig {
         applicationId = "com.bingomk.bingo_mk"
 
