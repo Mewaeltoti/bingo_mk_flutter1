@@ -28,7 +28,7 @@ void showCardTransparencyDialog(
     if (userCard.id.isNotEmpty) {
       numbersList = userCard.numbers.expand((row) => row).toList();
       cardNo = userCard.cardNo.toString();
-      phone = "የእርስዎ የታገደ ካርቴላ";
+      phone = "Blocked card";
     }
   } else {
     final searchList = isWinner ? state.rawWinnersData : state.rawClaimsData;
@@ -242,7 +242,7 @@ void showCardTransparencyDialog(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: const Text(
-                        "ዕድሉ",
+                        "Back",
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,

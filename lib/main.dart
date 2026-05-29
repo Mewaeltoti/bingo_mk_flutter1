@@ -21,6 +21,8 @@ import 'presentation/blocs/wallet_cubit.dart';
 import 'presentation/pages/dashboard_page.dart';
 import 'presentation/pages/main_container.dart';
 import 'presentation/pages/splash_page.dart';
+import 'core/services/connectivity_service.dart';
+import 'presentation/widgets/connectivity_banner.dart';
 
 /// ======================================================
 /// BACKGROUND HANDLER
@@ -49,6 +51,7 @@ void main() async {
   // Step 3: Best-effort extras (notifications, messaging)
   _initExtras();
 
+  ConnectivityService.instance.init();
   runApp(const BootstrapApp());
 }
 
@@ -99,6 +102,7 @@ class BootstrapApp extends StatelessWidget {
       theme: AppTheme.darkTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
+      builder: (context, child) => ConnectivityBanner(child: child ?? const SizedBox.shrink()),
       home: const AppRouter(),
     );
   }

@@ -7,6 +7,7 @@ import '../../core/services/audio_service.dart';
 import '../../core/services/logger_service.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/card_generator_service.dart';
+import '../../core/services/connectivity_service.dart';
 
 const Object _sentinel = Object();
 
@@ -202,12 +203,14 @@ class GameCubit extends Cubit<GameState> {
   StreamSubscription? _gameSub;
   StreamSubscription? _winnersSub;
   StreamSubscription? _drawsSub;   // v2: lightweight game_draws INSERT stream
+  StreamSubscription? _connectivitySub;
 
   GameCubit({required BingoRepository bingoRepository, required this.userId})
     : _bingoRepository = bingoRepository,
       super(GameInitial()) {
     sl<AudioService>().init();
     _init();
+    _subscribeConnectivity();
   }
 
 
@@ -810,6 +813,12 @@ class GameCubit extends Cubit<GameState> {
   // Subscribes to lightweight game_draws INSERT events for a specific session.
   // Each INSERT adds exactly one number — no full-array retransmission.
   // ─────────────────────────────────────────────────────────────────────────
+  void _subscribeConnectivity() {
+    _connectivitySub = ConnectivityService.instance.onlineStream
+        .where((isOnline) => isOnline) // only fire on reconnect
+        .listen((_) => onAppResumed());
+  }
+
   void _resubscribeDraws(String sessionId) {
     _drawsSub?.cancel();
 
@@ -907,6 +916,7 @@ class GameCubit extends Cubit<GameState> {
     _gameSub?.cancel();
     _winnersSub?.cancel();
     _drawsSub?.cancel();
+    _connectivitySub?.cancel();
     return super.close();
   }
 }

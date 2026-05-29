@@ -15,6 +15,7 @@ class _SignupPageState extends State<SignupPage> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _agreedToTerms = false;
 
   @override
   void dispose() {
@@ -143,7 +144,105 @@ class _SignupPageState extends State<SignupPage> {
           icon: Icons.lock_outline,
           isPassword: true,
         ),
+        const SizedBox(height: 20),
+        _buildTermsCheckbox(),
       ],
+    );
+  }
+
+  Widget _buildTermsCheckbox() {
+    return InkWell(
+      onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: _agreedToTerms,
+                onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
+                activeColor: AppColors.primary,
+                checkColor: Colors.white,
+                side: const BorderSide(color: Colors.white38, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  style: const TextStyle(color: Colors.white60, fontSize: 13),
+                  children: [
+                    const TextSpan(text: 'I confirm I am '),
+                    const TextSpan(
+                      text: '18 years or older',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const TextSpan(text: ' and agree to the '),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: GestureDetector(
+                        onTap: _showTermsDialog,
+                        child: const Text(
+                          'Terms of Service',
+                          style: TextStyle(
+                            color: Color(0xFF64B5F6),
+                            fontSize: 13,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFF64B5F6),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTermsDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1B2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Terms of Service',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            'By using Bingo Mekele you agree to the following:\n\n'
+            '1. You must be at least 18 years old to play.\n\n'
+            '2. This is a real-money game. Only deposit funds you can afford to lose.\n\n'
+            '3. Winnings are subject to verification before payout.\n\n'
+            '4. Fraudulent claims will result in account suspension.\n\n'
+            '5. The operator reserves the right to cancel a session and refund stakes if a technical error occurs.\n\n'
+            '6. Disputes are resolved at the sole discretion of the operator.',
+            style: TextStyle(color: Colors.white70, height: 1.6),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Color(0xFF64B5F6))),
+          ),
+        ],
+      ),
     );
   }
 
@@ -232,6 +331,17 @@ class _SignupPageState extends State<SignupPage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Passwords do not match'),
+                        backgroundColor: AppColors.danger,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  if (!_agreedToTerms) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Please confirm you are 18+ and agree to the Terms of Service'),
                         backgroundColor: AppColors.danger,
                         behavior: SnackBarBehavior.floating,
                       ),
