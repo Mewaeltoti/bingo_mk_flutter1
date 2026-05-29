@@ -7,13 +7,13 @@ plugins {
 
 android {
     namespace = "com.bingomk.bingo_mk"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.bingomk.bingo_mk"
 
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 35
 
         versionCode = flutter.versionCode
         versionName = flutter.versionName
