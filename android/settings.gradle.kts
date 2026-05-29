@@ -23,7 +23,11 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    // PREFER_PROJECT lets Flutter's Gradle plugin inject the Flutter engine
+    // repository (storage.googleapis.com/download.flutter.io) at project level.
+    // PREFER_SETTINGS would silently ignore that injection and fail to resolve
+    // the io.flutter:arm64_v8a_release artifacts.
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         google()
         mavenCentral()
