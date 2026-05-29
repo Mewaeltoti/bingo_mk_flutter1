@@ -38,69 +38,55 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase FIRST before runApp
-  await _initializeApp();
+  // Step 1: Init Firebase (critical — must not fail silently)
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Step 2: Init dependency injection
+  await initServiceLocator();
+
+  // Step 3: Best-effort extras (notifications, messaging)
+  _initExtras();
 
   runApp(const BootstrapApp());
 }
 
-/// ======================================================
-/// BACKGROUND INITIALIZATION (NON-BLOCKING)
-/// ======================================================
-Future<void> _initializeApp() async {
+/// Non-critical initialization — failures here won't crash the app
+void _initExtras() {
   try {
-    // ---------------- Firebase ----------------
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-    FirebaseMessaging.onBackgroundMessage(
-      firebaseMessagingBackgroundHandler,
-    );
-
-    // ---------------- Notifications ----------------
     if (!kIsWeb) {
-      final FlutterLocalNotificationsPlugin flnp =
-          FlutterLocalNotificationsPlugin();
+      final flnp = FlutterLocalNotificationsPlugin();
 
-      const androidInit = AndroidInitializationSettings(
-        '@mipmap/ic_launcher',
+      flnp.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        ),
       );
 
-      const initSettings = InitializationSettings(
-        android: androidInit,
-      );
-
-      await flnp.initialize(initSettings);
-
-      const channel = AndroidNotificationChannel(
-        'wallet_notifications',
-        'Wallet Notifications',
-        description: 'Deposit and withdrawal updates',
-        importance: Importance.high,
-      );
-
-      await flnp
+      flnp
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(channel);
+          ?.createNotificationChannel(
+            const AndroidNotificationChannel(
+              'wallet_notifications',
+              'Wallet Notifications',
+              description: 'Deposit and withdrawal updates',
+              importance: Importance.high,
+            ),
+          );
 
-      await FirebaseMessaging.instance.requestPermission();
+      FirebaseMessaging.instance.requestPermission();
     }
-
-    // ---------------- Dependency Injection ----------------
-    await initServiceLocator();
-
-    debugPrint("✅ App initialized successfully");
-  } catch (e, s) {
-    debugPrint("❌ Startup initialization failed");
-    debugPrint(e.toString());
-    debugPrintStack(stackTrace: s);
+  } catch (e) {
+    debugPrint('Non-critical init error: $e');
   }
 }
 
 /// ======================================================
-/// BOOTSTRAP APP (STARTS UI IMMEDIATELY)
+/// BOOTSTRAP APP
 /// ======================================================
 class BootstrapApp extends StatelessWidget {
   const BootstrapApp({super.key});
@@ -130,9 +116,8 @@ class AppRouter extends StatefulWidget {
 
 class _AppRouterState extends State<AppRouter> {
   bool _showSplash = true;
-  bool _serviceReady = false;
 
-  AuthCubit? _authCubit;
+  late final AuthCubit _authCubit;
   GameCubit? _gameCubit;
   WalletCubit? _walletCubit;
   String? _lastUserId;
@@ -140,14 +125,13 @@ class _AppRouterState extends State<AppRouter> {
   @override
   void initState() {
     super.initState();
-    // Services are already ready (initialized before runApp)
+    // sl is fully ready — Firebase and DI are done before runApp
     _authCubit = AuthCubit(sl<AuthRepository>());
-    _serviceReady = true;
   }
 
   @override
   void dispose() {
-    _authCubit?.close();
+    _authCubit.close();
     _gameCubit?.close();
     _walletCubit?.close();
     super.dispose();
@@ -174,32 +158,20 @@ class _AppRouterState extends State<AppRouter> {
 
   @override
   Widget build(BuildContext context) {
-    // ---------------- SPLASH ----------------
+    // ---- SPLASH ----
     if (_showSplash) {
       return SplashPage(
         onFinish: () => setState(() => _showSplash = false),
       );
     }
 
-    // Wait for services to be ready
-    if (!_serviceReady || _authCubit == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // ---------------- AUTH ROUTING ----------------
+    // ---- AUTH ROUTING ----
     return BlocProvider<AuthCubit>.value(
-      value: _authCubit!,
+      value: _authCubit,
       child: BlocBuilder<AuthCubit, AuthState>(
         builder: (context, state) {
           if (state is AuthAuthenticated) {
             _ensureCubits(state.userId);
-            if (_gameCubit == null || _walletCubit == null) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
             return MultiBlocProvider(
               providers: [
                 BlocProvider<GameCubit>.value(value: _gameCubit!),
@@ -211,20 +183,15 @@ class _AppRouterState extends State<AppRouter> {
 
           if (state is AuthLoading || state is AuthInitial) {
             return const Scaffold(
+              backgroundColor: Color(0xFF050D1A),
               body: Center(child: CircularProgressIndicator()),
             );
           }
 
-          if (state is AuthUnauthenticated || state is AuthError) {
-            return BlocProvider<AuthCubit>.value(
-              value: _authCubit!,
-              child: const DashboardPage(),
-            );
-          }
-
-          // Safe fallback
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          // AuthUnauthenticated or AuthError → show login/dashboard
+          return BlocProvider<AuthCubit>.value(
+            value: _authCubit,
+            child: const DashboardPage(),
           );
         },
       ),
