@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.bingomk.bingo_mk"
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
