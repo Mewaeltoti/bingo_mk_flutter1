@@ -18,7 +18,7 @@ import 'presentation/blocs/auth_cubit.dart';
 import 'presentation/blocs/game_cubit.dart';
 import 'presentation/blocs/wallet_cubit.dart';
 
-import 'presentation/pages/dashboard_page.dart';
+import 'presentation/pages/login_page.dart';
 import 'presentation/pages/main_container.dart';
 import 'presentation/pages/splash_page.dart';
 import 'core/services/connectivity_service.dart';
@@ -195,7 +195,7 @@ class _AppRouterState extends State<AppRouter> {
           // AuthUnauthenticated or AuthError → show login/dashboard
           return BlocProvider<AuthCubit>.value(
             value: _authCubit,
-            child: const DashboardPage(),
+            child: const LoginPage(),
           );
         },
       ),

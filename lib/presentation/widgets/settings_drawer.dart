@@ -1,25 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
-import '../blocs/wallet_cubit.dart';
 import '../blocs/game_cubit.dart';
 import '../../core/services/audio_service.dart';
-import '../../core/theme/app_theme.dart';
-import '../pages/payment_page.dart';
-import '../pages/profile_page.dart';
+
+class _C {
+  static const bg          = Color(0xFF090E1C);
+  static const surface     = Color(0xFF161B2A);
+  static const surfaceHigh = Color(0xFF1A1F2E);
+  static const divider     = Color(0xFF303444);
+
+  static const gold        = Color(0xFFF1C100);
+  static const goldFill    = Color(0x1AF1C100);
+  static const goldBorder  = Color(0x40F1C100);
+
+  static const danger      = Color(0xFFE63946);
+  static const dangerFill  = Color(0x1AE63946);
+  static const dangerBorder= Color(0x40E63946);
+
+  static const textHigh    = Color(0xFFDEE2F6);
+  static const textMid     = Color(0xFFD1C5AB);
+  static const textLow     = Color(0xFF9A9078);
+}
+
+class _T {
+  static TextStyle label({double size = 11, Color? color, double spacing = 0.8, FontWeight weight = FontWeight.w700}) =>
+      TextStyle(fontFamily: 'Outfit', fontSize: size, fontWeight: weight, letterSpacing: spacing, color: color ?? _C.textMid);
+  static TextStyle body({double size = 13, Color? color, FontWeight weight = FontWeight.w400}) =>
+      TextStyle(fontFamily: 'Outfit', fontSize: size, fontWeight: weight, color: color ?? _C.textHigh);
+}
 
 class SettingsDrawer extends StatefulWidget {
   final VoidCallback onClose;
-
   const SettingsDrawer({super.key, required this.onClose});
-
-  @override
-  State<SettingsDrawer> createState() => _SettingsDrawerState();
+  @override State<SettingsDrawer> createState() => _SettingsDrawerState();
 }
 
 class _SettingsDrawerState extends State<SettingsDrawer> {
   late bool _soundEnabled;
-  bool _darkMode = true;
 
   @override
   void initState() {
@@ -29,212 +47,226 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
 
   @override
   Widget build(BuildContext context) {
-    final gameCubit = context.watch<GameCubit>();
-    final gameState = gameCubit.state;
-    final bool isAutoDaubEnabled = gameState is GameLoaded ? gameState.isAutoDaubEnabled : false;
+    final gameState = context.watch<GameCubit>().state;
+    final isAutoDaub = gameState is GameLoaded ? gameState.isAutoDaubEnabled : false;
 
     return Drawer(
       backgroundColor: Colors.transparent,
       child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.darkBackground, AppColors.darkCard],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        color: _C.bg,
         child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(context),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _buildSectionTitle('PREFERENCES'),
-                    _buildToggleItem(
-                      Icons.volume_up,
-                      'Sound Effects',
-                      _soundEnabled,
-                      (val) {
-                        setState(() => _soundEnabled = val);
-                        AudioService().toggleMute();
-                      },
-                    ),
-                    if (gameState is GameLoaded)
-                      _buildToggleItem(
-                        Icons.brightness_auto,
-                        'Auto-Daub Assistant',
-                        isAutoDaubEnabled,
-                        (val) {
-                          gameCubit.toggleAutoDaub(val);
-                        },
-                      ),
-                    _buildToggleItem(Icons.dark_mode, 'Dark Mode', _darkMode, (
-                      val,
-                    ) {
-                      setState(() => _darkMode = val);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Theme settings coming soon!'),
-                        ),
-                      );
-                    }),
-                    _buildLanguageItem(),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('ACCOUNT'),
-                    _buildActionItem(Icons.help_outline, 'Support', () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Contact support at +251911234567'),
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 24),
-                    _buildLogoutButton(context),
-                  ],
-                ),
+          child: Column(children: [
+            // ── Header ───────────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 12, 20),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: _C.divider)),
               ),
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  'v1.0.0 (Bingo Mekele) by Toti Tech',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 10,
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _C.goldFill,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _C.goldBorder),
+                  ),
+                  child: const Icon(Icons.tune_rounded, color: _C.gold, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Text('Settings',
+                    style: const TextStyle(
+                      fontFamily: 'Orbitron',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: _C.textHigh,
+                    )),
+                const Spacer(),
+                IconButton(
+                  onPressed: widget.onClose,
+                  icon: const Icon(Icons.close_rounded, color: _C.textLow, size: 20),
+                ),
+              ]),
+            ),
+
+            // ── Body ─────────────────────────────────────────────────────
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                children: [
+                  _SectionLabel('PREFERENCES'),
+                  const SizedBox(height: 8),
+
+                  _ToggleTile(
+                    icon: Icons.volume_up_rounded,
+                    label: 'Sound Effects',
+                    value: _soundEnabled,
+                    onChanged: (v) {
+                      setState(() => _soundEnabled = v);
+                      AudioService().toggleMute();
+                    },
+                  ),
+
+                  if (gameState is GameLoaded) ...[
+                    const SizedBox(height: 8),
+                    _ToggleTile(
+                      icon: Icons.brightness_auto_rounded,
+                      label: 'Auto-Daub',
+                      value: isAutoDaub,
+                      onChanged: (v) => context.read<GameCubit>().toggleAutoDaub(v),
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+                  _SectionLabel('SUPPORT'),
+                  const SizedBox(height: 8),
+
+                  _ActionTile(
+                    icon: Icons.headset_mic_rounded,
+                    label: 'Contact Support',
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Call: +251978187178',
+                            style: _T.body(size: 13)),
+                        backgroundColor: _C.surfaceHigh,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Footer ───────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(children: [
+                Container(height: 0.5, color: _C.divider),
+                const SizedBox(height: 16),
+
+                // Sign out
+                GestureDetector(
+                  onTap: () {
+                    widget.onClose();
+                    context.read<AuthCubit>().logout();
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _C.dangerFill,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _C.dangerBorder),
+                    ),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(Icons.logout_rounded, color: _C.danger, size: 16),
+                      const SizedBox(width: 8),
+                      Text('SIGN OUT',
+                          style: _T.label(size: 12, color: _C.danger, spacing: 1.5)),
+                    ]),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Settings',
-            style: TextStyle(
-              fontFamily: 'Orbitron',
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+                const SizedBox(height: 12),
+                Text('v1.0.0 · Bingo Mekele by Toti Tech',
+                    style: _T.label(size: 10, color: _C.textLow, spacing: 0.3,
+                        weight: FontWeight.w400)),
+              ]),
             ),
-          ),
-          IconButton(
-            onPressed: widget.onClose,
-            icon: const Icon(Icons.close, color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0, top: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Colors.white70,
-          letterSpacing: 1,
+          ]),
         ),
       ),
     );
   }
+}
 
-  Widget _buildToggleItem(
-    IconData icon,
-    String label,
-    bool value,
-    Function(bool) onChanged,
-  ) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: Colors.white70, size: 20),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 14, color: Colors.white),
+// ─── Components ───────────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+  @override
+  Widget build(BuildContext context) => Text(text,
+      style: const TextStyle(
+        fontFamily: 'Outfit',
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 2.0,
+        color: _C.textLow,
+      ));
+}
+
+class _ToggleTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _ToggleTile({
+    required this.icon, required this.label,
+    required this.value, required this.onChanged,
+  });
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+    decoration: BoxDecoration(
+      color: _C.surface,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withOpacity(0.06)),
+    ),
+    child: Row(children: [
+      Icon(icon, color: value ? _C.gold : _C.textLow, size: 18),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Text(label,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: value ? _C.textHigh : _C.textMid,
+            )),
       ),
-      trailing: Switch(
+      Switch(
         value: value,
         onChanged: onChanged,
-        activeThumbColor: AppColors.primary,
+        activeColor: _C.gold,
+        activeTrackColor: _C.goldFill,
+        inactiveThumbColor: _C.textLow,
+        inactiveTrackColor: Colors.white.withOpacity(0.05),
+        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
-    );
-  }
+    ]),
+  );
+}
 
-  Widget _buildLanguageItem() {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.language, color: Colors.white70, size: 20),
-      title: const Text(
-        'Language',
-        style: TextStyle(fontSize: 14, color: Colors.white),
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _ActionTile({required this.icon, required this.label, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
       ),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppColors.border),
+      child: Row(children: [
+        Icon(icon, color: _C.textMid, size: 18),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(label,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _C.textHigh,
+              )),
         ),
-        child: const Text(
-          'EN',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionItem(IconData icon, String label, VoidCallback onTap) {
-    return ListTile(
-      onTap: onTap,
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: Colors.white70, size: 20),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 14, color: Colors.white),
-      ),
-      trailing: const Icon(
-        Icons.chevron_right,
-        color: Colors.white70,
-        size: 20,
-      ),
-    );
-  }
-
-  Widget _buildLogoutButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          widget.onClose();
-          context.read<AuthCubit>().logout();
-        },
-        icon: const Icon(Icons.logout, size: 16),
-        label: const Text('LOG OUT'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.redAccent,
-          side: const BorderSide(color: Colors.redAccent, width: 1),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      ),
-    );
-  }
+        const Icon(Icons.chevron_right_rounded, color: _C.textLow, size: 18),
+      ]),
+    ),
+  );
 }
