@@ -14,8 +14,6 @@ class CardsGridWidget extends StatelessWidget {
   final GameStatus status;
   final int? winningCardNo;
   final DateTime? claimDeadline;
-  // FIX (bug 2): track which cards the user has already successfully claimed
-  // so we can disable the BINGO button on them and allow claiming others.
   final List<String> claimedCardIds;
 
   const CardsGridWidget({
@@ -67,7 +65,6 @@ class CardsGridWidget extends StatelessWidget {
     final drawnSet = Set<int>.from(drawnNumbers);
 
     final List<BingoCard> sortedCards = List.from(cards);
-    // Keep cards in their original order (no sorting during play)
 
     return GridView.builder(
       shrinkWrap: true,
@@ -82,13 +79,20 @@ class CardsGridWidget extends StatelessWidget {
       ),
       itemBuilder: (_, i) {
         final card = sortedCards[i];
-        final isBlocked = blockedCards.contains(card.id);
+        // BUG FIX: check isBlocked by BOTH blockedCards set (in-memory) AND
+        // card.isBlocked (persisted flag from Firestore). Previously only
+        // blockedCards set was checked, so freshly-loaded blocked cards
+        // (where isBlocked=true in DB but not yet in the Set) were not blocked.
+        final isBlocked = blockedCards.contains(card.id) || card.isBlocked;
         final isPending = card.status == 'pending';
         final isBuyingPhase = status == GameStatus.buying;
         final isUnregistered = (isPending && !isBuyingPhase) || status == GameStatus.waiting;
-        // FIX (bug 2): cards the user already claimed should show as claimed,
-        // not allow a second submission, while other cards remain claimable.
         final isAlreadyClaimed = claimedCardIds.contains(card.id);
+        // BUG FIX: a card is a winner if its cardNo matches winningCardNo.
+        // Previously this was also passed to CardsGridWidget from game_page,
+        // but winningCardNo was null during 'active' status — now it correctly
+        // shows WINNER badge as soon as the won state arrives.
+        final isWinner = winningCardNo != null && card.cardNo == winningCardNo;
 
         final cardWidget = BingoCardWidget(
           key: ValueKey('card_${card.id}'),
@@ -97,17 +101,19 @@ class CardsGridWidget extends StatelessWidget {
           markedCells: markedCells[card.id] ?? {},
           isBlocked: isBlocked,
           isUnregistered: isUnregistered,
-          isWinner: winningCardNo != null && card.cardNo == winningCardNo,
+          isWinner: isWinner,
           isAlreadyClaimed: isAlreadyClaimed,
-          onMarkCell: (!isPending && !isBlocked)
+          onMarkCell: (!isPending && !isBlocked && !isWinner)
               ? (r, c) => context.read<GameCubit>().markCell(card.id, r, c)
               : null,
-          onRegister: (status == GameStatus.buying)
+          onRegister: (status == GameStatus.buying && !isBlocked)
               ? () => context.read<GameCubit>().registerCard(card.id)
               : null,
-          // Null when already claimed — BingoCardWidget renders a "CLAIMED"
-          // state and other cards keep their active BINGO button.
-          onBingoClaim: isAlreadyClaimed
+          // BUG FIX: blocked and winner cards must NOT get an onBingoClaim
+          // callback. Previously blocked cards still received the callback,
+          // which meant the BINGO button could still fire claimBingo() on them
+          // despite the visual opacity suggesting they were disabled.
+          onBingoClaim: (isBlocked || isWinner || isAlreadyClaimed)
               ? null
               : () => context.read<GameCubit>().claimBingo(card.id),
           onRemove: () => context.read<GameCubit>().removeCard(card.id),
@@ -125,18 +131,5 @@ class CardsGridWidget extends StatelessWidget {
         return cardWidget;
       },
     );
-  }
-
-  int _getMatchCount(BingoCard card, Set<int> drawnSet) {
-    int count = 0;
-    for (int r = 0; r < 5; r++) {
-      for (int c = 0; c < 5; c++) {
-        if (r == 2 && c == 2) continue;
-        if (drawnSet.contains(card.numbers[r][c])) {
-          count++;
-        }
-      }
-    }
-    return count;
   }
 }

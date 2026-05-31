@@ -224,9 +224,16 @@ class BingoRepositoryFirebase implements BingoRepository {
 
   // ─────────────────────────────────────────────────────────────────────────
   // CLAIM BINGO  (calls Cloud Function)
+  // Returns tri-state:
+  //   true  = confirmed winner (CF verified and awarded prize immediately)
+  //   null  = claim submitted, pending admin verification (game paused)
+  //   false = invalid claim (card has no valid bingo — block it)
+  //
+  // Previously returned bool, treating "pending" the same as "invalid",
+  // which caused legitimate claims to immediately block the player's card.
   // ─────────────────────────────────────────────────────────────────────────
   @override
-  Future<bool> claimBingo(
+  Future<bool?> claimBingo(
     String gameId,
     String cardId, {
     List<String> markedCells = const [],
@@ -237,10 +244,17 @@ class BingoRepositoryFirebase implements BingoRepository {
         'cardIds': [cardId],
         'markedCellsMap': {cardId: markedCells},
       });
-      if (result.data['error'] != null) {
-        throw Exception(result.data['error']);
+      final data = result.data as Map<String, dynamic>? ?? {};
+      if (data['error'] != null) throw Exception(data['error']);
+      if (data['success'] == true) return true;
+      if (data['pending'] == true ||
+          data['claimed'] == true ||
+          data['status'] == 'pending' ||
+          data['message']?.toString().toLowerCase().contains('pending') == true ||
+          data['message']?.toString().toLowerCase().contains('submitted') == true) {
+        return null; // pending — do NOT block the card
       }
-      return result.data['success'] == true;
+      return false; // explicit rejection
     } catch (e) {
       Log.e('claimBingo failed', e);
       rethrow;
@@ -248,7 +262,7 @@ class BingoRepositoryFirebase implements BingoRepository {
   }
 
   @override
-  Future<bool> claimMultipleBingo(
+  Future<bool?> claimMultipleBingo(
     String gameId,
     List<String> cardIds, {
     Map<String, List<String>> markedCellsMap = const {},
@@ -259,10 +273,17 @@ class BingoRepositoryFirebase implements BingoRepository {
         'cardIds': cardIds,
         'markedCellsMap': markedCellsMap,
       });
-      if (result.data['error'] != null) {
-        throw Exception(result.data['error']);
+      final data = result.data as Map<String, dynamic>? ?? {};
+      if (data['error'] != null) throw Exception(data['error']);
+      if (data['success'] == true) return true;
+      if (data['pending'] == true ||
+          data['claimed'] == true ||
+          data['status'] == 'pending' ||
+          data['message']?.toString().toLowerCase().contains('pending') == true ||
+          data['message']?.toString().toLowerCase().contains('submitted') == true) {
+        return null;
       }
-      return result.data['success'] == true;
+      return false;
     } catch (e) {
       Log.e('claimMultipleBingo failed', e);
       rethrow;
