@@ -68,3 +68,20 @@ exports.onWithdrawalUpdated = functions.firestore
         require("./reconciliationService").onWithdrawalUpdatedHandler(change, context)
     );
 
+export const blockCard = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+
+  const { userId, cartelaId, cardId } = data;
+
+  // Optional: verify this user owns the card
+  if (context.auth.uid !== userId) {
+    throw new functions.https.HttpsError('permission-denied', 'Not your card');
+  }
+
+  await admin.firestore()
+    .collection('users').doc(userId)
+    .collection('cards').doc(cardId)
+    .update({ blocked: true, blockedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+  return { success: true };
+});

@@ -209,18 +209,17 @@ class BingoRepositoryFirebase implements BingoRepository {
   // ─────────────────────────────────────────────────────────────────────────
   @override
   Future<void> blockCard(String userId, String cardId) async {
-    try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('cards')
-          .doc(cardId)
-          .update({'blocked': true});
-    } catch (e) {
-      Log.e('blockCard failed', e);
-      // Non-fatal — blocked state will at least survive the current session
-    }
+  try {
+    final callable = FirebaseFunctions.instance.httpsCallable('blockCard');
+    await callable.call({
+      'userId': userId,
+      'cardId': cardId,
+    });
+  } catch (e) {
+    logger.e('⛔ blockCard failed', error: e);
+    rethrow;
   }
+}
 
   // ─────────────────────────────────────────────────────────────────────────
   // CLAIM BINGO  (calls Cloud Function)
