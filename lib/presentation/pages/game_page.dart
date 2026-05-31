@@ -280,6 +280,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Session info card
+            if (_expanded)
             FadeInDown(
               duration: const Duration(milliseconds: 400),
               child: SessionCardWidget(state: state),
