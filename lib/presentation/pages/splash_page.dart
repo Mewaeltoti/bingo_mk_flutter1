@@ -99,7 +99,7 @@ class _SplashPageState extends State<SplashPage>
                         child: Transform.scale(
                           scale: _scaleAnim.value,
                           child: const Text(
-                            'AMBASSADOR',
+                            'BINGO MK',
                             style: TextStyle(
                               fontFamily: 'Orbitron',
                               fontSize: 26,

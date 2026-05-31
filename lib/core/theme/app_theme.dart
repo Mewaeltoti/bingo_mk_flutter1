@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  // Brand Colors — Ambassador Bingo
+  // Brand Colors — 
   static const Color primary    = Color(0xFF1A237E); // Deep Royal Blue
   static const Color secondary  = Color(0xFFD4AF37); // Ambassador Gold
   static const Color accent     = Color(0xFF42A5F5); // Sky Blue accent
