@@ -52,8 +52,8 @@ void showCardTransparencyDialog(
       cardNo = (found['cardNo'] ?? item).toString();
       final rawPhone = found['phone'] ?? '';
       phone = rawPhone.toString().isNotEmpty
-          ? "ስልክ ቁጥር: $rawPhone"
-          : "ስልክ ቁጥር: 0910117997";
+          ? "$rawPhone"
+          : "0910117997";
 
       final rawNumbers = found['numbers'];
       if (rawNumbers is List) {
@@ -130,7 +130,7 @@ void showCardTransparencyDialog(
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            "ካርቴላ: $cardNo",
+                            "Card: $cardNo",
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
@@ -242,7 +242,7 @@ void showCardTransparencyDialog(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: const Text(
-                        "ዕድሉ",
+                        "Back",
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
