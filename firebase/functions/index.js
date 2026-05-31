@@ -83,8 +83,9 @@ exports.blockCard = onCall({ cors: true }, async (request) => {
     .collection('users').doc(userId)
     .collection('cards').doc(cardId)
     .update({ 
-      blocked: true, 
-      blockedAt: admin.firestore.FieldValue.serverTimestamp() 
+      status: 'blocked',
+      blocked: true,                                           // ← add this
+      blockedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
   return { success: true };

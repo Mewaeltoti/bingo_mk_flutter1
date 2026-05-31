@@ -207,20 +207,22 @@ class BingoRepositoryFirebase implements BingoRepository {
   // ─────────────────────────────────────────────────────────────────────────
   // BLOCK CARD  (persists failed claim to Firestore so it survives restarts)
   // ─────────────────────────────────────────────────────────────────────────
-  @override
-  Future<void> blockCard(String userId, String cardId) async {
+ @override
+Future<void> blockCard(String userId, String cardId) async {
   try {
-    final callable = FirebaseFunctions.instance.httpsCallable('blockCard');
+    final callable = _functions.httpsCallable('blockCard');
     await callable.call({
       'userId': userId,
       'cardId': cardId,
     });
+  } on FirebaseFunctionsException catch (e) {
+    Log.e('⛔ blockCard failed', e);
+    rethrow;
   } catch (e) {
-    logger.e('⛔ blockCard failed', error: e);
+    Log.e('⛔ blockCard failed', e);
     rethrow;
   }
 }
-
   // ─────────────────────────────────────────────────────────────────────────
   // CLAIM BINGO  (calls Cloud Function)
   // Returns tri-state:
