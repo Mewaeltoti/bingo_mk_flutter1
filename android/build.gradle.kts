@@ -5,17 +5,6 @@ allprojects {
     }
 }
 
-// Force all subprojects (including Flutter plugins) to use Kotlin 2.1.0
-subprojects {
-    configurations.all {
-        resolutionStrategy.eachDependency {
-            if (requested.group == "org.jetbrains.kotlin") {
-                useVersion("2.1.0")
-            }
-        }
-    }
-}
-
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
