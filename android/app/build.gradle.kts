@@ -13,6 +13,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -21,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId = "com.bingomk.bingo_mk"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -42,4 +43,7 @@ android {
 
 flutter {
     source = "../.."
+}
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
