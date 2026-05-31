@@ -6,32 +6,76 @@ import '../blocs/wallet_cubit.dart';
 import '../../core/theme/app_theme.dart';
 import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+class _C {
+  // Base surfaces
+  static const bg        = Color(0xFF050D1A);
+  static const card      = Color(0xFF0D1B2A);
+  static const cardHigh  = Color(0xFF112236);
+  static const divider   = Color(0xFF1C2E40);
+
+  // Brand
+  static const gold      = Color(0xFFD4AF37);
+  static const goldDim   = Color(0xFFA07C1E);
+  static const goldFill  = Color(0x1AD4AF37);  // 10%
+  static const goldBorder= Color(0x40D4AF37);  // 25%
+  static const blue      = Color(0xFF1A237E);
+  static const blueMid   = Color(0xFF283593);
+  static const accent    = Color(0xFF42A5F5);
+
+  // Semantic
+  static const success   = Color(0xFF2A9D8F);
+  static const danger    = Color(0xFFE63946);
+  static const warning   = Color(0xFFF59E0B);
+
+  // Text
+  static const textHigh  = Colors.white;
+  static const textMid   = Color(0xFFB0BEC5);
+  static const textLow   = Color(0xFF607D8B);
+}
+
+// ─── Shared text styles ───────────────────────────────────────────────────────
+class _T {
+  static const mono = TextStyle(fontFamily: 'Orbitron');
+  static TextStyle label({double size = 11, Color? color, double spacing = 0.8}) =>
+      TextStyle(
+        fontFamily: 'Outfit',
+        fontSize: size,
+        fontWeight: FontWeight.w600,
+        letterSpacing: spacing,
+        color: color ?? _C.textMid,
+      );
+  static TextStyle body({double size = 13, Color? color, FontWeight weight = FontWeight.w400}) =>
+      TextStyle(fontFamily: 'Outfit', fontSize: size, fontWeight: weight, color: color ?? _C.textHigh);
+}
+
+// ─── Decoration helpers ───────────────────────────────────────────────────────
+BoxDecoration _cardDeco({Color? border, Color? bg}) => BoxDecoration(
+  color: bg ?? _C.card,
+  borderRadius: BorderRadius.circular(16),
+  border: Border.all(color: border ?? _C.divider, width: 0.5),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 class PaymentPage extends StatefulWidget {
   const PaymentPage({super.key});
-
-  @override
-  State<PaymentPage> createState() => _PaymentPageState();
+  @override State<PaymentPage> createState() => _PaymentPageState();
 }
 
 class _PaymentPageState extends State<PaymentPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  // Track shown rejection dialogs so they don't re-fire on every state rebuild
   final _shownRejections = <String>{};
 
-  // Deposit form
-  final _depositAmountController = TextEditingController();
-  final _referenceController = TextEditingController();
+  final _depositAmountCtrl  = TextEditingController();
+  final _referenceCtrl      = TextEditingController();
+  final _withdrawAmountCtrl = TextEditingController();
+  final _accountCtrl        = TextEditingController();
+
   String? _depositAmountError;
   String? _referenceError;
-
-  // Withdraw form
-  final _withdrawAmountController = TextEditingController();
-  final _accountController = TextEditingController();
   String? _withdrawAmountError;
   String? _accountError;
-
   String? _selectedDepositBank;
   String? _selectedWithdrawBank;
 
@@ -45,153 +89,76 @@ class _PaymentPageState extends State<PaymentPage>
 
   @override
   void dispose() {
-    _depositAmountController.dispose();
-    _referenceController.dispose();
-    _withdrawAmountController.dispose();
-    _accountController.dispose();
+    _depositAmountCtrl.dispose();
+    _referenceCtrl.dispose();
+    _withdrawAmountCtrl.dispose();
+    _accountCtrl.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
-  // ─── FCM token registration ───────────────────────────────────────────────
   Future<void> _registerFcmToken() async {
     try {
-      final settings =
-          await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      final settings = await FirebaseMessaging.instance.requestPermission(
+          alert: true, badge: true, sound: true);
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         final token = await FirebaseMessaging.instance.getToken();
         if (token != null && mounted) {
           context.read<WalletCubit>().saveFcmToken(token);
         }
       }
-    } catch (_) {
-      // Non-critical — continue without push
-    }
+    } catch (_) {}
   }
 
-  void _copyToClipboard(String text, String label) {
+  void _copy(String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded,
-                color: Colors.greenAccent, size: 20),
-            const SizedBox(width: 8),
-            Text('$label copied!',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.white)),
-          ],
-        ),
-        backgroundColor: AppColors.darkCard,
+        content: Row(children: [
+          const Icon(Icons.check_circle_rounded, color: _C.success, size: 18),
+          const SizedBox(width: 8),
+          Text('$label copied', style: _T.body(size: 13, weight: FontWeight.w600)),
+        ]),
+        backgroundColor: _C.cardHigh,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         duration: const Duration(seconds: 2),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       ),
     );
   }
 
-  // ─── Inline field validation (called on each keystroke) ──────────────────
-  void _validateDepositAmount(String value, WalletLimits limits) {
-    final amt = double.tryParse(value);
-    String? error;
-    if (value.isNotEmpty) {
-      if (amt == null || amt <= 0) {
-        error = 'Enter a valid number';
-      } else {
-        // Validate inline using the limits already in scope
-        error = null;
-        // Simpler: use limits directly
-        if (amt < limits.minDeposit) {
-          error =
-              'Minimum deposit is ${limits.minDeposit.toStringAsFixed(0)} ETB';
-        } else if (amt > limits.maxDeposit) {
-          error =
-              'Maximum deposit is ${limits.maxDeposit.toStringAsFixed(0)} ETB';
-        } else {
-          error = null;
-        }
-      }
+  void _validateDepositAmt(String v, WalletLimits l) {
+    final n = double.tryParse(v);
+    String? e;
+    if (v.isNotEmpty) {
+      if (n == null || n <= 0) e = 'Enter a valid number';
+      else if (n < l.minDeposit) e = 'Min ${l.minDeposit.toStringAsFixed(0)} ETB';
+      else if (n > l.maxDeposit) e = 'Max ${l.maxDeposit.toStringAsFixed(0)} ETB';
     }
-    setState(() => _depositAmountError = error);
+    setState(() => _depositAmountError = e);
   }
 
-  void _validateWithdrawAmount(String value, WalletLimits limits, double balance) {
-    final amt = double.tryParse(value);
-    String? error;
-    if (value.isNotEmpty) {
-      if (amt == null || amt <= 0) {
-        error = 'Enter a valid number';
-      } else if (amt < limits.minWithdraw) {
-        error =
-            'Minimum withdrawal is ${limits.minWithdraw.toStringAsFixed(0)} ETB';
-      } else if (amt > limits.maxWithdraw) {
-        error =
-            'Maximum withdrawal is ${limits.maxWithdraw.toStringAsFixed(0)} ETB';
-      } else if (amt > balance) {
-        error =
-            'Insufficient balance (${balance.toStringAsFixed(2)} ETB available)';
-      }
+  void _validateWithdrawAmt(String v, WalletLimits l, double bal) {
+    final n = double.tryParse(v);
+    String? e;
+    if (v.isNotEmpty) {
+      if (n == null || n <= 0) e = 'Enter a valid number';
+      else if (n < l.minWithdraw) e = 'Min ${l.minWithdraw.toStringAsFixed(0)} ETB';
+      else if (n > l.maxWithdraw) e = 'Max ${l.maxWithdraw.toStringAsFixed(0)} ETB';
+      else if (n > bal) e = 'Insufficient balance';
     }
-    setState(() => _withdrawAmountError = error);
+    setState(() => _withdrawAmountError = e);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
+      backgroundColor: _C.bg,
       body: BlocConsumer<WalletCubit, WalletState>(
         listener: (context, state) {
           if (state is WalletLoaded) {
-            for (var dep in state.deposits) {
-              final depId = dep['id'] as String? ?? '';
-              if (dep['status'] == 'rejected' &&
-                  depId.isNotEmpty &&
-                  !_shownRejections.contains(depId)) {
-                _shownRejections.add(depId);
-                final reason = dep['rejectionReason'] ?? 'Unknown error';
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-                  _showRejectionDialog(
-                    context,
-                    'Deposit',
-                    dep['amount'],
-                    reason,
-                    () => context
-                        .read<WalletCubit>()
-                        .deleteTransaction('deposits', depId),
-                  );
-                });
-                break;
-              }
-            }
-            for (var wth in state.withdrawals) {
-              final wthId = wth['id'] as String? ?? '';
-              if (wth['status'] == 'rejected' &&
-                  wthId.isNotEmpty &&
-                  !_shownRejections.contains(wthId)) {
-                _shownRejections.add(wthId);
-                final reason = wth['rejectionReason'] ?? 'Unknown error';
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-                  _showRejectionDialog(
-                    context,
-                    'Withdrawal',
-                    wth['amount'],
-                    reason,
-                    () => context
-                        .read<WalletCubit>()
-                        .deleteTransaction('withdrawals', wthId),
-                  );
-                });
-                break;
-              }
-            }
+            _checkRejections(context, state);
           }
         },
         builder: (context, state) {
@@ -200,76 +167,80 @@ class _PaymentPageState extends State<PaymentPage>
           }
           if (state is WalletLoaded) {
             return RefreshIndicator(
-              color: AppColors.secondary,
-              backgroundColor: AppColors.darkCard,
+              color: _C.gold,
+              backgroundColor: _C.card,
               onRefresh: () => context.read<WalletCubit>().loadWallet(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildBalanceCard(state.balance),
-                    if (state.statusMessage != null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.danger.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: AppColors.danger.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline,
-                                color: AppColors.danger, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                state.statusMessage!,
-                                style: const TextStyle(
-                                    color: AppColors.danger, fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    _buildTabs(),
-                    const SizedBox(height: 14),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildDepositTab(state),
-                          _buildWithdrawTab(state),
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics()),
+                slivers: [
+                  _SliverWalletHeader(balance: state.balance),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        if (state.statusMessage != null) ...[
+                          const SizedBox(height: 12),
+                          _StatusBanner(message: state.statusMessage!),
                         ],
-                      ),
+                        const SizedBox(height: 20),
+                        _TabRow(controller: _tabController),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          height: 1800, // tall enough to avoid nested scroll
+                          child: TabBarView(
+                            controller: _tabController,
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: [
+                              _DepositTab(
+                                state: state,
+                                amountCtrl: _depositAmountCtrl,
+                                referenceCtrl: _referenceCtrl,
+                                amountError: _depositAmountError,
+                                referenceError: _referenceError,
+                                selectedBank: _selectedDepositBank,
+                                onBankChanged: (v) => setState(() => _selectedDepositBank = v),
+                                onAmountChanged: (v) => _validateDepositAmt(v, state.limits),
+                                onReferenceChanged: (v) => setState(() =>
+                                    _referenceError = v.trim().isEmpty ? 'Reference required' : null),
+                                onCopy: _copy,
+                                onSubmit: () => _submitDeposit(state),
+                              ),
+                              _WithdrawTab(
+                                state: state,
+                                amountCtrl: _withdrawAmountCtrl,
+                                accountCtrl: _accountCtrl,
+                                amountError: _withdrawAmountError,
+                                accountError: _accountError,
+                                selectedBank: _selectedWithdrawBank,
+                                onBankChanged: (v) => setState(() => _selectedWithdrawBank = v),
+                                onAmountChanged: (v) => _validateWithdrawAmt(v, state.limits, state.balance),
+                                onAccountChanged: (v) => setState(() =>
+                                    _accountError = v.trim().isEmpty ? 'Account required' : null),
+                                onSubmit: () => _submitWithdraw(state),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ]),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           }
           if (state is WalletError) {
             return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline,
-                      color: AppColors.danger, size: 48),
-                  const SizedBox(height: 12),
-                  Text(state.message,
-                      style: const TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () =>
-                        context.read<WalletCubit>().loadWallet(),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.wifi_off_rounded, color: _C.textLow, size: 52),
+                const SizedBox(height: 16),
+                Text(state.message, style: _T.body(color: _C.textMid), textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                _GoldButton(
+                  label: 'RETRY',
+                  onTap: () => context.read<WalletCubit>().loadWallet(),
+                ),
+              ]),
             );
           }
           return const SizedBox.shrink();
@@ -278,968 +249,859 @@ class _PaymentPageState extends State<PaymentPage>
     );
   }
 
-  // ─── Balance card ─────────────────────────────────────────────────────────
-  Widget _buildBalanceCard(double balance) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0A3D62), Color(0xFF1E3A5F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.account_balance_wallet_rounded,
-              color: AppColors.secondary, size: 32),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('WALLET BALANCE',
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.white60,
-                      letterSpacing: 1.5,
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text('${balance.toStringAsFixed(2)} ETB',
-                  style: const TextStyle(
-                      fontFamily: 'Orbitron',
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.secondary)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── Tabs ─────────────────────────────────────────────────────────────────
-  Widget _buildTabs() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.darkCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: AppColors.secondary,
-        ),
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white70,
-        labelStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-            fontFamily: 'Orbitron'),
-        tabs: const [Tab(text: 'DEPOSIT'), Tab(text: 'WITHDRAW')],
-      ),
-    );
-  }
-
-  // ─── Deposit tab ──────────────────────────────────────────────────────────
-  Widget _buildDepositTab(WalletLoaded state) {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        // Limits info banner
-        _buildLimitsBanner(
-          depositMin: state.limits.minDeposit,
-          depositMax: state.limits.maxDeposit,
-          isDeposit: true,
-        ),
-        const SizedBox(height: 14),
-        _buildSectionHeader('1. Copy Account Details'),
-        const SizedBox(height: 8),
-        _buildDepositAccounts(state),
-        const SizedBox(height: 20),
-        _buildSectionHeader('2. Submit Reference'),
-        const SizedBox(height: 8),
-        _buildDepositForm(state),
-        const SizedBox(height: 24),
-        _buildHistorySection('Deposit History', state.deposits, isDeposit: true),
-        const SizedBox(height: 40),
-      ],
-    );
-  }
-
-  // ─── Withdraw tab ─────────────────────────────────────────────────────────
-  Widget _buildWithdrawTab(WalletLoaded state) {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        _buildLimitsBanner(
-          depositMin: state.limits.minWithdraw,
-          depositMax: state.limits.maxWithdraw,
-          isDeposit: false,
-        ),
-        const SizedBox(height: 14),
-        _buildSectionHeader('Request Withdrawal'),
-        const SizedBox(height: 8),
-        _buildWithdrawForm(state),
-        const SizedBox(height: 24),
-        _buildHistorySection('Withdrawal History', state.withdrawals,
-            isDeposit: false),
-        const SizedBox(height: 40),
-      ],
-    );
-  }
-
-  // ─── Limits banner ────────────────────────────────────────────────────────
-  Widget _buildLimitsBanner({
-    required double depositMin,
-    required double depositMax,
-    required bool isDeposit,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.secondary.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(10),
-        border:
-            Border.all(color: AppColors.secondary.withOpacity(0.25)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.info_outline_rounded,
-              color: AppColors.secondary, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              isDeposit
-                  ? 'Min deposit: ${depositMin.toStringAsFixed(0)} ETB  ·  Max: ${depositMax.toStringAsFixed(0)} ETB'
-                  : 'Min withdrawal: ${depositMin.toStringAsFixed(0)} ETB  ·  Max: ${depositMax.toStringAsFixed(0)} ETB',
-              style: const TextStyle(
-                  color: AppColors.secondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── Account cards ────────────────────────────────────────────────────────
-  Widget _buildDepositAccounts(WalletLoaded state) {
-    if (state.bankAccounts.isEmpty) {
-      return _buildEmptyState(
-          Icons.account_balance_outlined, 'No payment accounts configured');
+  void _checkRejections(BuildContext context, WalletLoaded state) {
+    for (final dep in state.deposits) {
+      final id = dep['id'] as String? ?? '';
+      if (dep['status'] == 'rejected' && id.isNotEmpty && !_shownRejections.contains(id)) {
+        _shownRejections.add(id);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _showRejectionDialog(context, 'Deposit', dep['amount'],
+              dep['rejectionReason'] ?? 'Unknown',
+              () => context.read<WalletCubit>().deleteTransaction('deposits', id));
+        });
+        break;
+      }
     }
-    return Column(
-      children: state.bankAccounts.map((account) {
-        final bank = account['bank'] as String? ?? '';
-        final number = account['accountNumber'] as String? ??
-            account['number'] as String? ?? '';
-        final name = account['accountName'] as String? ??
-            account['name'] as String? ?? '';
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _buildAccountCard(bank, number, name),
-        );
-      }).toList(),
-    );
+    for (final wth in state.withdrawals) {
+      final id = wth['id'] as String? ?? '';
+      if (wth['status'] == 'rejected' && id.isNotEmpty && !_shownRejections.contains(id)) {
+        _shownRejections.add(id);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _showRejectionDialog(context, 'Withdrawal', wth['amount'],
+              wth['rejectionReason'] ?? 'Unknown',
+              () => context.read<WalletCubit>().deleteTransaction('withdrawals', id));
+        });
+        break;
+      }
+    }
   }
 
-  Widget _buildAccountCard(String bank, String number, String name) {
-    final isMobile = bank.toLowerCase().contains('tele') ||
-        bank.toLowerCase().contains('m-pesa');
-    final accentColor =
-        isMobile ? Colors.lightBlueAccent : Colors.purpleAccent;
+  Future<void> _submitDeposit(WalletLoaded state) async {
+    final banks = state.bankAccounts
+        .map((a) => a['bank'] as String? ?? '')
+        .where((b) => b.isNotEmpty)
+        .toList();
+    final activeBank = _selectedDepositBank ?? (banks.isNotEmpty ? banks.first : 'Telebirr');
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.darkCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
-        children: [
+    final amt = double.tryParse(_depositAmountCtrl.text) ?? 0;
+    final ref = _referenceCtrl.text.trim();
+    final amtErr = amt <= 0 ? 'Enter a valid amount'
+        : (amt < state.limits.minDeposit ? 'Min ${state.limits.minDeposit.toStringAsFixed(0)} ETB'
+        : (amt > state.limits.maxDeposit ? 'Max ${state.limits.maxDeposit.toStringAsFixed(0)} ETB' : null));
+    final refErr = ref.isEmpty ? 'Reference required' : null;
+    setState(() { _depositAmountError = amtErr; _referenceError = refErr; });
+    if (amtErr != null || refErr != null) return;
+
+    await context.read<WalletCubit>().deposit(amt, activeBank, ref);
+    if (!mounted) return;
+    final s = context.read<WalletCubit>().state;
+    if (s is WalletLoaded && s.statusMessage == null) {
+      _depositAmountCtrl.clear(); _referenceCtrl.clear();
+      setState(() { _depositAmountError = null; _referenceError = null; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Deposit submitted — auto-matching in progress…', style: _T.body(size: 13)),
+        backgroundColor: _C.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      ));
+    }
+  }
+
+  Future<void> _submitWithdraw(WalletLoaded state) async {
+    final banks = state.bankAccounts
+        .map((a) => a['bank'] as String? ?? '')
+        .where((b) => b.isNotEmpty)
+        .toList();
+    final activeBank = _selectedWithdrawBank ?? (banks.isNotEmpty ? banks.first : 'Telebirr');
+
+    final amt = double.tryParse(_withdrawAmountCtrl.text) ?? 0;
+    final acc = _accountCtrl.text.trim();
+    final amtErr = amt <= 0 ? 'Enter a valid amount'
+        : (amt < state.limits.minWithdraw ? 'Min ${state.limits.minWithdraw.toStringAsFixed(0)} ETB'
+        : (amt > state.limits.maxWithdraw ? 'Max ${state.limits.maxWithdraw.toStringAsFixed(0)} ETB'
+        : (amt > state.balance ? 'Insufficient balance' : null)));
+    final accErr = acc.isEmpty ? 'Account required' : null;
+    setState(() { _withdrawAmountError = amtErr; _accountError = accErr; });
+    if (amtErr != null || accErr != null) return;
+
+    await context.read<WalletCubit>().withdraw(amt, activeBank, acc);
+    if (!mounted) return;
+    final s = context.read<WalletCubit>().state;
+    if (s is WalletLoaded && s.statusMessage == null) {
+      _withdrawAmountCtrl.clear(); _accountCtrl.clear();
+      setState(() { _withdrawAmountError = null; _accountError = null; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Withdrawal request submitted!', style: _T.body(size: 13)),
+        backgroundColor: _C.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      ));
+    }
+  }
+
+  void _showRejectionDialog(BuildContext ctx, String type, dynamic amount,
+      String reason, VoidCallback onDelete) {
+    showDialog(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: _C.cardHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.1),
+              color: _C.danger.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
-              isMobile
-                  ? Icons.phone_android_rounded
-                  : Icons.account_balance_rounded,
-              color: accentColor,
-              size: 22,
-            ),
+            child: const Icon(Icons.close_rounded, color: _C.danger, size: 20),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(bank.toUpperCase(),
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: accentColor,
-                        letterSpacing: 0.5)),
-                const SizedBox(height: 2),
-                Text(name,
-                    style: const TextStyle(
-                        fontSize: 11, color: Colors.white54)),
-                const SizedBox(height: 4),
-                Text(number,
-                    style: const TextStyle(
-                        fontFamily: 'Orbitron',
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 15)),
-              ],
+          Text('$type Rejected',
+              style: _T.body(size: 16, weight: FontWeight.bold)),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Your $type of $amount ETB was rejected.',
+              style: _T.body(color: _C.textMid)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _C.danger.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _C.danger.withOpacity(0.2)),
             ),
+            child: Text('Reason: $reason',
+                style: _T.body(size: 12, color: _C.danger, weight: FontWeight.w600)),
           ),
-          IconButton(
-            icon: const Icon(Icons.copy_rounded,
-                color: AppColors.secondary, size: 20),
-            onPressed: () => _copyToClipboard(number, '$bank number'),
-            tooltip: 'Copy',
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.pop(dialogCtx); onDelete(); },
+            child: Text('DISMISS',
+                style: _T.label(size: 12, color: _C.gold, spacing: 1.0)),
           ),
         ],
       ),
     );
   }
+}
 
-  // ─── Deposit form ─────────────────────────────────────────────────────────
-  Widget _buildDepositForm(WalletLoaded state) {
-    final banks = state.bankAccounts
-        .map((a) => a['bank'] as String? ?? '')
-        .where((b) => b.isNotEmpty)
-        .toList();
-    final activeBank = _selectedDepositBank ??
-        (banks.isNotEmpty ? banks.first : 'Telebirr');
+// ─────────────────────────────────────────────────────────────────────────────
+// SLIVER HEADER — Balance hero
+// ─────────────────────────────────────────────────────────────────────────────
+class _SliverWalletHeader extends StatelessWidget {
+  final double balance;
+  const _SliverWalletHeader({required this.balance});
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (banks.isNotEmpty) ...[
-          _buildDropdown(
-            label: 'Bank Paid To',
-            value: banks.contains(activeBank) ? activeBank : banks.first,
-            items: banks,
-            onChanged: (v) => setState(() => _selectedDepositBank = v),
-            icon: Icons.account_balance_wallet_rounded,
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 56, 16, 24),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0A1628), Color(0xFF0D1B2A), Color(0xFF050D1A)],
+            stops: [0.0, 0.5, 1.0],
           ),
-          const SizedBox(height: 12),
-        ],
-        _buildValidatedTextField(
-          controller: _depositAmountController,
-          hint: 'Amount Sent (ETB)',
-          type: TextInputType.number,
-          icon: Icons.monetization_on_rounded,
-          errorText: _depositAmountError,
-          onChanged: (v) =>
-              _validateDepositAmount(v, state.limits),
         ),
-        const SizedBox(height: 12),
-        _buildValidatedTextField(
-          controller: _referenceController,
-          hint: 'Transaction Reference / FT Number',
-          type: TextInputType.text,
-          icon: Icons.receipt_long_rounded,
-          errorText: _referenceError,
-          onChanged: (v) {
-            if (v.trim().isEmpty) {
-              setState(() => _referenceError = 'Reference is required');
-            } else {
-              setState(() => _referenceError = null);
-            }
-          },
-        ),
-        const SizedBox(height: 16),
-        _buildSubmitButton(
-          label: 'SUBMIT DEPOSIT',
-          isLoading: state.isActionLoading,
-          onPressed: () {
-            final amt =
-                double.tryParse(_depositAmountController.text) ?? 0;
-            final ref = _referenceController.text.trim();
-
-            // Final validation sweep
-            final amtErr = amt <= 0
-                ? 'Enter a valid amount'
-                : (amt < state.limits.minDeposit
-                    ? 'Minimum is ${state.limits.minDeposit.toStringAsFixed(0)} ETB'
-                    : (amt > state.limits.maxDeposit
-                        ? 'Maximum is ${state.limits.maxDeposit.toStringAsFixed(0)} ETB'
-                        : null));
-            final refErr = ref.isEmpty ? 'Reference is required' : null;
-
-            setState(() {
-              _depositAmountError = amtErr;
-              _referenceError = refErr;
-            });
-
-            if (amtErr != null || refErr != null) return;
-
-            context.read<WalletCubit>().deposit(amt, activeBank, ref).then((_) {
-              if (!mounted) return;
-              // Only clear if no error message was set (success)
-              final s = context.read<WalletCubit>().state;
-              if (s is WalletLoaded && s.statusMessage == null) {
-                _depositAmountController.clear();
-                _referenceController.clear();
-                setState(() {
-                  _depositAmountError = null;
-                  _referenceError = null;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Deposit submitted — auto-matching in progress…'),
-                  backgroundColor: AppColors.success,
-                  behavior: SnackBarBehavior.floating,
-                ));
-              }
-            });
-          },
-        ),
-      ],
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Title row
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _C.goldFill,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _C.goldBorder),
+              ),
+              child: const Icon(Icons.account_balance_wallet_rounded,
+                  color: _C.gold, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text('WALLET', style: _T.label(size: 13, color: _C.gold, spacing: 2.5)),
+          ]),
+          const SizedBox(height: 20),
+          // Balance
+          Text('Available Balance', style: _T.label(size: 11, color: _C.textLow, spacing: 0.5)),
+          const SizedBox(height: 6),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(
+              balance.toStringAsFixed(2),
+              style: _T.mono.copyWith(
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+                color: _C.gold,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Text('ETB', style: _T.label(size: 14, color: _C.goldDim, spacing: 1.0)),
+            ),
+          ]),
+          const SizedBox(height: 20),
+          // Divider line
+          Container(height: 0.5, color: _C.divider),
+        ]),
+      ),
     );
   }
+}
 
-  // ─── Withdraw form ────────────────────────────────────────────────────────
-  Widget _buildWithdrawForm(WalletLoaded state) {
+// ─── Status banner ────────────────────────────────────────────────────────────
+class _StatusBanner extends StatelessWidget {
+  final String message;
+  const _StatusBanner({required this.message});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+    decoration: BoxDecoration(
+      color: _C.danger.withOpacity(0.07),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: _C.danger.withOpacity(0.25)),
+    ),
+    child: Row(children: [
+      const Icon(Icons.error_outline_rounded, color: _C.danger, size: 17),
+      const SizedBox(width: 10),
+      Expanded(child: Text(message, style: _T.body(size: 12, color: _C.danger))),
+    ]),
+  );
+}
+
+// ─── Tab row ──────────────────────────────────────────────────────────────────
+class _TabRow extends StatelessWidget {
+  final TabController controller;
+  const _TabRow({required this.controller});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(4),
+    decoration: _cardDeco(),
+    child: TabBar(
+      controller: controller,
+      indicator: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFD4AF37), Color(0xFFF5CC50)],
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      indicatorSize: TabBarIndicatorSize.tab,
+      labelColor: Colors.black,
+      unselectedLabelColor: _C.textMid,
+      labelStyle: _T.label(size: 12, color: Colors.black, spacing: 1.5),
+      unselectedLabelStyle: _T.label(size: 12, color: _C.textMid, spacing: 1.5),
+      dividerColor: Colors.transparent,
+      tabs: const [Tab(text: 'DEPOSIT'), Tab(text: 'WITHDRAW')],
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEPOSIT TAB
+// ─────────────────────────────────────────────────────────────────────────────
+class _DepositTab extends StatelessWidget {
+  final WalletLoaded state;
+  final TextEditingController amountCtrl, referenceCtrl;
+  final String? amountError, referenceError, selectedBank;
+  final ValueChanged<String?> onBankChanged;
+  final ValueChanged<String> onAmountChanged, onReferenceChanged;
+  final void Function(String, String) onCopy;
+  final VoidCallback onSubmit;
+
+  const _DepositTab({
+    required this.state, required this.amountCtrl, required this.referenceCtrl,
+    required this.amountError, required this.referenceError, required this.selectedBank,
+    required this.onBankChanged, required this.onAmountChanged,
+    required this.onReferenceChanged, required this.onCopy, required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final banks = state.bankAccounts
-        .map((a) => a['bank'] as String? ?? '')
-        .where((b) => b.isNotEmpty)
-        .toList();
-    final activeBank = _selectedWithdrawBank ??
-        (banks.isNotEmpty ? banks.first : 'Telebirr');
+        .map((a) => a['bank'] as String? ?? '').where((b) => b.isNotEmpty).toList();
+    final activeBank = selectedBank ?? (banks.isNotEmpty ? banks.first : 'Telebirr');
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (banks.isNotEmpty) ...[
-          _buildDropdown(
-            label: 'Withdrawal Bank',
-            value: banks.contains(activeBank) ? activeBank : banks.first,
-            items: banks,
-            onChanged: (v) => setState(() => _selectedWithdrawBank = v),
-            icon: Icons.account_balance_rounded,
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _LimitsPill(
+        label: 'Deposit range: ${state.limits.minDeposit.toStringAsFixed(0)} – '
+            '${state.limits.maxDeposit.toStringAsFixed(0)} ETB',
+      ),
+      const SizedBox(height: 20),
+      // Step 1
+      _StepCard(
+        step: 1,
+        title: 'Copy Account Details',
+        child: state.bankAccounts.isEmpty
+            ? _EmptyInfo('No payment accounts configured')
+            : Column(
+                children: state.bankAccounts.map((a) {
+                  final bank   = a['bank'] as String? ?? '';
+                  final number = a['accountNumber'] as String? ?? a['number'] as String? ?? '';
+                  final name   = a['accountName'] as String? ?? a['name'] as String? ?? '';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _AccountTile(bank: bank, number: number, name: name, onCopy: onCopy),
+                  );
+                }).toList(),
+              ),
+      ),
+      const SizedBox(height: 12),
+      // Step 2
+      _StepCard(
+        step: 2,
+        title: 'Submit Reference',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (banks.isNotEmpty) ...[
+            _WalletDropdown(
+              label: 'Bank Paid To',
+              value: banks.contains(activeBank) ? activeBank : banks.first,
+              items: banks,
+              onChanged: onBankChanged,
+              icon: Icons.account_balance_wallet_rounded,
+            ),
+            const SizedBox(height: 10),
+          ],
+          _WalletField(
+            controller: amountCtrl,
+            hint: 'Amount sent (ETB)',
+            icon: Icons.monetization_on_rounded,
+            inputType: TextInputType.number,
+            errorText: amountError,
+            onChanged: onAmountChanged,
           ),
-          const SizedBox(height: 12),
-        ],
-        _buildValidatedTextField(
-          controller: _withdrawAmountController,
-          hint: 'Amount (ETB)',
-          type: TextInputType.number,
-          icon: Icons.monetization_on_rounded,
-          errorText: _withdrawAmountError,
-          onChanged: (v) =>
-              _validateWithdrawAmount(v, state.limits, state.balance),
-        ),
-        const SizedBox(height: 12),
-        _buildValidatedTextField(
-          controller: _accountController,
-          hint: 'Your Bank Account / Phone Number',
-          type: TextInputType.text,
-          icon: Icons.account_box_rounded,
-          errorText: _accountError,
-          onChanged: (v) {
-            setState(() =>
-                _accountError = v.trim().isEmpty ? 'Account is required' : null);
-          },
-        ),
-        const SizedBox(height: 16),
-        _buildSubmitButton(
-          label: 'REQUEST WITHDRAWAL',
-          isLoading: state.isActionLoading,
-          onPressed: () {
-            final amt =
-                double.tryParse(_withdrawAmountController.text) ?? 0;
-            final acc = _accountController.text.trim();
-
-            final amtErr = amt <= 0
-                ? 'Enter a valid amount'
-                : (amt < state.limits.minWithdraw
-                    ? 'Minimum is ${state.limits.minWithdraw.toStringAsFixed(0)} ETB'
-                    : (amt > state.limits.maxWithdraw
-                        ? 'Maximum is ${state.limits.maxWithdraw.toStringAsFixed(0)} ETB'
-                        : (amt > state.balance
-                            ? 'Insufficient balance'
-                            : null)));
-            final accErr = acc.isEmpty ? 'Account is required' : null;
-
-            setState(() {
-              _withdrawAmountError = amtErr;
-              _accountError = accErr;
-            });
-
-            if (amtErr != null || accErr != null) return;
-
-            context.read<WalletCubit>().withdraw(amt, activeBank, acc).then((_) {
-              if (!mounted) return;
-              final s = context.read<WalletCubit>().state;
-              if (s is WalletLoaded && s.statusMessage == null) {
-                _withdrawAmountController.clear();
-                _accountController.clear();
-                setState(() {
-                  _withdrawAmountError = null;
-                  _accountError = null;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Withdrawal request submitted!'),
-                  backgroundColor: AppColors.success,
-                  behavior: SnackBarBehavior.floating,
-                ));
-              }
-            });
-          },
-        ),
-      ],
-    );
+          const SizedBox(height: 10),
+          _WalletField(
+            controller: referenceCtrl,
+            hint: 'Transaction reference / FT number',
+            icon: Icons.receipt_long_rounded,
+            errorText: referenceError,
+            onChanged: onReferenceChanged,
+          ),
+          const SizedBox(height: 16),
+          _GoldButton(label: 'SUBMIT DEPOSIT', onTap: onSubmit),
+        ]),
+      ),
+      const SizedBox(height: 20),
+      _HistorySection(
+          title: 'Deposit History',
+          items: state.deposits,
+          isDeposit: true),
+    ]);
   }
+}
 
-  // ─── Shared form widgets ──────────────────────────────────────────────────
-  Widget _buildDropdown({
-    required String label,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-    required IconData icon,
-  }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// WITHDRAW TAB
+// ─────────────────────────────────────────────────────────────────────────────
+class _WithdrawTab extends StatelessWidget {
+  final WalletLoaded state;
+  final TextEditingController amountCtrl, accountCtrl;
+  final String? amountError, accountError, selectedBank;
+  final ValueChanged<String?> onBankChanged;
+  final ValueChanged<String> onAmountChanged, onAccountChanged;
+  final VoidCallback onSubmit;
+
+  const _WithdrawTab({
+    required this.state, required this.amountCtrl, required this.accountCtrl,
+    required this.amountError, required this.accountError, required this.selectedBank,
+    required this.onBankChanged, required this.onAmountChanged,
+    required this.onAccountChanged, required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final banks = state.bankAccounts
+        .map((a) => a['bank'] as String? ?? '').where((b) => b.isNotEmpty).toList();
+    final activeBank = selectedBank ?? (banks.isNotEmpty ? banks.first : 'Telebirr');
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _LimitsPill(
+        label: 'Withdrawal range: ${state.limits.minWithdraw.toStringAsFixed(0)} – '
+            '${state.limits.maxWithdraw.toStringAsFixed(0)} ETB',
+      ),
+      const SizedBox(height: 20),
+      _StepCard(
+        step: null,
+        title: 'Withdrawal Details',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (banks.isNotEmpty) ...[
+            _WalletDropdown(
+              label: 'Withdrawal Bank',
+              value: banks.contains(activeBank) ? activeBank : banks.first,
+              items: banks,
+              onChanged: onBankChanged,
+              icon: Icons.account_balance_rounded,
+            ),
+            const SizedBox(height: 10),
+          ],
+          _WalletField(
+            controller: amountCtrl,
+            hint: 'Amount (ETB)',
+            icon: Icons.monetization_on_rounded,
+            inputType: TextInputType.number,
+            errorText: amountError,
+            onChanged: onAmountChanged,
+          ),
+          const SizedBox(height: 10),
+          _WalletField(
+            controller: accountCtrl,
+            hint: 'Your account / phone number',
+            icon: Icons.account_box_rounded,
+            errorText: accountError,
+            onChanged: onAccountChanged,
+          ),
+          const SizedBox(height: 16),
+          _GoldButton(label: 'REQUEST WITHDRAWAL', onTap: onSubmit),
+        ]),
+      ),
+      const SizedBox(height: 20),
+      _HistorySection(
+          title: 'Withdrawal History',
+          items: state.withdrawals,
+          isDeposit: false),
+    ]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REUSABLE COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LimitsPill extends StatelessWidget {
+  final String label;
+  const _LimitsPill({required this.label});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+    decoration: BoxDecoration(
+      color: _C.goldFill,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: _C.goldBorder),
+    ),
+    child: Row(children: [
+      const Icon(Icons.info_outline_rounded, color: _C.gold, size: 15),
+      const SizedBox(width: 8),
+      Text(label, style: _T.label(size: 11, color: _C.gold, spacing: 0.3)),
+    ]),
+  );
+}
+
+class _StepCard extends StatelessWidget {
+  final int? step;
+  final String title;
+  final Widget child;
+  const _StepCard({required this.title, required this.child, this.step});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: _cardDeco(),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        if (step != null) ...[
+          Container(
+            width: 24, height: 24,
+            decoration: BoxDecoration(
+              color: _C.goldFill,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: _C.goldBorder),
+            ),
+            alignment: Alignment.center,
+            child: Text('$step',
+                style: _T.label(size: 11, color: _C.gold, spacing: 0)),
+          ),
+          const SizedBox(width: 10),
+        ],
+        Text(title, style: _T.body(size: 13, weight: FontWeight.w600)),
+      ]),
+      const SizedBox(height: 14),
+      child,
+    ]),
+  );
+}
+
+class _AccountTile extends StatelessWidget {
+  final String bank, number, name;
+  final void Function(String, String) onCopy;
+  const _AccountTile(
+      {required this.bank, required this.number, required this.name, required this.onCopy});
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = bank.toLowerCase().contains('tele') ||
+        bank.toLowerCase().contains('m-pesa');
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: _C.bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: _C.divider),
       ),
-      child: DropdownButtonFormField<String>(
-        value: value,
-        dropdownColor: AppColors.darkCard,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
-        decoration: InputDecoration(
-          prefixIcon:
-              Icon(icon, color: AppColors.secondary, size: 20),
-          labelText: label,
-          labelStyle:
-              const TextStyle(color: Colors.white70, fontSize: 12),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: isMobile
+                ? _C.accent.withOpacity(0.08)
+                : _C.blue.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            isMobile ? Icons.phone_android_rounded : Icons.account_balance_rounded,
+            color: isMobile ? _C.accent : const Color(0xFF7986CB),
+            size: 20,
+          ),
         ),
-        items: items
-            .map((item) => DropdownMenuItem(
-                value: item,
-                child: Text(item,
-                    style: const TextStyle(color: Colors.white))))
-            .toList(),
-        onChanged: onChanged,
-      ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(bank.toUpperCase(), style: _T.label(
+              size: 10,
+              color: isMobile ? _C.accent : const Color(0xFF9FA8DA),
+              spacing: 0.8)),
+          const SizedBox(height: 2),
+          Text(number, style: _T.mono.copyWith(
+              fontSize: 14, fontWeight: FontWeight.bold, color: _C.textHigh)),
+          if (name.isNotEmpty)
+            Text(name, style: _T.label(size: 10, color: _C.textLow, spacing: 0.3)),
+        ])),
+        IconButton(
+          icon: const Icon(Icons.copy_rounded, color: _C.gold, size: 18),
+          onPressed: () => onCopy(number, '$bank number'),
+          tooltip: 'Copy',
+          constraints: const BoxConstraints(),
+          padding: const EdgeInsets.all(8),
+        ),
+      ]),
     );
   }
+}
 
-  Widget _buildValidatedTextField({
-    required TextEditingController controller,
-    required String hint,
-    required TextInputType type,
-    required IconData icon,
-    String? errorText,
-    ValueChanged<String>? onChanged,
-  }) {
+class _WalletField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final IconData icon;
+  final TextInputType inputType;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
+
+  const _WalletField({
+    required this.controller, required this.hint, required this.icon,
+    this.inputType = TextInputType.text, this.errorText, this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = errorText != null;
     return TextField(
       controller: controller,
-      keyboardType: type,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      keyboardType: inputType,
+      style: _T.body(size: 14),
       onChanged: onChanged,
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: AppColors.secondary, size: 20),
+        prefixIcon: Icon(icon, color: hasError ? _C.danger : _C.gold, size: 19),
         hintText: hint,
-        hintStyle:
-            const TextStyle(color: Colors.white54, fontSize: 13),
+        hintStyle: _T.body(size: 13, color: _C.textLow),
         errorText: errorText,
-        errorStyle:
-            const TextStyle(color: AppColors.danger, fontSize: 11),
+        errorStyle: _T.label(size: 11, color: _C.danger, spacing: 0.2),
         filled: true,
-        fillColor: AppColors.darkCard,
+        fillColor: _C.bg,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-              color: errorText != null
-                  ? AppColors.danger.withOpacity(0.5)
-                  : Colors.white10),
+            color: hasError ? _C.danger.withOpacity(0.5) : _C.divider,
+            width: 0.75,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-              color: errorText != null
-                  ? AppColors.danger
-                  : AppColors.secondary,
-              width: 1.5),
+              color: hasError ? _C.danger : _C.gold, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: AppColors.danger, width: 1.5),
+          borderSide: const BorderSide(color: _C.danger, width: 1.0),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: AppColors.danger, width: 1.5),
+          borderSide: const BorderSide(color: _C.danger, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 14),
       ),
     );
   }
+}
 
-  Widget _buildSubmitButton({
-    required String label,
-    required VoidCallback onPressed,
-    bool isLoading = false,
-  }) {
-    return SizedBox(
-      height: 50,
-      child: DecoratedBox(
+class _WalletDropdown extends StatelessWidget {
+  final String label, value;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+  final IconData icon;
+  const _WalletDropdown({
+    required this.label, required this.value, required this.items,
+    required this.onChanged, required this.icon,
+  });
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    decoration: BoxDecoration(
+      color: _C.bg,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: _C.divider, width: 0.75),
+    ),
+    child: DropdownButtonFormField<String>(
+      value: value,
+      dropdownColor: _C.card,
+      style: _T.body(size: 14),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _C.gold, size: 20),
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: _C.gold, size: 19),
+        labelText: label,
+        labelStyle: _T.label(size: 11, color: _C.textLow, spacing: 0.3),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      ),
+      items: items.map((item) => DropdownMenuItem(
+        value: item,
+        child: Text(item, style: _T.body(size: 14)),
+      )).toList(),
+      onChanged: onChanged,
+    ),
+  );
+}
+
+class _GoldButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _GoldButton({required this.label, required this.onTap});
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    borderRadius: BorderRadius.circular(12),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Ink(
+        height: 50,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
           gradient: const LinearGradient(
-            colors: [AppColors.secondary, Color(0xFFFFC107)],
+            colors: [Color(0xFFD4AF37), Color(0xFFF5CC50)],
           ),
-          boxShadow: [
-            BoxShadow(
-                color: AppColors.secondary.withOpacity(0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 4)),
-          ],
-        ),
-        child: ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-          ),
-          child: isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      color: Colors.black, strokeWidth: 2.5))
-              : Text(label,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                      fontSize: 13,
-                      fontFamily: 'Orbitron',
-                      letterSpacing: 1.2)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Text(title,
-        style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 0.5));
-  }
-
-  // ─── Transaction history ──────────────────────────────────────────────────
-  Widget _buildHistorySection(
-      String title, List<Map<String, dynamic>> items,
-      {required bool isDeposit}) {
-    final visible =
-        items.where((i) => i['status'] != 'rejected').toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(title),
-        const SizedBox(height: 8),
-        if (visible.isEmpty)
-          _buildEmptyState(
-              isDeposit
-                  ? Icons.inbox_outlined
-                  : Icons.outbox_outlined,
-              isDeposit
-                  ? 'No deposits yet'
-                  : 'No withdrawals yet')
-        else
-          ...visible.map((item) => _buildHistoryTile(item, isDeposit)),
-      ],
-    );
-  }
-
-  Widget _buildHistoryTile(Map<String, dynamic> item, bool isDeposit) {
-    final status = item['status'] as String? ?? 'pending';
-    final statusColor = status == 'approved'
-        ? Colors.greenAccent
-        : (status == 'pending' ? Colors.amberAccent : AppColors.danger);
-
-    return GestureDetector(
-      onTap: () => _showReceiptSheet(context, item, isDeposit),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.darkCard,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white10),
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isDeposit
-                    ? Icons.arrow_downward_rounded
-                    : Icons.arrow_upward_rounded,
-                color: statusColor,
-                size: 16,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['bank'] as String? ?? '—',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: Colors.white),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item['reference'] ??
-                        item['accountNumber'] ??
-                        '—',
-                    style: const TextStyle(
-                        fontSize: 11, color: Colors.white54),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${item['amount']} ETB',
-                  style: const TextStyle(
-                      fontFamily: 'Orbitron',
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.secondary,
-                      fontSize: 13),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    status.toUpperCase(),
-                    style: TextStyle(
-                        color: statusColor,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right,
-                color: Colors.white24, size: 18),
-          ],
+        child: Center(
+          child: Text(label,
+              style: _T.label(size: 13, color: Colors.black, spacing: 1.5)),
         ),
       ),
-    );
+    ),
+  );
+}
+
+// ─── History section ──────────────────────────────────────────────────────────
+class _HistorySection extends StatelessWidget {
+  final String title;
+  final List<Map<String, dynamic>> items;
+  final bool isDeposit;
+  const _HistorySection({required this.title, required this.items, required this.isDeposit});
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = items.where((i) => i['status'] != 'rejected').toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(title, style: _T.body(size: 13, weight: FontWeight.w600)),
+      ),
+      if (visible.isEmpty)
+        _EmptyInfo(isDeposit ? 'No deposits yet' : 'No withdrawals yet')
+      else
+        ...visible.map((item) => _HistoryTile(item: item, isDeposit: isDeposit,
+            onTap: () => _showReceipt(context, item, isDeposit))),
+    ]);
   }
 
-  // ─── Receipt bottom sheet ─────────────────────────────────────────────────
-  void _showReceiptSheet(
-      BuildContext context, Map<String, dynamic> item, bool isDeposit) {
+  static void _showReceipt(BuildContext context, Map<String, dynamic> item, bool isDeposit) {
     final status = item['status'] as String? ?? 'pending';
-    final statusColor = status == 'approved'
-        ? Colors.greenAccent
-        : (status == 'pending' ? Colors.amberAccent : AppColors.danger);
-    final statusIcon = status == 'approved'
-        ? Icons.check_circle_rounded
-        : (status == 'pending'
-            ? Icons.hourglass_top_rounded
-            : Icons.cancel_rounded);
+    final statusColor = status == 'approved' ? _C.success
+        : (status == 'pending' ? _C.warning : _C.danger);
+    final statusIcon  = status == 'approved' ? Icons.check_circle_rounded
+        : (status == 'pending' ? Icons.schedule_rounded : Icons.cancel_rounded);
+
+    String _fmt(dynamic ts) {
+      if (ts == null) return '—';
+      try {
+        final dt = ts is DateTime ? ts : (ts as dynamic).toDate() as DateTime;
+        return '${dt.day}/${dt.month}/${dt.year}  '
+            '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+      } catch (_) { return ts.toString(); }
+    }
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.darkCard,
+      backgroundColor: _C.cardHigh,
       shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Handle bar
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2)),
-                ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        child: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Center(child: Container(width: 36, height: 4,
+            decoration: BoxDecoration(color: _C.divider, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 20),
+          Row(children: [
+            Icon(isDeposit ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                color: _C.gold),
+            const SizedBox(width: 10),
+            Text(isDeposit ? 'Deposit Receipt' : 'Withdrawal Receipt',
+                style: _T.body(size: 16, weight: FontWeight.bold)),
+            const Spacer(),
+            Icon(statusIcon, color: statusColor, size: 22),
+          ]),
+          const SizedBox(height: 16),
+          Container(height: 0.5, color: _C.divider),
+          const SizedBox(height: 14),
+          _ReceiptRow('Amount', '${item['amount']} ETB', large: true),
+          _ReceiptRow('Bank', item['bank'] ?? '—'),
+          if (isDeposit) _ReceiptRow('Reference', item['reference'] ?? '—'),
+          if (!isDeposit) _ReceiptRow('Account', item['accountNumber'] ?? '—'),
+          _ReceiptRow('Status', status.toUpperCase(), valueColor: statusColor),
+          if (item['createdAt'] != null) _ReceiptRow('Submitted', _fmt(item['createdAt'])),
+          if (item['verifiedAt'] != null) _ReceiptRow('Verified', _fmt(item['verifiedAt'])),
+          if (item['matchedVia'] != null) _ReceiptRow('Matched via', item['matchedVia']),
+          if (item['rejectionReason'] != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _C.danger.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _C.danger.withOpacity(0.2)),
               ),
-              const SizedBox(height: 20),
-
-              // Title + status icon
-              Row(
-                children: [
-                  Icon(
-                    isDeposit
-                        ? Icons.arrow_downward_rounded
-                        : Icons.arrow_upward_rounded,
-                    color: AppColors.secondary,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    isDeposit ? 'Deposit Receipt' : 'Withdrawal Receipt',
-                    style: const TextStyle(
-                        fontFamily: 'Orbitron',
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 16),
-                  ),
-                  const Spacer(),
-                  Icon(statusIcon, color: statusColor, size: 22),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const Divider(color: Colors.white12),
-              const SizedBox(height: 12),
-
-              // Amount
-              _receiptRow('Amount',
-                  '${item['amount']} ETB', isLarge: true),
-              _receiptRow('Bank', item['bank'] ?? '—'),
-              if (isDeposit)
-                _receiptRow(
-                    'Reference', item['reference'] ?? '—'),
-              if (!isDeposit)
-                _receiptRow(
-                    'Account', item['accountNumber'] ?? '—'),
-              _receiptRow('Status', status.toUpperCase(),
-                  valueColor: statusColor),
-              if (item['createdAt'] != null)
-                _receiptRow('Submitted',
-                    _formatTimestamp(item['createdAt'])),
-              if (item['verifiedAt'] != null)
-                _receiptRow('Verified',
-                    _formatTimestamp(item['verifiedAt'])),
-              if (item['matchedVia'] != null)
-                _receiptRow(
-                    'Matched via', item['matchedVia'] ?? '—'),
-              if (item['rejectionReason'] != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: AppColors.danger.withOpacity(0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning_amber_rounded,
-                          color: AppColors.danger, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Reason: ${item['rejectionReason']}',
-                          style: const TextStyle(
-                              color: AppColors.danger,
-                              fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              if (status == 'pending')
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: Colors.amber.withOpacity(0.2)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.notifications_active_outlined,
-                          color: Colors.amberAccent, size: 16),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "You'll receive a push notification when this is approved.",
-                          style: TextStyle(
-                              color: Colors.amberAccent,
-                              fontSize: 11),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _receiptRow(String label, String value,
-      {bool isLarge = false, Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white54, fontSize: 13)),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: valueColor ?? Colors.white,
-                fontSize: isLarge ? 18 : 13,
-                fontWeight: isLarge
-                    ? FontWeight.bold
-                    : FontWeight.w500,
-                fontFamily: isLarge ? 'Orbitron' : null,
-              ),
+              child: Text('Reason: ${item['rejectionReason']}',
+                  style: _T.body(size: 12, color: _C.danger)),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTimestamp(dynamic ts) {
-    if (ts == null) return '—';
-    try {
-      final dt = ts is DateTime ? ts : (ts as dynamic).toDate() as DateTime;
-      return '${dt.day}/${dt.month}/${dt.year}  '
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return ts.toString();
-    }
-  }
-
-  // ─── Rejection dialog ─────────────────────────────────────────────────────
-  void _showRejectionDialog(BuildContext context, String type,
-      dynamic amount, String reason, VoidCallback onDelete) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.darkCard,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          const Icon(Icons.warning_amber_rounded,
-              color: Colors.redAccent),
-          const SizedBox(width: 8),
-          Text('$type Rejected',
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontSize: 16)),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Your $type of $amount ETB was rejected.',
-                style: const TextStyle(
-                    color: Colors.white70, fontSize: 13)),
+          ],
+          if (status == 'pending') ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: Colors.redAccent.withOpacity(0.15)),
+                color: _C.warning.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _C.warning.withOpacity(0.2)),
               ),
-              child: Text('Reason: $reason',
-                  style: const TextStyle(
-                      color: Colors.redAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold)),
+              child: Row(children: [
+                const Icon(Icons.notifications_active_outlined,
+                    color: _C.warning, size: 15),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                    "You'll receive a push notification when approved.",
+                    style: _T.body(size: 11, color: _C.warning))),
+              ]),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              onDelete();
-            },
-            child: const Text('DISMISS',
-                style: TextStyle(
-                    color: AppColors.secondary,
-                    fontWeight: FontWeight.bold)),
-          ),
-        ],
+        ]),
       ),
     );
   }
+}
 
-  // ─── Empty state ──────────────────────────────────────────────────────────
-  Widget _buildEmptyState(IconData icon, String message) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 28),
-      alignment: Alignment.center,
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.white24, size: 40),
-          const SizedBox(height: 10),
-          Text(message,
-              style: const TextStyle(
-                  color: Colors.white38, fontSize: 13)),
-        ],
+class _HistoryTile extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final bool isDeposit;
+  final VoidCallback onTap;
+  const _HistoryTile({required this.item, required this.isDeposit, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = item['status'] as String? ?? 'pending';
+    final statusColor = status == 'approved' ? _C.success
+        : (status == 'pending' ? _C.warning : _C.danger);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: _cardDeco(),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isDeposit ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+              color: statusColor, size: 14,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(item['bank'] as String? ?? '—',
+                style: _T.body(size: 13, weight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(item['reference'] ?? item['accountNumber'] ?? '—',
+                style: _T.label(size: 10, color: _C.textLow, spacing: 0.2),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+          ])),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text('${item['amount']} ETB',
+                style: _T.mono.copyWith(
+                    fontSize: 13, fontWeight: FontWeight.bold, color: _C.gold)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Text(status.toUpperCase(),
+                  style: _T.label(size: 9, color: statusColor, spacing: 0.5)),
+            ),
+          ]),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right, color: _C.textLow, size: 16),
+        ]),
       ),
     );
   }
+}
+
+class _ReceiptRow extends StatelessWidget {
+  final String label, value;
+  final bool large;
+  final Color? valueColor;
+  const _ReceiptRow(this.label, this.value, {this.large = false, this.valueColor});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: _T.label(size: 12, color: _C.textLow, spacing: 0.2)),
+      Flexible(child: Text(value, textAlign: TextAlign.right,
+          style: large
+              ? _T.mono.copyWith(fontSize: 18, fontWeight: FontWeight.bold, color: valueColor ?? _C.gold)
+              : _T.body(size: 13, color: valueColor ?? _C.textHigh, weight: FontWeight.w500))),
+    ]),
+  );
+}
+
+class _EmptyInfo extends StatelessWidget {
+  final String message;
+  const _EmptyInfo(this.message);
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 24),
+    child: Column(children: [
+      Icon(Icons.inbox_outlined, color: _C.textLow, size: 36),
+      const SizedBox(height: 10),
+      Text(message, style: _T.label(size: 12, color: _C.textLow, spacing: 0.2)),
+    ]),
+  );
 }
