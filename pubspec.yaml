@@ -62,3 +62,14 @@ flutter_launcher_icons:
 
   adaptive_icon_background: "#1A0033"
   adaptive_icon_foreground: "assets/icon/app_icon.png"
+fonts:
+  - family: BebasNeue
+    fonts:
+      - asset: assets/fonts/BebasNeue-Regular.ttf
+  - family: Sora
+    fonts:
+      - asset: assets/fonts/Sora-Regular.ttf
+      - asset: assets/fonts/Sora-Bold.ttf
+        weight: 700
+      - asset: assets/fonts/Sora-ExtraBold.ttf
+        weight: 800

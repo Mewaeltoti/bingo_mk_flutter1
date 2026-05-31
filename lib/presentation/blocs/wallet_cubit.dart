@@ -118,7 +118,18 @@ class WalletCubit extends Cubit<WalletState> {
     _balanceSubscription =
         _bingoRepository.streamBalance(userId).listen((balance) {
       if (state is WalletLoaded) {
-        emit((state as WalletLoaded).copyWith(balance: balance));
+        final current = state as WalletLoaded;
+        // Do NOT forward statusMessage — balance stream ticks should
+        // silently clear any lingering error banner.
+        emit(WalletLoaded(
+          balance: balance,
+          deposits: current.deposits,
+          withdrawals: current.withdrawals,
+          bankAccounts: current.bankAccounts,
+          limits: current.limits,
+          isActionLoading: current.isActionLoading,
+          statusMessage: null,
+        ));
       } else if (state is WalletInitial) {
         loadWallet();
       }

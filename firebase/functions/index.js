@@ -20,8 +20,8 @@ exports.cancelGame = onCall({ cors: true }, (request) => require("./cartelaServi
 exports.removeCard = onCall({ cors: true }, (request) => require("./cartelaService").removeCard(request));
 
 // Atomic withdrawal with balance reservation (double-spend prevention)
-exports.createWithdrawal = onCall({ cors: true }, (request) => require("../src/createWithdrawal").createWithdrawal(request));
-
+// ✅ New — just re-export directly
+exports.createWithdrawal = require("./createWithdrawal").createWithdrawal;
 // Game Engine (v1 triggers/schedule - lazy loaded)
 const functions = require("firebase-functions/v1");
 

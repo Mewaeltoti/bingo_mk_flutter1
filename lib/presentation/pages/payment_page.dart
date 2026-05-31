@@ -17,6 +17,9 @@ class _PaymentPageState extends State<PaymentPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  // Track shown rejection dialogs so they don't re-fire on every state rebuild
+  final _shownRejections = <String>{};
+
   // Deposit form
   final _depositAmountController = TextEditingController();
   final _referenceController = TextEditingController();
@@ -146,9 +149,14 @@ class _PaymentPageState extends State<PaymentPage>
         listener: (context, state) {
           if (state is WalletLoaded) {
             for (var dep in state.deposits) {
-              if (dep['status'] == 'rejected') {
+              final depId = dep['id'] as String? ?? '';
+              if (dep['status'] == 'rejected' &&
+                  depId.isNotEmpty &&
+                  !_shownRejections.contains(depId)) {
+                _shownRejections.add(depId);
                 final reason = dep['rejectionReason'] ?? 'Unknown error';
                 WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
                   _showRejectionDialog(
                     context,
                     'Deposit',
@@ -156,16 +164,21 @@ class _PaymentPageState extends State<PaymentPage>
                     reason,
                     () => context
                         .read<WalletCubit>()
-                        .deleteTransaction('deposits', dep['id']),
+                        .deleteTransaction('deposits', depId),
                   );
                 });
                 break;
               }
             }
             for (var wth in state.withdrawals) {
-              if (wth['status'] == 'rejected') {
+              final wthId = wth['id'] as String? ?? '';
+              if (wth['status'] == 'rejected' &&
+                  wthId.isNotEmpty &&
+                  !_shownRejections.contains(wthId)) {
+                _shownRejections.add(wthId);
                 final reason = wth['rejectionReason'] ?? 'Unknown error';
                 WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
                   _showRejectionDialog(
                     context,
                     'Withdrawal',
@@ -173,7 +186,7 @@ class _PaymentPageState extends State<PaymentPage>
                     reason,
                     () => context
                         .read<WalletCubit>()
-                        .deleteTransaction('withdrawals', wth['id']),
+                        .deleteTransaction('withdrawals', wthId),
                   );
                 });
                 break;
@@ -196,6 +209,32 @@ class _PaymentPageState extends State<PaymentPage>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildBalanceCard(state.balance),
+                    if (state.statusMessage != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: AppColors.danger.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline,
+                                color: AppColors.danger, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                state.statusMessage!,
+                                style: const TextStyle(
+                                    color: AppColors.danger, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     _buildTabs(),
                     const SizedBox(height: 14),
@@ -554,21 +593,24 @@ class _PaymentPageState extends State<PaymentPage>
 
             if (amtErr != null || refErr != null) return;
 
-            context
-                .read<WalletCubit>()
-                .deposit(amt, activeBank, ref);
-            _depositAmountController.clear();
-            _referenceController.clear();
-            setState(() {
-              _depositAmountError = null;
-              _referenceError = null;
+            context.read<WalletCubit>().deposit(amt, activeBank, ref).then((_) {
+              if (!mounted) return;
+              // Only clear if no error message was set (success)
+              final s = context.read<WalletCubit>().state;
+              if (s is WalletLoaded && s.statusMessage == null) {
+                _depositAmountController.clear();
+                _referenceController.clear();
+                setState(() {
+                  _depositAmountError = null;
+                  _referenceError = null;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Deposit submitted — auto-matching in progress…'),
+                  backgroundColor: AppColors.success,
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
             });
-
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Deposit submitted — auto-matching in progress…'),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-            ));
           },
         ),
       ],
@@ -645,21 +687,23 @@ class _PaymentPageState extends State<PaymentPage>
 
             if (amtErr != null || accErr != null) return;
 
-            context
-                .read<WalletCubit>()
-                .withdraw(amt, activeBank, acc);
-            _withdrawAmountController.clear();
-            _accountController.clear();
-            setState(() {
-              _withdrawAmountError = null;
-              _accountError = null;
+            context.read<WalletCubit>().withdraw(amt, activeBank, acc).then((_) {
+              if (!mounted) return;
+              final s = context.read<WalletCubit>().state;
+              if (s is WalletLoaded && s.statusMessage == null) {
+                _withdrawAmountController.clear();
+                _accountController.clear();
+                setState(() {
+                  _withdrawAmountError = null;
+                  _accountError = null;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Withdrawal request submitted!'),
+                  backgroundColor: AppColors.success,
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
             });
-
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Withdrawal request submitted!'),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-            ));
           },
         ),
       ],
@@ -1114,9 +1158,9 @@ class _PaymentPageState extends State<PaymentPage>
   String _formatTimestamp(dynamic ts) {
     if (ts == null) return '—';
     try {
-      // Firestore Timestamp
-      final dt = (ts as dynamic).toDate() as DateTime;
-      return '${dt.day}/${dt.month}/${dt.year}  ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      final dt = ts is DateTime ? ts : (ts as dynamic).toDate() as DateTime;
+      return '${dt.day}/${dt.month}/${dt.year}  '
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return ts.toString();
     }
