@@ -13,9 +13,9 @@
 migrate_working_dir/
 
 # Firebase — never commit these
-google-services.json
+
 GoogleService-Info.plist
-lib/firebase_options.dart
+
 config.json
 
 # IntelliJ related
