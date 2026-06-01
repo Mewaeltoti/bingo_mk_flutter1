@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../blocs/wallet_cubit.dart';
 import '../../core/theme/app_theme.dart';
 import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 class _C {
@@ -117,7 +118,7 @@ class _PaymentPageState extends State<PaymentPage>
         content: Row(children: [
           const Icon(Icons.check_circle_rounded, color: _C.success, size: 18),
           const SizedBox(width: 8),
-          Text('$label copied', style: _T.body(size: 13, weight: FontWeight.w600)),
+          Text('${label}${S.copied}', style: _T.body(size: 13, weight: FontWeight.w600)),
         ]),
         backgroundColor: _C.cardHigh,
         behavior: SnackBarBehavior.floating,
@@ -132,7 +133,7 @@ class _PaymentPageState extends State<PaymentPage>
     final n = double.tryParse(v);
     String? e;
     if (v.isNotEmpty) {
-      if (n == null || n <= 0) e = 'Enter a valid number';
+      if (n == null || n <= 0) e = S.enterValidNumber;
       else if (n < l.minDeposit) e = 'Min ${l.minDeposit.toStringAsFixed(0)} ETB';
       else if (n > l.maxDeposit) e = 'Max ${l.maxDeposit.toStringAsFixed(0)} ETB';
     }
@@ -143,10 +144,10 @@ class _PaymentPageState extends State<PaymentPage>
     final n = double.tryParse(v);
     String? e;
     if (v.isNotEmpty) {
-      if (n == null || n <= 0) e = 'Enter a valid number';
+      if (n == null || n <= 0) e = S.enterValidNumber;
       else if (n < l.minWithdraw) e = 'Min ${l.minWithdraw.toStringAsFixed(0)} ETB';
       else if (n > l.maxWithdraw) e = 'Max ${l.maxWithdraw.toStringAsFixed(0)} ETB';
-      else if (n > bal) e = 'Insufficient balance';
+      else if (n > bal) e = S.insufficientBalance;
     }
     setState(() => _withdrawAmountError = e);
   }
@@ -202,7 +203,7 @@ class _PaymentPageState extends State<PaymentPage>
                                 onBankChanged: (v) => setState(() => _selectedDepositBank = v),
                                 onAmountChanged: (v) => _validateDepositAmt(v, state.limits),
                                 onReferenceChanged: (v) => setState(() =>
-                                    _referenceError = v.trim().isEmpty ? 'Reference required' : null),
+                                    _referenceError = v.trim().isEmpty ? S.referenceRequired : null),
                                 onCopy: _copy,
                                 onSubmit: () => _submitDeposit(state),
                               ),
@@ -216,7 +217,7 @@ class _PaymentPageState extends State<PaymentPage>
                                 onBankChanged: (v) => setState(() => _selectedWithdrawBank = v),
                                 onAmountChanged: (v) => _validateWithdrawAmt(v, state.limits, state.balance),
                                 onAccountChanged: (v) => setState(() =>
-                                    _accountError = v.trim().isEmpty ? 'Account required' : null),
+                                    _accountError = v.trim().isEmpty ? S.accountRequired : null),
                                 onSubmit: () => _submitWithdraw(state),
                               ),
                             ],
@@ -237,7 +238,7 @@ class _PaymentPageState extends State<PaymentPage>
                 Text(state.message, style: _T.body(color: _C.textMid), textAlign: TextAlign.center),
                 const SizedBox(height: 24),
                 _GoldButton(
-                  label: 'RETRY',
+                  label: S.retry,
                   onTap: () => context.read<WalletCubit>().loadWallet(),
                 ),
               ]),
@@ -257,7 +258,7 @@ class _PaymentPageState extends State<PaymentPage>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _showRejectionDialog(context, 'Deposit', dep['amount'],
-              dep['rejectionReason'] ?? 'Unknown',
+              dep['rejectionReason'] ?? S.unknown,
               () => context.read<WalletCubit>().deleteTransaction('deposits', id));
         });
         break;
@@ -270,7 +271,7 @@ class _PaymentPageState extends State<PaymentPage>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _showRejectionDialog(context, 'Withdrawal', wth['amount'],
-              wth['rejectionReason'] ?? 'Unknown',
+              wth['rejectionReason'] ?? S.unknown,
               () => context.read<WalletCubit>().deleteTransaction('withdrawals', id));
         });
         break;
@@ -290,7 +291,7 @@ class _PaymentPageState extends State<PaymentPage>
     final amtErr = amt <= 0 ? 'Enter a valid amount'
         : (amt < state.limits.minDeposit ? 'Min ${state.limits.minDeposit.toStringAsFixed(0)} ETB'
         : (amt > state.limits.maxDeposit ? 'Max ${state.limits.maxDeposit.toStringAsFixed(0)} ETB' : null));
-    final refErr = ref.isEmpty ? 'Reference required' : null;
+    final refErr = ref.isEmpty ? S.referenceRequired : null;
     setState(() { _depositAmountError = amtErr; _referenceError = refErr; });
     if (amtErr != null || refErr != null) return;
 
@@ -301,7 +302,7 @@ class _PaymentPageState extends State<PaymentPage>
       _depositAmountCtrl.clear(); _referenceCtrl.clear();
       setState(() { _depositAmountError = null; _referenceError = null; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Deposit submitted — auto-matching in progress…', style: _T.body(size: 13)),
+        content: Text(S.depositSubmitted, style: _T.body(size: 13)),
         backgroundColor: _C.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -322,8 +323,8 @@ class _PaymentPageState extends State<PaymentPage>
     final amtErr = amt <= 0 ? 'Enter a valid amount'
         : (amt < state.limits.minWithdraw ? 'Min ${state.limits.minWithdraw.toStringAsFixed(0)} ETB'
         : (amt > state.limits.maxWithdraw ? 'Max ${state.limits.maxWithdraw.toStringAsFixed(0)} ETB'
-        : (amt > state.balance ? 'Insufficient balance' : null)));
-    final accErr = acc.isEmpty ? 'Account required' : null;
+        : (amt > state.balance ? S.insufficientBalance : null)));
+    final accErr = acc.isEmpty ? S.accountRequired : null;
     setState(() { _withdrawAmountError = amtErr; _accountError = accErr; });
     if (amtErr != null || accErr != null) return;
 
@@ -334,7 +335,7 @@ class _PaymentPageState extends State<PaymentPage>
       _withdrawAmountCtrl.clear(); _accountCtrl.clear();
       setState(() { _withdrawAmountError = null; _accountError = null; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Withdrawal request submitted!', style: _T.body(size: 13)),
+        content: Text(S.withdrawalSubmitted, style: _T.body(size: 13)),
         backgroundColor: _C.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -383,7 +384,7 @@ class _PaymentPageState extends State<PaymentPage>
         actions: [
           TextButton(
             onPressed: () { Navigator.pop(dialogCtx); onDelete(); },
-            child: Text('DISMISS',
+            child: Text(S.dismiss,
                 style: _T.label(size: 12, color: _C.gold, spacing: 1.0)),
           ),
         ],
@@ -426,11 +427,11 @@ class _SliverWalletHeader extends StatelessWidget {
                   color: _C.gold, size: 22),
             ),
             const SizedBox(width: 12),
-            Text('WALLET', style: _T.label(size: 13, color: _C.gold, spacing: 2.5)),
+            Text(S.walletTitle, style: _T.label(size: 13, color: _C.gold, spacing: 2.5)),
           ]),
           const SizedBox(height: 20),
           // Balance
-          Text('Available Balance', style: _T.label(size: 11, color: _C.textLow, spacing: 0.5)),
+          Text(S.availableBalance, style: _T.label(size: 11, color: _C.textLow, spacing: 0.5)),
           const SizedBox(height: 6),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(
@@ -499,7 +500,7 @@ class _TabRow extends StatelessWidget {
       labelStyle: _T.label(size: 12, color: Colors.black, spacing: 1.5),
       unselectedLabelStyle: _T.label(size: 12, color: _C.textMid, spacing: 1.5),
       dividerColor: Colors.transparent,
-      tabs: const [Tab(text: 'DEPOSIT'), Tab(text: 'WITHDRAW')],
+      tabs: const [Tab(text: S.deposit), Tab(text: S.withdraw)],
     ),
   );
 }
@@ -538,9 +539,9 @@ class _DepositTab extends StatelessWidget {
       // Step 1
       _StepCard(
         step: 1,
-        title: 'Copy Account Details',
+        title: S.copyAccountDetails,
         child: state.bankAccounts.isEmpty
-            ? _EmptyInfo('No payment accounts configured')
+            ? _EmptyInfo(S.noPaymentAccounts)
             : Column(
                 children: state.bankAccounts.map((a) {
                   final bank   = a['bank'] as String? ?? '';
@@ -557,11 +558,11 @@ class _DepositTab extends StatelessWidget {
       // Step 2
       _StepCard(
         step: 2,
-        title: 'Submit Reference',
+        title: S.submitReference,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (banks.isNotEmpty) ...[
             _WalletDropdown(
-              label: 'Bank Paid To',
+              label: S.bankPaidTo,
               value: banks.contains(activeBank) ? activeBank : banks.first,
               items: banks,
               onChanged: onBankChanged,
@@ -571,7 +572,7 @@ class _DepositTab extends StatelessWidget {
           ],
           _WalletField(
             controller: amountCtrl,
-            hint: 'Amount sent (ETB)',
+            hint: S.amountSent,
             icon: Icons.monetization_on_rounded,
             inputType: TextInputType.number,
             errorText: amountError,
@@ -580,18 +581,18 @@ class _DepositTab extends StatelessWidget {
           const SizedBox(height: 10),
           _WalletField(
             controller: referenceCtrl,
-            hint: 'Transaction reference / FT number',
+            hint: S.transactionRef,
             icon: Icons.receipt_long_rounded,
             errorText: referenceError,
             onChanged: onReferenceChanged,
           ),
           const SizedBox(height: 16),
-          _GoldButton(label: 'SUBMIT DEPOSIT', onTap: onSubmit),
+          _GoldButton(label: S.submitDeposit, onTap: onSubmit),
         ]),
       ),
       const SizedBox(height: 20),
       _HistorySection(
-          title: 'Deposit History',
+          title: S.depositHistory,
           items: state.deposits,
           isDeposit: true),
     ]);
@@ -630,11 +631,11 @@ class _WithdrawTab extends StatelessWidget {
       const SizedBox(height: 20),
       _StepCard(
         step: null,
-        title: 'Withdrawal Details',
+        title: S.withdrawalDetails,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (banks.isNotEmpty) ...[
             _WalletDropdown(
-              label: 'Withdrawal Bank',
+              label: S.withdrawalBank,
               value: banks.contains(activeBank) ? activeBank : banks.first,
               items: banks,
               onChanged: onBankChanged,
@@ -644,7 +645,7 @@ class _WithdrawTab extends StatelessWidget {
           ],
           _WalletField(
             controller: amountCtrl,
-            hint: 'Amount (ETB)',
+            hint: S.amount,
             icon: Icons.monetization_on_rounded,
             inputType: TextInputType.number,
             errorText: amountError,
@@ -653,18 +654,18 @@ class _WithdrawTab extends StatelessWidget {
           const SizedBox(height: 10),
           _WalletField(
             controller: accountCtrl,
-            hint: 'Your account / phone number',
+            hint: S.accountPhone,
             icon: Icons.account_box_rounded,
             errorText: accountError,
             onChanged: onAccountChanged,
           ),
           const SizedBox(height: 16),
-          _GoldButton(label: 'REQUEST WITHDRAWAL', onTap: onSubmit),
+          _GoldButton(label: S.requestWithdrawal, onTap: onSubmit),
         ]),
       ),
       const SizedBox(height: 20),
       _HistorySection(
-          title: 'Withdrawal History',
+          title: S.withdrawalHistory,
           items: state.withdrawals,
           isDeposit: false),
     ]);

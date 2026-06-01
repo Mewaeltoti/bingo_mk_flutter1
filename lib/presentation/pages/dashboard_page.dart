@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import 'game_page.dart';
 import 'login_page.dart';
 import 'signup_page.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -76,7 +77,7 @@ class DashboardPage extends StatelessWidget {
           return Column(
             children: [
               _buildBigButton(
-                label: 'PLAY NOW',
+                label: S.playNow,
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -90,7 +91,7 @@ class DashboardPage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _buildSmallButton(
-                      label: 'Wallet',
+                      label: S.wallet,
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -108,7 +109,7 @@ class DashboardPage extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildSmallButton(
-                      label: 'Logout',
+                      label: S.logout,
                       onPressed: () => context.read<AuthCubit>().logout(),
                       color: Colors.redAccent.withOpacity(0.1),
                       textColor: Colors.redAccent,
@@ -123,7 +124,7 @@ class DashboardPage extends StatelessWidget {
         return Column(
           children: [
             _buildBigButton(
-              label: 'SIGN IN',
+              label: S.signInBtn,
               onPressed: () {
                 Navigator.push(
                   context,
@@ -139,7 +140,7 @@ class DashboardPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _buildBigButton(
-              label: 'SIGN UP',
+              label: S.signUpBtn,
               onPressed: () {
                 Navigator.push(
                   context,

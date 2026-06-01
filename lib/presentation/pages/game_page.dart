@@ -17,6 +17,7 @@ import '../widgets/game/horizontal_badge_list.dart';
 import '../widgets/game/winning_card_dialog.dart';
 import '../widgets/game/card_transparency_dialog.dart';
 import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 class _C {
@@ -162,7 +163,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
             if (!_shownWinSnack) {
               _shownWinSnack = true;
               ScaffoldMessenger.of(context).showSnackBar(
-                _styledSnack('🎉 YOU WON!', _C.success),
+                _styledSnack(S.youWon, _C.success),
               );
             }
             if (!_shownDialog) {
@@ -321,7 +322,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
               HorizontalBadgeList(
                 icon: Icons.emoji_events_rounded,
                 color: _C.gold,
-                label: 'WINNERS',
+                label: S.winners,
                 items: state.winners,
                 onItemTap: (item) => showCardTransparencyDialog(
                     context, item, state, isWinner: true),
@@ -330,7 +331,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
               HorizontalBadgeList(
                 icon: Icons.hourglass_empty_rounded,
                 color: _C.warning,
-                label: 'PENDING',
+                label: S.pending,
                 items: state.pendingClaims,
                 onItemTap: (item) => showCardTransparencyDialog(
                     context, item, state, isWinner: false),
@@ -339,7 +340,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
               HorizontalBadgeList(
                 icon: Icons.assignment_turned_in_rounded,
                 color: _C.blueLight,
-                label: 'CLAIMS',
+                label: S.claims,
                 items: state.claimedCardIds,
                 onItemTap: (item) => showCardTransparencyDialog(
                     context, item, state, isWinner: false),
@@ -348,7 +349,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
               HorizontalBadgeList(
                 icon: Icons.block_rounded,
                 color: _C.danger,
-                label: 'BLOCKED',
+                label: S.blocked,
                 items: state.blockedCardIds.toList(),
                 onItemTap: (item) => showCardTransparencyDialog(
                     context, item, state, isBlocked: true),
@@ -486,7 +487,7 @@ class _ControlsRow extends StatelessWidget {
       // Auto daub
       const Icon(Icons.brightness_auto_rounded, color: _C.gold, size: 16),
       const SizedBox(width: 8),
-      Text('AUTO-DAUB', style: _T.label(size: 10, color: _C.textMid, spacing: 1.2)),
+      Text(S.autoDaub, style: _T.label(size: 10, color: _C.textMid, spacing: 1.2)),
       const SizedBox(width: 10),
       _GlowToggle(
         value: autoDaub,
@@ -498,7 +499,7 @@ class _ControlsRow extends StatelessWidget {
         onTap: onExpandToggle,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text(
-            expanded ? 'COMPACT' : 'FULL BOARD',
+            expanded ? S.compact : S.fullBoard,
             style: _T.label(size: 10, color: _C.blueLight, spacing: 1.0),
           ),
           const SizedBox(width: 4),
@@ -604,7 +605,7 @@ class _ClaimTimerWidgetState extends State<_ClaimTimerWidget> {
         Icon(Icons.timer_rounded, color: color, size: 20),
         const SizedBox(width: 10),
         Text(
-          'CLAIM WINDOW: ',
+          S.claimWindow,
           style: _T.label(size: 12, color: color.withOpacity(0.8), spacing: 1.0),
         ),
         Text(
@@ -692,7 +693,7 @@ class _BuySheet extends StatelessWidget {
         ),
 
         // Title
-        Text('BUY CARTELAS',
+        Text(S.buyCartelas,
             style: _T.display.copyWith(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -772,7 +773,7 @@ class _CardCountChip extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            count == 1 ? 'CARD' : 'CARDS',
+            count == 1 ? S.card : S.cards,
             style: _T.label(size: 9, color: textColor, spacing: 0.8),
           ),
           const SizedBox(height: 4),

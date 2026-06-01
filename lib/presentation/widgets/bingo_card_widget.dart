@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../domain/entities/bingo_card.dart';
 import '../../core/theme/app_theme.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 class BingoCardWidget extends StatelessWidget {
   final BingoCard card;
@@ -53,7 +54,7 @@ class BingoCardWidget extends StatelessWidget {
           border: Border.all(color: AppColors.danger),
         ),
         child: const Text(
-          'Invalid Bingo Card Data',
+          S.invalidCardData,
           style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
         ),
       );
@@ -243,7 +244,7 @@ class BingoCardWidget extends StatelessWidget {
                                               } else {
                                                 ScaffoldMessenger.of(context).showSnackBar(
                                                   const SnackBar(
-                                                    content: Text("Registration is only allowed during the Buying Phase!"),
+                                                    content: Text(S.buyingPhaseOnly),
                                                     behavior: SnackBarBehavior.floating,
                                                   ),
                                                 );
@@ -254,7 +255,7 @@ class BingoCardWidget extends StatelessWidget {
                                             if (canClaim) {
                                               onBingoClaim!();
                                             } else {
-                                              String msg = "Game hasn't started drawing numbers yet!";
+                                              String msg = S.notStartedYet;
                                               if (isExpired) {
                                                 msg = "Bingo claim window has closed.";
                                               } else if (drawnNumbers.isEmpty) {

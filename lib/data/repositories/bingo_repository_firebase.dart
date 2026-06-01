@@ -595,6 +595,50 @@ Future<List<int>> fetchDrawnNumbers(String sessionId) async {
     }
     await batch.commit();  // 1 round-trip instead of N
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DELETE CARDS FOR SESSION
+  // Permanently removes every card that belongs to [userId] for [sessionId].
+  // Called by GameCubit when a session finishes or is canceled so stale cards
+  // never bleed into the next game.
+  // ─────────────────────────────────────────────────────────────────────────
+  @override
+  Future<void> deleteCardsForSession(String userId, String sessionId) async {
+    if (sessionId.isEmpty) return;
+    try {
+      final snap = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('cards')
+          .where('sessionId', isEqualTo: sessionId)
+          .get();
+
+      if (snap.docs.isEmpty) return;
+
+      // Firestore batch allows up to 500 deletes per commit.
+      const int batchSize = 500;
+      var batch = _firestore.batch();
+      int ops = 0;
+
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+        ops++;
+        if (ops == batchSize) {
+          await batch.commit();
+          batch = _firestore.batch();
+          ops = 0;
+        }
+      }
+      if (ops > 0) await batch.commit();
+
+      Log.i('deleteCardsForSession: deleted \${snap.docs.length} card(s) '
+            'for session \$sessionId');
+    } catch (e) {
+      Log.e('deleteCardsForSession failed', e);
+      // Non-fatal — worst case the cards remain but are filtered by sessionId.
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // PRIVATE: Map raw Firestore data → camelCase for GameCubit
   // ─────────────────────────────────────────────────────────────────────────

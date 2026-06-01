@@ -4,6 +4,7 @@ import 'package:animate_do/animate_do.dart';
 import '../../../domain/entities/bingo_card.dart';
 import '../../blocs/game_cubit.dart';
 import '../bingo_card_widget.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 void showWinningCardDialog(BuildContext context, GameLoaded state) {
   if (state.winningCardNo == null || state.winningCardNumbers == null) return;
@@ -43,7 +44,7 @@ void showWinningCardDialog(BuildContext context, GameLoaded state) {
             card: mockCard,
             drawnNumbers: state.drawnNumbers.toSet(),
             markedCells: winningMarks,
-            label: "WINNING CARD",
+            label: S.winningCard,
           ),
         ),
       ),

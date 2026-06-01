@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../blocs/game_cubit.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 // ─── Design tokens (local, matches game_page) ─────────────────────────────────
 class _C {
@@ -125,7 +126,7 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
                 child: _StatTile(
                   icon: Icons.attach_money_rounded,
                   iconColor: _C.success,
-                  label: 'CARD PRICE',
+                  label: S.cardPrice,
                   value: '${s.gamePrice.toInt()} ETB',
                   valueColor: _C.success,
                 ),
@@ -135,7 +136,7 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
                 child: _StatTile(
                   icon: Icons.style_rounded,
                   iconColor: _C.blueLight,
-                  label: 'YOUR CARDS',
+                  label: S.yourCards,
                   value: '${s.userCards.length}',
                   valueColor: _C.blueLight,
                 ),
@@ -160,7 +161,7 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
               child: Row(children: [
                 const Icon(Icons.emoji_events_rounded, color: _C.gold, size: 20),
                 const SizedBox(width: 10),
-                Text('PRIZE POOL',
+                Text(S.prizePool,
                     style: _T.label(size: 11, color: _C.gold.withOpacity(0.7), spacing: 1.0)),
                 const Spacer(),
                 Text(
@@ -180,7 +181,7 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
               _CountdownBanner(
                 deadline: s.startTime!.toLocal().add(const Duration(minutes: 2)),
                 icon: Icons.shopping_bag_outlined,
-                label: 'BUYING ENDS IN',
+                label: S.buyingEndsIn,
                 dangerThreshold: 15,
               ),
             ],
@@ -189,7 +190,7 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
               _CountdownBanner(
                 deadline: s.claimDeadline!,
                 icon: Icons.timer_outlined,
-                label: 'CLAIM WINDOW',
+                label: S.claimWindowLabel,
                 dangerThreshold: 5,
               ),
             ],

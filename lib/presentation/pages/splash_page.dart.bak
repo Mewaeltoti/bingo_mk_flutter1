@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 class SplashPage extends StatefulWidget {
   final VoidCallback onFinish;
@@ -226,7 +225,7 @@ class _SplashPageState extends State<SplashPage>
                     color: _goldLight, size: 14),
                 const SizedBox(width: 6),
                 Text(
-                  S.authorizedOnly,
+                  'AUTHORIZED ACCESS ONLY',
                   style: TextStyle(
                     color: _textMuted.withOpacity(0.4),
                     fontSize: 11,
@@ -262,7 +261,7 @@ class _SplashPageState extends State<SplashPage>
                 transform: _ShimmerTransform(_shimmerAnim.value),
               ).createShader(bounds),
               child: const Text(
-                S.bingo,
+                'BINGO',
                 style: TextStyle(
                   fontFamily: 'BebasNeue',
                   fontSize: 88,
@@ -278,7 +277,7 @@ class _SplashPageState extends State<SplashPage>
 
         // MK text in gold
         const Text(
-          S.mk,
+          'MK',
           style: TextStyle(
             fontFamily: 'BebasNeue',
             fontSize: 72,
@@ -334,7 +333,7 @@ class _SplashPageState extends State<SplashPage>
           ),
           const SizedBox(height: 14),
           Text(
-            progress < 1.0 ? S.establishingSecurity : S.ready,
+            progress < 1.0 ? 'ESTABLISHING SECURITY' : 'READY',
             style: TextStyle(
               color: _textMuted.withOpacity(0.6),
               fontSize: 11,
@@ -377,7 +376,7 @@ class _SplashPageState extends State<SplashPage>
                   ),
                 ),
                 child: const Text(
-                  S.enterLounge,
+                  'ENTER LOUNGE',
                   style: TextStyle(
                     fontFamily: 'Sora',
                     fontSize: 16,
@@ -391,7 +390,7 @@ class _SplashPageState extends State<SplashPage>
           ),
           const SizedBox(height: 16),
           Text(
-            S.tagline,
+            'Experience the height of professional bingo.',
             style: TextStyle(
               color: _textMuted.withOpacity(0.7),
               fontSize: 13,

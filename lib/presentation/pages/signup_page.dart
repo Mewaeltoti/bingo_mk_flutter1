@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
 import '../widgets/loading_dialog.dart';
 import '../../core/theme/app_theme.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 // ─── Design tokens (shared with payment_page) ────────────────────────────────
 class _C {
@@ -69,17 +70,17 @@ class _SignupPageState extends State<SignupPage> {
     setState(() {
       if (v.isEmpty) { _phoneError = null; return; }
       final clean = v.replaceAll(RegExp(r'[^0-9]'), '');
-      _phoneError = clean.length < 9 ? 'Enter a valid phone number' : null;
+      _phoneError = clean.length < 9 ? S.enterValidPhone : null;
     });
   }
 
   void _validatePassword(String v) {
     setState(() {
       if (v.isEmpty) { _passwordError = null; return; }
-      _passwordError = v.length < 8 ? 'At least 8 characters required' : null;
+      _passwordError = v.length < 8 ? S.atLeast8Chars : null;
       // re-check confirm
       if (_confirmCtrl.text.isNotEmpty) {
-        _confirmError = _confirmCtrl.text != v ? 'Passwords do not match' : null;
+        _confirmError = _confirmCtrl.text != v ? S.passwordsNoMatch : null;
       }
     });
   }
@@ -87,7 +88,7 @@ class _SignupPageState extends State<SignupPage> {
   void _validateConfirm(String v) {
     setState(() {
       if (v.isEmpty) { _confirmError = null; return; }
-      _confirmError = v != _passwordCtrl.text ? 'Passwords do not match' : null;
+      _confirmError = v != _passwordCtrl.text ? S.passwordsNoMatch : null;
     });
   }
 
@@ -98,12 +99,12 @@ class _SignupPageState extends State<SignupPage> {
 
     // Final sweep validation
     final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    final phoneErr    = phone.isEmpty ? 'Phone number required'
-        : (clean.length < 9 ? 'Enter a valid phone number' : null);
-    final passwordErr = password.isEmpty ? 'Password required'
-        : (password.length < 8 ? 'At least 8 characters required' : null);
-    final confirmErr  = confirm.isEmpty ? 'Please confirm password'
-        : (confirm != password ? 'Passwords do not match' : null);
+    final phoneErr    = phone.isEmpty ? S.phoneRequired
+        : (clean.length < 9 ? S.enterValidPhone : null);
+    final passwordErr = password.isEmpty ? S.passwordRequired
+        : (password.length < 8 ? S.atLeast8Chars : null);
+    final confirmErr  = confirm.isEmpty ? S.confirmPassRequired
+        : (confirm != password ? S.passwordsNoMatch : null);
 
     setState(() {
       _phoneError    = phoneErr;
@@ -115,7 +116,7 @@ class _SignupPageState extends State<SignupPage> {
 
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Please confirm you are 18+ and agree to the Terms',
+        content: Text(S.confirmAge,
             style: _T.body(size: 13)),
         backgroundColor: _C.danger,
         behavior: SnackBarBehavior.floating,
@@ -206,7 +207,7 @@ class _SignupPageState extends State<SignupPage> {
       ),
       const SizedBox(height: 20),
       Text(
-        'Create Account',
+        S.createAccount,
         style: _T.mono.copyWith(
           fontSize: 28, fontWeight: FontWeight.bold,
           color: _C.textHigh, letterSpacing: 0.5,
@@ -214,7 +215,7 @@ class _SignupPageState extends State<SignupPage> {
       ),
       const SizedBox(height: 6),
       Text(
-        'Join the Bingo Mekele community',
+        S.joinCommunity,
         style: _T.body(size: 14, color: _C.textLow),
       ),
     ]);
@@ -225,7 +226,7 @@ class _SignupPageState extends State<SignupPage> {
     return Column(children: [
       _SignupField(
         controller: _phoneCtrl,
-        hint: 'Phone number (e.g. 0912…)',
+        hint: S.phoneHint,
         icon: Icons.phone_android_rounded,
         inputType: TextInputType.phone,
         errorText: _phoneError,
@@ -234,7 +235,7 @@ class _SignupPageState extends State<SignupPage> {
       const SizedBox(height: 14),
       _SignupField(
         controller: _passwordCtrl,
-        hint: 'Password',
+        hint: S.passwordHint,
         icon: Icons.lock_outline_rounded,
         isPassword: true,
         obscure: _obscurePassword,
@@ -246,7 +247,7 @@ class _SignupPageState extends State<SignupPage> {
       const SizedBox(height: 14),
       _SignupField(
         controller: _confirmCtrl,
-        hint: 'Confirm password',
+        hint: S.confirmPasswordHint,
         icon: Icons.lock_outline_rounded,
         isPassword: true,
         obscure: _obscureConfirm,
@@ -285,18 +286,18 @@ class _SignupPageState extends State<SignupPage> {
             TextSpan(
               style: _T.body(size: 13, color: _C.textMid),
               children: [
-                const TextSpan(text: 'I confirm I am '),
+                const TextSpan(text: S.iConfirmAge),
                 TextSpan(
-                  text: '18 years or older',
+                  text: S.years18OrOlder,
                   style: _T.body(size: 13, weight: FontWeight.w700),
                 ),
-                const TextSpan(text: ' and agree to the '),
+                const TextSpan(text: S.andAgreeTo),
                 WidgetSpan(
                   alignment: PlaceholderAlignment.middle,
                   child: GestureDetector(
                     onTap: _showTermsDialog,
                     child: Text(
-                      'Terms of Service',
+                      S.termsOfService,
                       style: _T.body(
                         size: 13,
                         color: _C.accent,
@@ -308,7 +309,7 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                 ),
-                const TextSpan(text: '.'),
+                const TextSpan(text: S.agreed),
               ],
             ),
           ),
@@ -336,7 +337,7 @@ class _SignupPageState extends State<SignupPage> {
             ),
             child: Center(
               child: Text(
-                'CREATE ACCOUNT',
+                S.createAccountBtn,
                 style: _T.label(size: 14, color: Colors.black, spacing: 1.8),
               ),
             ),
@@ -349,10 +350,10 @@ class _SignupPageState extends State<SignupPage> {
   // ─── Login link ───────────────────────────────────────────────────────────
   Widget _buildLoginLink(BuildContext context) {
     return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('Already have an account? ', style: _T.body(size: 13, color: _C.textLow)),
+      Text(S.alreadyHaveAccount + ' ', style: _T.body(size: 13, color: _C.textLow)),
       GestureDetector(
         onTap: () => Navigator.pop(context),
-        child: Text('Sign In',
+        child: Text(S.signInLink,
             style: _T.body(size: 13, color: _C.gold, weight: FontWeight.w600)),
       ),
     ]);
@@ -375,24 +376,18 @@ class _SignupPageState extends State<SignupPage> {
             child: const Icon(Icons.gavel_rounded, color: _C.gold, size: 18),
           ),
           const SizedBox(width: 12),
-          Text('Terms of Service', style: _T.body(size: 16, weight: FontWeight.bold)),
+          Text(S.termsOfService, style: _T.body(size: 16, weight: FontWeight.bold)),
         ]),
         content: SingleChildScrollView(
           child: Text(
-            'By using Bingo Mekele you agree to the following:\n\n'
-            '1. You must be at least 18 years old to play.\n\n'
-            '2. This is a real-money game. Only deposit funds you can afford to lose.\n\n'
-            '3. Winnings are subject to verification before payout.\n\n'
-            '4. Fraudulent claims will result in account suspension.\n\n'
-            '5. The operator reserves the right to cancel a session and refund stakes if a technical error occurs.\n\n'
-            '6. Disputes are resolved at the sole discretion of the operator.',
+            S.termsBody,
             style: _T.body(size: 13, color: _C.textMid).copyWith(height: 1.7),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: _T.label(size: 12, color: _C.gold, spacing: 0.5)),
+            child: Text(S.close, style: _T.label(size: 12, color: _C.gold, spacing: 0.5)),
           ),
         ],
       ),

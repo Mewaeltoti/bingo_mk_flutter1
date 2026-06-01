@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../blocs/auth_cubit.dart';
 import '../blocs/wallet_cubit.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 class _C {
@@ -90,7 +91,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   builder: (context, state) {
                     final balance = state is WalletLoaded ? state.balance : 0.0;
                     return Column(children: [
-                      Text('BALANCE', style: _T.label(size: 10, color: _C.textLow, spacing: 2.0)),
+                      Text(S.balance, style: _T.label(size: 10, color: _C.textLow, spacing: 2.0)),
                       const SizedBox(height: 4),
                       Text(
                         '${balance.toStringAsFixed(2)} ETB',
@@ -114,7 +115,7 @@ class _ProfilePageState extends State<ProfilePage> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // Section label
-                Text('ACCOUNT', style: _T.label(size: 10, color: _C.textLow, spacing: 2.0)),
+                Text(S.account, style: _T.label(size: 10, color: _C.textLow, spacing: 2.0)),
                 const SizedBox(height: 10),
 
                 // Phone tile
@@ -137,7 +138,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     const SizedBox(width: 14),
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('PHONE NUMBER', style: _T.label(size: 9, color: _C.textLow, spacing: 1.0)),
+                      Text(S.phoneNumberLabel, style: _T.label(size: 9, color: _C.textLow, spacing: 1.0)),
                       const SizedBox(height: 3),
                       Text(phone, style: _T.body(size: 15, weight: FontWeight.w800)),
                     ]),
@@ -172,7 +173,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       const Icon(Icons.logout_rounded, color: _C.danger, size: 18),
                       const SizedBox(width: 10),
-                      Text('SIGN OUT', style: _T.label(size: 13, color: _C.danger, spacing: 1.5)),
+                      Text(S.signOut, style: _T.label(size: 13, color: _C.danger, spacing: 1.5)),
                     ]),
                   ),
                 ),

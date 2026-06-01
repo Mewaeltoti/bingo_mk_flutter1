@@ -324,6 +324,22 @@ class GameCubit extends Cubit<GameState> {
         final bool transitionedToBuying =
             newStatus == GameStatus.buying && current.status != GameStatus.buying;
 
+        // When a session ends (won / waiting / canceled) or the session rotates,
+        // permanently delete the user's cards for that session so stale cards
+        // never appear in future games.
+        if ((gameEnded && current.status != newStatus) || sessionChanged) {
+          final sessionToDelete = sessionChanged ? current.sessionId : current.sessionId;
+          if (sessionToDelete.isNotEmpty) {
+            _bingoRepository
+                .deleteCardsForSession(userId, sessionToDelete)
+                .catchError((e) => Log.e('deleteCardsForSession error', e));
+          }
+          // Clear cards from UI state immediately so the user sees an empty hand.
+          if (!isClosed && state is GameLoaded) {
+            emit((state as GameLoaded).copyWith(userCards: []));
+          }
+        }
+
         if (sessionChanged || gameEnded || transitionedToBuying) {
           if (!isClosed) refreshCards();
         }

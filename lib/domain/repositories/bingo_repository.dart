@@ -33,9 +33,15 @@ abstract class BingoRepository {
   Future<List<Map<String, dynamic>>> getTopPlayers();
   Future<List<Map<String, dynamic>>> getPaymentAccounts();
   Future<void> initializeGame();
-}
+
   /// Resets all of the current user's cards from [sessionId] back to
   /// status:'pending' so they appear as available for the next game.
   /// Called by the Flutter client as a belt-and-suspenders fallback
   /// (the Cloud Function is the primary reset path).
   Future<void> resetCardsForSession(String userId, String sessionId);
+
+  /// Permanently deletes ALL cards belonging to [userId] for [sessionId]
+  /// from Firestore. Called when a session finishes (won / waiting / canceled)
+  /// so that stale cards are never shown in a future game.
+  Future<void> deleteCardsForSession(String userId, String sessionId);
+}

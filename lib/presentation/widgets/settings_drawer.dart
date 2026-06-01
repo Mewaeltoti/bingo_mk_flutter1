@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
 import '../blocs/game_cubit.dart';
 import '../../core/services/audio_service.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 class _C {
   static const bg          = Color(0xFF090E1C);
@@ -73,7 +74,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                   child: const Icon(Icons.tune_rounded, color: _C.gold, size: 18),
                 ),
                 const SizedBox(width: 12),
-                Text('Settings',
+                Text(S.settings,
                     style: const TextStyle(
                       fontFamily: 'Orbitron',
                       fontSize: 16,
@@ -93,12 +94,12 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
                 children: [
-                  _SectionLabel('PREFERENCES'),
+                  _SectionLabel(S.preferences),
                   const SizedBox(height: 8),
 
                   _ToggleTile(
                     icon: Icons.volume_up_rounded,
-                    label: 'Sound Effects',
+                    label: S.soundEffects,
                     value: _soundEnabled,
                     onChanged: (v) {
                       setState(() => _soundEnabled = v);
@@ -110,22 +111,22 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                     const SizedBox(height: 8),
                     _ToggleTile(
                       icon: Icons.brightness_auto_rounded,
-                      label: 'Auto-Daub',
+                      label: S.autoDaubSetting,
                       value: isAutoDaub,
                       onChanged: (v) => context.read<GameCubit>().toggleAutoDaub(v),
                     ),
                   ],
 
                   const SizedBox(height: 24),
-                  _SectionLabel('SUPPORT'),
+                  _SectionLabel(S.support),
                   const SizedBox(height: 8),
 
                   _ActionTile(
                     icon: Icons.headset_mic_rounded,
-                    label: 'Contact Support',
+                    label: S.contactSupport,
                     onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Call: +251978187178',
+                        content: Text(S.callSupport,
                             style: _T.body(size: 13)),
                         backgroundColor: _C.surfaceHigh,
                         behavior: SnackBarBehavior.floating,
@@ -162,14 +163,14 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       const Icon(Icons.logout_rounded, color: _C.danger, size: 16),
                       const SizedBox(width: 8),
-                      Text('SIGN OUT',
+                      Text(S.signOut,
                           style: _T.label(size: 12, color: _C.danger, spacing: 1.5)),
                     ]),
                   ),
                 ),
 
                 const SizedBox(height: 12),
-                Text('v1.0.0 · Bingo Mekele by Toti Tech',
+                Text(S.appVersion,
                     style: _T.label(size: 10, color: _C.textLow, spacing: 0.3,
                         weight: FontWeight.w400)),
               ]),

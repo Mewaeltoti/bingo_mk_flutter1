@@ -8,6 +8,7 @@ import '../blocs/auth_cubit.dart';
 import '../blocs/game_cubit.dart';
 import '../blocs/wallet_cubit.dart';
 import '../widgets/loading_dialog.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 class MainContainer extends StatefulWidget {
   const MainContainer({super.key});
@@ -102,17 +103,17 @@ class _MainContainerState extends State<MainContainer> {
               BottomNavigationBarItem(
                 icon: Icon(Icons.sports_esports_outlined, color: unselectedColor),
                 activeIcon: Icon(Icons.sports_esports, color: selectedColor),
-                label: 'Play',
+                label: S.play,
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.account_balance_wallet_outlined, color: unselectedColor),
                 activeIcon: Icon(Icons.account_balance_wallet, color: selectedColor),
-                label: 'Wallet',
+                label: S.wallet,
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline, color: unselectedColor),
                 activeIcon: Icon(Icons.person, color: selectedColor),
-                label: 'Profile',
+                label: S.profile,
               ),
             ],
           ),

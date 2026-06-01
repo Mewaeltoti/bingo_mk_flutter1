@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_cubit.dart';
 import '../widgets/loading_dialog.dart';
 import 'signup_page.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -148,14 +149,14 @@ class _LoginPageState extends State<LoginPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: const [
-                    Text('VIP',
+                    Text(S.vip,
                         style: TextStyle(
                           fontFamily: 'BebasNeue',
                           fontSize: 32,
                           color: _textPrimary,
                           letterSpacing: 4,
                         )),
-                    Text('ACCESS ONLY',
+                    Text(S.accessOnly,
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -177,7 +178,7 @@ class _LoginPageState extends State<LoginPage>
     return Column(
       children: [
         const Text(
-          'BINGO MK',
+          S.bingo + ' MK',
           style: TextStyle(
             fontFamily: 'BebasNeue',
             fontSize: 52,
@@ -188,7 +189,7 @@ class _LoginPageState extends State<LoginPage>
         ),
         const SizedBox(height: 4),
         Text(
-          'PREMIUM GAMING SUITE',
+          S.premiumGamingSuite,
           style: TextStyle(
             fontFamily: 'Sora',
             fontSize: 11,
@@ -222,7 +223,7 @@ class _LoginPageState extends State<LoginPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          const Text('Welcome Back',
+          const Text(S.welcomeBack,
               style: TextStyle(
                 fontFamily: 'Sora',
                 fontSize: 24,
@@ -230,7 +231,7 @@ class _LoginPageState extends State<LoginPage>
                 color: _textPrimary,
               )),
           const SizedBox(height: 4),
-          Text('Access your high-stakes account',
+          Text(S.accessAccount,
               style: TextStyle(
                 color: _textMuted.withOpacity(0.8),
                 fontSize: 14,
@@ -238,7 +239,7 @@ class _LoginPageState extends State<LoginPage>
           const SizedBox(height: 24),
 
           // Phone field
-          _buildFieldLabel('Phone Number'),
+          _buildFieldLabel(S.phoneNumber),
           const SizedBox(height: 8),
           _buildTextField(
             controller: _phoneController,
@@ -253,7 +254,7 @@ class _LoginPageState extends State<LoginPage>
           const SizedBox(height: 8),
           _buildTextField(
             controller: _passwordController,
-            hint: '••••••••',
+            hint: S.passwordHint,
             icon: Icons.lock_outline,
             isPassword: true,
           ),
@@ -269,7 +270,7 @@ class _LoginPageState extends State<LoginPage>
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text('Forgot Password?',
+              child: const Text(S.forgotPassword,
                   style: TextStyle(
                     fontFamily: 'Sora',
                     fontSize: 13,
@@ -290,7 +291,7 @@ class _LoginPageState extends State<LoginPage>
                 child: Divider(color: Color(0x0DFFFFFF), thickness: 1)),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('OR',
+              child: Text(S.or,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -307,13 +308,13 @@ class _LoginPageState extends State<LoginPage>
           Row(children: [
             Expanded(child: _buildAltButton(
               icon: Icons.fingerprint,
-              label: 'Biometrics',
+              label: S.biometrics,
               onTap: () {},
             )),
             const SizedBox(width: 12),
             Expanded(child: _buildAltButton(
               icon: Icons.vpn_key_outlined,
-              label: 'Passkey',
+              label: S.passkey,
               onTap: () {},
             )),
           ]),
@@ -411,7 +412,7 @@ class _LoginPageState extends State<LoginPage>
                 borderRadius: BorderRadius.circular(12)),
           ),
           child: const Text(
-            'SIGN IN',
+            S.signIn,
             style: TextStyle(
               fontFamily: 'Sora',
               fontSize: 16,
@@ -459,7 +460,7 @@ class _LoginPageState extends State<LoginPage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("Don't have an account?",
+        Text(S.noAccount,
             style: TextStyle(
               color: _textMuted.withOpacity(0.8),
               fontSize: 14,
@@ -481,7 +482,7 @@ class _LoginPageState extends State<LoginPage>
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          child: const Text('Sign Up Now',
+          child: const Text(S.signUpNow,
               style: TextStyle(
                 fontFamily: 'Sora',
                 fontSize: 14,

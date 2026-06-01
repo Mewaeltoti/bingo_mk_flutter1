@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 class _C {
   static const surface     = Color(0xFF161B2A);
@@ -61,7 +62,7 @@ class LiveBoardWidget extends StatelessWidget {
             const SizedBox(width: 12),
             const Text('·', style: TextStyle(color: _C.textLow)),
             const SizedBox(width: 12),
-            Text('LAST: ',
+            Text(S.last,
                 style: const TextStyle(
                     fontFamily: 'Outfit', color: _C.textLow, fontSize: 11,
                     fontWeight: FontWeight.w700, letterSpacing: 1.0)),
