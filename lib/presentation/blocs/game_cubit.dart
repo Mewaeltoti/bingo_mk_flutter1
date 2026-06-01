@@ -364,7 +364,18 @@ class GameCubit extends Cubit<GameState> {
           markedCells: sessionChanged ? {} : fallbackAutoMarked,
           blockedCardIds: (sessionChanged || gameEnded) ? {} : null,
           drawnNumbers: mergedDrawnNumbers,
-          userCards: current.userCards.where((c) => c.sessionId == newSessionId).toList(),
+          // BUG-FIX (card disappears after activation): Previously this filter
+          // ran on EVERY games/live snapshot, including trivial ones like
+          // cardsSold incrementing during the buying phase.  If the snapshot
+          // fired while registerCard's refreshCards() was still in-flight,
+          // `current.userCards` didn't yet contain the newly-registered card
+          // and the filter dropped it — making the card vanish until the next
+          // refresh.  The sessionId filter is only needed when the session
+          // actually changes (to discard cards from the old session); on normal
+          // in-session snapshots we leave userCards untouched.
+          userCards: sessionChanged
+              ? current.userCards.where((c) => c.sessionId == newSessionId).toList()
+              : null, // null → copyWith keeps the existing userCards
           // Use the resolved value (suppressed when session just changed/ended).
           allBlockedCardNos: resolvedBlockedCardNos,
         ));
