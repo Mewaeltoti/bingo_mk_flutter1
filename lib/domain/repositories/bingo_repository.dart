@@ -40,6 +40,10 @@ abstract class BingoRepository {
   /// (the Cloud Function is the primary reset path).
   Future<void> resetCardsForSession(String userId, String sessionId);
 
+  /// Writes a card number to games/live.blockedCardNos so all players
+  /// can see blocked badges in real-time.
+  Future<void> broadcastBlockedCard(int cardNo);
+
   /// Permanently deletes ALL cards belonging to [userId] for [sessionId]
   /// from Firestore. Called when a session finishes (won / waiting / canceled)
   /// so that stale cards are never shown in a future game.

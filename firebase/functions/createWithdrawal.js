@@ -42,19 +42,15 @@ exports.createWithdrawal = onCall({ cors: true }, async (request) => {
     }
     const balance = userSnap.data().balance ?? 0;
 
-    const pendingSnap = await tx.get(
-      withdrawalsRef.where('status', 'in', ['pending', 'approved'])
-    );
-    const pendingTotal = pendingSnap.docs.reduce(
-      (sum, d) => sum + (d.data().amount ?? 0),
-      0
-    );
-
-    const available = balance - pendingTotal;
-    if (available < amount) {
+    // Simple balance check — the trigger already deducts balance atomically
+    // when it sets isReserved=true, so the live balance IS the available balance.
+    // Do NOT subtract pending withdrawals here — they were already deducted
+    // from balance by the trigger, so subtracting them again would
+    // double-count and wrongly block legitimate withdrawals.
+    if (balance < amount) {
       throw new HttpsError(
         'failed-precondition',
-        `Insufficient balance. Available: ${available.toFixed(2)} ETB, ` +
+        `Insufficient balance. Available: ${balance.toFixed(2)} ETB, ` +
         `Requested: ${amount.toFixed(2)} ETB.`
       );
     }
@@ -65,8 +61,12 @@ exports.createWithdrawal = onCall({ cors: true }, async (request) => {
       bank,
       accountNumber,
       status: 'pending',
-      isReserved: true,
-      reservedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // isReserved starts FALSE — the onWithdrawalCreated trigger is the ONLY
+      // place that sets it to true, and only after it has actually deducted the
+      // balance.  If we wrote true here, a fast admin rejection would see
+      // isReserved=true and trigger a refund BEFORE the balance was ever
+      // deducted, crediting the user an extra amount (e.g. 100 → 150).
+      isReserved: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   });

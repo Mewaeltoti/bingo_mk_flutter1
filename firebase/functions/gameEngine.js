@@ -76,6 +76,7 @@ exports.drawNumberLoopHandler = async (context) => {
                         winningCardNo: null,
                         winningCardNumbers: null,
                         winners: [],
+                        blockedCardNos: [],
                         statusMessage: "Waiting for players...",
                         currentNumber: null,
                         drawnNumbers: [],

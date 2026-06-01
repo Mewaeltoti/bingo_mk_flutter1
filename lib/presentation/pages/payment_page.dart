@@ -67,6 +67,7 @@ class _PaymentPageState extends State<PaymentPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _shownRejections = <String>{};
+  String? _lastShownStatusMessage; // BUG-FIX: track to avoid showing same msg twice
 
   final _depositAmountCtrl  = TextEditingController();
   final _referenceCtrl      = TextEditingController();
@@ -160,6 +161,42 @@ class _PaymentPageState extends State<PaymentPage>
         listener: (context, state) {
           if (state is WalletLoaded) {
             _checkRejections(context, state);
+            // BUG-FIX (Bug 2): Show wallet errors (e.g. "Withdrawal failed:
+            // Insufficient balance") as a visible snackbar. Previously the
+            // inline _StatusBanner was easy to miss. We also deduplicate so the
+            // same message doesn't flash repeatedly on balance stream ticks.
+            final msg = state.statusMessage;
+            if (msg != null && msg.isNotEmpty && msg != _lastShownStatusMessage) {
+              _lastShownStatusMessage = msg;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                final isError = msg.toLowerCase().contains('failed') ||
+                    msg.toLowerCase().contains('error') ||
+                    msg.toLowerCase().contains('insufficient') ||
+                    msg.toLowerCase().contains('denied');
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(children: [
+                      Icon(
+                        isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
+                        color: isError ? Colors.red[300] : _C.success,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(msg, style: _T.body(size: 13, weight: FontWeight.w600))),
+                    ]),
+                    backgroundColor: _C.cardHigh,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    duration: Duration(seconds: isError ? 4 : 2),
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  ),
+                );
+              });
+            } else if (msg == null) {
+              _lastShownStatusMessage = null;
+            }
           }
         },
         builder: (context, state) {
@@ -587,7 +624,7 @@ class _DepositTab extends StatelessWidget {
             onChanged: onReferenceChanged,
           ),
           const SizedBox(height: 16),
-          _GoldButton(label: S.submitDeposit, onTap: onSubmit),
+          _GoldButton(label: S.submitDeposit, onTap: onSubmit, isLoading: state.isActionLoading),
         ]),
       ),
       const SizedBox(height: 20),
@@ -660,7 +697,7 @@ class _WithdrawTab extends StatelessWidget {
             onChanged: onAccountChanged,
           ),
           const SizedBox(height: 16),
-          _GoldButton(label: S.requestWithdrawal, onTap: onSubmit),
+          _GoldButton(label: S.requestWithdrawal, onTap: onSubmit, isLoading: state.isActionLoading),
         ]),
       ),
       const SizedBox(height: 20),
@@ -880,29 +917,45 @@ class _WalletDropdown extends StatelessWidget {
 class _GoldButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
-  const _GoldButton({required this.label, required this.onTap});
+  final bool isLoading;
+  const _GoldButton({required this.label, required this.onTap, this.isLoading = false});
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    borderRadius: BorderRadius.circular(12),
-    child: InkWell(
-      onTap: onTap,
+  Widget build(BuildContext context) {
+    final disabled = isLoading;
+    return Material(
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
-      child: Ink(
-        height: 50,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFD4AF37), Color(0xFFF5CC50)],
+      child: InkWell(
+        onTap: disabled ? null : onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: disabled
+                ? null
+                : const LinearGradient(
+                    colors: [Color(0xFFD4AF37), Color(0xFFF5CC50)],
+                  ),
+            color: disabled ? const Color(0xFF444444) : null,
+            borderRadius: BorderRadius.circular(12),
           ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Text(label,
-              style: _T.label(size: 13, color: Colors.black, spacing: 1.5)),
+          child: Center(
+            child: isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                    ),
+                  )
+                : Text(label,
+                    style: _T.label(size: 13, color: Colors.black, spacing: 1.5)),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 // ─── History section ──────────────────────────────────────────────────────────

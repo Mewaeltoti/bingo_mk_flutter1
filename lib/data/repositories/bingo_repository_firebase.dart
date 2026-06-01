@@ -597,6 +597,26 @@ Future<List<int>> fetchDrawnNumbers(String sessionId) async {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // BROADCAST BLOCKED CARD
+  // Appends the blocked card number to games/live.blockedCardNos so every
+  // connected player sees the blocked badge in real-time via streamGame.
+  // ─────────────────────────────────────────────────────────────────────────
+  @override
+  Future<void> broadcastBlockedCard(int cardNo) async {
+    try {
+      await _firestore
+          .collection('games')
+          .doc('live')
+          .update({
+            'blockedCardNos': FieldValue.arrayUnion([cardNo]),
+          });
+    } catch (e) {
+      Log.e('broadcastBlockedCard failed', e);
+      // Non-fatal — own blocked badge still shows locally.
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // DELETE CARDS FOR SESSION
   // Permanently removes every card that belongs to [userId] for [sessionId].
   // Called by GameCubit when a session finishes or is canceled so stale cards
@@ -690,6 +710,8 @@ Future<List<int>> fetchDrawnNumbers(String sessionId) async {
               .toList(),
       'broadcastMessage':
           row['broadcastMessage'] ?? row['broadcast_message'],
+      'blockedCardNos': List<int>.from(
+          (row['blockedCardNos'] ?? row['blocked_card_nos'] ?? []).map((v) => (v as num).toInt())),
     };
   }
 

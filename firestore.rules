@@ -88,7 +88,12 @@ service cloud.firestore {
                          );
 
         allow create: if false; // registerCard Cloud Function only
-        allow delete: if false; // removeCard  Cloud Function only
+
+        // deleteCardsForSession() is called client-side on session end to
+        // purge stale cards.  Only the card owner may delete their own cards,
+        // and only when the card belongs to them (ownership is implicit through
+        // the /users/{userId}/cards/{cardId} path match above).
+        allow delete: if isAuthenticated() && isOwner(userId);
       }
     }
 
@@ -123,7 +128,16 @@ service cloud.firestore {
     //      state. Tightened to require authentication.
     match /games/live {
       allow read:  if isAuthenticated();
-      allow write: if isAdmin();
+
+      // Full write (create/overwrite) is admin-only.
+      // Narrow update: authenticated players may append to blockedCardNos
+      // (broadcastBlockedCard) — no other field may be changed.
+      allow update: if isAdmin()
+                 || (isAuthenticated()
+                     && request.resource.data.diff(resource.data)
+                          .affectedKeys().hasOnly(['blockedCardNos']));
+
+      allow create, delete: if isAdmin();
     }
 
     // ── Draws sub-collection ─────────────────────────────────────────────────

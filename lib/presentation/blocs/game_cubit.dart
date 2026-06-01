@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/bingo_card.dart';
@@ -55,6 +56,8 @@ class GameLoaded extends GameState {
   final bool isActionLoading;
   final DateTime? claimDeadline;
   final bool isAutoDaubEnabled;
+  /// Card numbers blocked across ALL players this session (from game doc).
+  final List<int> allBlockedCardNos;
 
   GameLoaded({
     required this.drawnNumbers,
@@ -86,6 +89,7 @@ class GameLoaded extends GameState {
     this.isActionLoading = false,
     this.claimDeadline,
     this.isAutoDaubEnabled = true,
+    this.allBlockedCardNos = const [],
   });
 
   List<int> get lastDrawnNumbers {
@@ -100,6 +104,7 @@ class GameLoaded extends GameState {
     winningCardNumbers, sessionId, isPaused, gamePattern, gamePrice,
     prizePool, hasWon, winnerId, status, buyingCountdown, playerCount,
     cardsSoldCount, startTime, statusStr, broadcastMessage, statusMessage,
+    allBlockedCardNos,
     pendingClaims, isActionLoading, claimDeadline, isAutoDaubEnabled,
   ];
 
@@ -133,6 +138,7 @@ class GameLoaded extends GameState {
     bool? isActionLoading,
     Object? claimDeadline = _sentinel,
     bool? isAutoDaubEnabled,
+    List<int>? allBlockedCardNos,
   }) {
     return GameLoaded(
       drawnNumbers: drawnNumbers ?? this.drawnNumbers,
@@ -164,6 +170,7 @@ class GameLoaded extends GameState {
       isActionLoading: isActionLoading ?? this.isActionLoading,
       claimDeadline: claimDeadline == _sentinel ? this.claimDeadline : claimDeadline as DateTime?,
       isAutoDaubEnabled: isAutoDaubEnabled ?? this.isAutoDaubEnabled,
+      allBlockedCardNos: allBlockedCardNos ?? this.allBlockedCardNos,
     );
   }
 }
@@ -181,6 +188,12 @@ class GameCubit extends Cubit<GameState> {
   String _winnersSessionId = '';
   StreamSubscription? _drawsSub;
   StreamSubscription? _connectivitySub;
+  // BUG-FIX (Bug 3): Track the last session ID for which we have already
+  // cleared stale per-session fields (blockedCardNos, winners).  When the
+  // session changes we reset those fields to empty on the first snapshot; on
+  // every subsequent snapshot in the SAME new session we must NOT re-read the
+  // stale Firestore values that the CF may not have cleared yet.
+  String _lastClearedSessionId = '';
 
   GameCubit({required BingoRepository bingoRepository, required this.userId})
       : _bingoRepository = bingoRepository,
@@ -218,7 +231,7 @@ class GameCubit extends Cubit<GameState> {
         _resubscribeWinners(initialSessionId);
       }
 
-      _gameSub = _bingoRepository.streamGame(kLiveGameId).listen((gameData) {
+      _gameSub = _bingoRepository.streamGame(kLiveGameId).listen((gameData) async {
         if (state is! GameLoaded) return;
         final current = state as GameLoaded;
 
@@ -235,6 +248,8 @@ class GameCubit extends Cubit<GameState> {
         final newSessionId = (gameData['sessionId'] ?? '').toString();
         final bool sessionChanged =
             newSessionId != current.sessionId && current.sessionId.isNotEmpty;
+        final bool gameEnded =
+            newStatus == GameStatus.won || newStatus == GameStatus.waiting;
 
         if (newStatus == GameStatus.won && !current.hasWon && gameData['winnerId'] == userId) {
           AudioService().playWin();
@@ -247,6 +262,23 @@ class GameCubit extends Cubit<GameState> {
         }
 
         if (isClosed) return;
+
+        // BUG-FIX (Bug 3): When the session changes, record it so we can
+        // suppress stale blockedCardNos on every subsequent snapshot of the
+        // NEW session — not just the first one.  The CF may leave old data in
+        // games/live for several snapshots after the session ID rotates, so
+        // checking `sessionChanged` alone (which is only true for one snapshot)
+        // is insufficient.  We keep blockedCardNos empty for the entire new
+        // session until the admin explicitly blocks a card in that session.
+        if (sessionChanged && newSessionId.isNotEmpty) {
+          _lastClearedSessionId = newSessionId;
+        }
+        if (gameEnded) {
+          // Also suppress on game-end: CF may not have cleared blockedCardNos
+          // by the time the won/waiting snapshot arrives.
+          _lastClearedSessionId = newSessionId;
+        }
+        final bool suppressStaleBlocked = newSessionId == _lastClearedSessionId;
 
         final gameDocNumbers = sessionChanged
             ? <int>[]
@@ -262,6 +294,13 @@ class GameCubit extends Cubit<GameState> {
           final newNums = mergedDrawnNumbers.sublist(current.drawnNumbers.length).toSet();
           fallbackAutoMarked = _applyAutoDaub(current, newNums);
         }
+
+        // Derive the blocked card numbers for this snapshot.
+        // If we are in suppress mode (new/ended session) always use [].
+        // Otherwise read from Firestore as normal.
+        final List<int> resolvedBlockedCardNos = suppressStaleBlocked
+            ? []
+            : List<int>.from(gameData['blockedCardNos'] ?? []);
 
         emit(current.copyWith(
           status: newStatus,
@@ -283,7 +322,15 @@ class GameCubit extends Cubit<GameState> {
           hasWon: sessionChanged
               ? false
               : (newStatus == GameStatus.won && gameData['winnerId'] == userId),
-          winners: sessionChanged ? [] : null,
+          // Use winningCardNo from games/live immediately so all users see
+          // the winner badge the instant the game ends — before game_history
+          // is written by the CF. _winnersSub will overwrite with full data
+          // once it arrives. Clear on session change as usual.
+          winners: sessionChanged
+              ? []
+              : (newStatus == GameStatus.won && gameData['winningCardNo'] != null
+                  ? [gameData['winningCardNo'].toString()]
+                  : null),
           rawWinnersData: sessionChanged ? [] : null,
           rawClaimsData: sessionChanged
               ? const []
@@ -315,28 +362,35 @@ class GameCubit extends Cubit<GameState> {
                           ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
                           : DateTime.tryParse(gameData['claimDeadline'].toString())))),
           markedCells: sessionChanged ? {} : fallbackAutoMarked,
-          blockedCardIds: sessionChanged ? {} : null,
+          blockedCardIds: (sessionChanged || gameEnded) ? {} : null,
           drawnNumbers: mergedDrawnNumbers,
           userCards: current.userCards.where((c) => c.sessionId == newSessionId).toList(),
+          // Use the resolved value (suppressed when session just changed/ended).
+          allBlockedCardNos: resolvedBlockedCardNos,
         ));
 
-        final bool gameEnded = newStatus == GameStatus.won || newStatus == GameStatus.waiting;
         final bool transitionedToBuying =
             newStatus == GameStatus.buying && current.status != GameStatus.buying;
 
-        // When a session ends (won / waiting / canceled) or the session rotates,
-        // permanently delete the user's cards for that session so stale cards
-        // never appear in future games.
+        // BUG-FIX (Bug 3 continued): Once the game becomes active in this
+        // session, the admin may legitimately block cards. Lift suppression so
+        // real blockedCardNos written by the CF are visible going forward.
+        if (newStatus == GameStatus.active && newSessionId == _lastClearedSessionId) {
+          _lastClearedSessionId = '';
+        }
+
+        // When a session ends (won / waiting / canceled) or the session ID rotates,
+        // delete the user's cards for the OLD session, then refresh.
+        // We await the delete before refreshing so stale blocked cards don't
+        // flash back from Firestore before the delete completes.
         if ((gameEnded && current.status != newStatus) || sessionChanged) {
-          final sessionToDelete = sessionChanged ? current.sessionId : current.sessionId;
+          // Both branches were previously `current.sessionId` — on sessionChanged
+          // we must delete the OLD session (previous value), not the new one.
+          final sessionToDelete = current.sessionId;
           if (sessionToDelete.isNotEmpty) {
-            _bingoRepository
+            await _bingoRepository
                 .deleteCardsForSession(userId, sessionToDelete)
                 .catchError((e) => Log.e('deleteCardsForSession error', e));
-          }
-          // Clear cards from UI state immediately so the user sees an empty hand.
-          if (!isClosed && state is GameLoaded) {
-            emit((state as GameLoaded).copyWith(userCards: []));
           }
         }
 
@@ -384,7 +438,13 @@ class GameCubit extends Cubit<GameState> {
           .where((c) => c.status == 'pending' && c.sessionId == current.sessionId)
           .toList();
       final combinedCards = [...activeDbCards, ...localPendingCards];
-      final mergedBlocked = combinedCards.where((c) => c.isBlocked).map((c) => c.id).toSet();
+      // Only carry blocked state for cards that belong to the CURRENT session —
+      // prevents last-session blocked badges from reappearing after refreshCards()
+      // races with the async deleteCardsForSession call on session change.
+      final mergedBlocked = combinedCards
+          .where((c) => c.isBlocked && c.sessionId == current.sessionId)
+          .map((c) => c.id)
+          .toSet();
 
       emit(current.copyWith(userCards: combinedCards, blockedCardIds: mergedBlocked));
     } catch (e, stack) {
@@ -655,6 +715,11 @@ class GameCubit extends Cubit<GameState> {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
         await _bingoRepository.blockCard(userId, cardId);
+        // Broadcast so other players see the blocked badge.
+        final blockedCard = current.userCards.firstWhereOrNull((card) => card.id == cardId);
+        if (blockedCard != null) {
+          await _bingoRepository.broadcastBlockedCard(blockedCard.cardNo);
+        }
         await refreshCards();
         if (isClosed) return;
         emit((state as GameLoaded).copyWith(
@@ -711,6 +776,9 @@ class GameCubit extends Cubit<GameState> {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..addAll(cardIds);
         await Future.wait(cardIds.map((id) => _bingoRepository.blockCard(userId, id)));
+        // Broadcast all blocked card numbers.
+        final blockedCards = current.userCards.where((card) => cardIds.contains(card.id)).toList();
+        await Future.wait(blockedCards.map((card) => _bingoRepository.broadcastBlockedCard(card.cardNo)));
         await refreshCards();
         if (isClosed) return;
         emit((state as GameLoaded).copyWith(
@@ -860,7 +928,7 @@ class GameCubit extends Cubit<GameState> {
     } else if (s.contains('unauthenticated')) {
       message = 'Session expired. Please sign in again.';
     } else if (s.contains('insufficient balance') || s.contains('insufficient')) {
-      message = e.toString().replaceAll('Exception: ', '');
+      message = '__INSUFFICIENT_BALANCE__';
     } else {
       message = 'Something went wrong. Please try again.';
     }

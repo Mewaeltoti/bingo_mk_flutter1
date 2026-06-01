@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:confetti/confetti.dart';
@@ -156,6 +157,38 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
             }
           } else {
             _lastShownStatusMessage = null;
+          }
+
+          // BUG-FIX: Check statusMessage contains the sentinel (not just equals),
+          // because errors from registerAllPending arrive prefixed, e.g.
+          // "Activation failed: __INSUFFICIENT_BALANCE__". Previously the strict
+          // == check meant those prefixed messages fell through silently and the
+          // user never saw any feedback when they had insufficient balance.
+          final statusMsg = state.statusMessage;
+          if (statusMsg != null && statusMsg.contains('__INSUFFICIENT_BALANCE__')) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _showInsufficientBalanceDialog(context);
+            });
+          } else if (statusMsg != null &&
+              statusMsg.isNotEmpty &&
+              statusMsg != _lastShownStatusMessage) {
+            // Show all other non-empty statusMessages as a snackbar so users
+            // always get visible feedback (e.g. "Activation failed", network
+            // errors, etc.) rather than a silent inline text nobody notices.
+            _lastShownStatusMessage = statusMsg;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(
+                _styledSnack(
+                  statusMsg,
+                  (statusMsg.toLowerCase().contains('failed') ||
+                          statusMsg.toLowerCase().contains('error') ||
+                          statusMsg.toLowerCase().contains('insufficient'))
+                      ? _C.danger
+                      : _C.success,
+                ),
+              );
+            });
           }
 
           if (state.status == GameStatus.won && state.hasWon) {
@@ -318,6 +351,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
             const SizedBox(height: 14),
 
             // Badge lists
+            // In the won state, game_history may not yet be written by the CF,
             if (state.status != GameStatus.buying && state.winners.isNotEmpty)
               HorizontalBadgeList(
                 icon: Icons.emoji_events_rounded,
@@ -345,14 +379,37 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                 onItemTap: (item) => showCardTransparencyDialog(
                     context, item, state, isWinner: false),
               ),
-            if (state.blockedCardIds.isNotEmpty)
+            // Blocked cards: merge all-player broadcast + user's own blocked IDs
+            if (state.allBlockedCardNos.isNotEmpty || state.blockedCardIds.isNotEmpty)
               HorizontalBadgeList(
                 icon: Icons.block_rounded,
                 color: _C.danger,
                 label: S.blocked,
-                items: state.blockedCardIds.toList(),
+                items: [
+                  // Broadcast card numbers visible to all players
+                  ...state.allBlockedCardNos.map((n) => '#$n'),
+                  // User's own blocked card IDs not already shown by cardNo.
+                  // Only show if the card belongs to the current session —
+                  // guards against stale IDs during the session-change race.
+                  ...state.blockedCardIds.where((id) {
+                    final card = state.userCards
+                        .where((c) => c.id == id)
+                        .firstOrNull;
+                    if (card == null) return false; // unknown card → skip
+                    if (card.sessionId != state.sessionId) return false; // wrong session → skip
+                    return !state.allBlockedCardNos.contains(card.cardNo);
+                  }).map((id) {
+                    final card = state.userCards
+                        .where((c) => c.id == id)
+                        .firstOrNull;
+                    return card != null ? '#${card.cardNo}' : id;
+                  }),
+                ].toSet().toList(), // deduplicate
                 onItemTap: (item) => showCardTransparencyDialog(
-                    context, item, state, isBlocked: true),
+                    context,
+                    item.startsWith('#') ? item.substring(1) : item,
+                    state,
+                    isBlocked: true),
               ),
 
             const SizedBox(height: 4),
@@ -396,6 +453,133 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
     duration: const Duration(seconds: 4),
   );
+
+  void _showInsufficientBalanceDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.75),
+      builder: (ctx) => Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 320),
+          margin: const EdgeInsets.symmetric(horizontal: 28),
+          decoration: BoxDecoration(
+            color: _C.bgDeep,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white10),
+            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 24)],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFE63946), Color(0xFFD62828)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.account_balance_wallet_rounded,
+                        color: Colors.white, size: 22),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Insufficient Balance',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ]),
+                ),
+                // Body
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  child: Text(
+                    'You don\'t have enough balance to buy a card.\nDeposit funds to continue playing.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      height: 1.5,
+                      decoration: TextDecoration.none,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                ),
+                // Buttons
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  child: Row(children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.white10,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(color: Colors.white24),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                        ),
+                        child: const Text('Cancel',
+                            style: TextStyle(
+                              color: Colors.white60,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              decoration: TextDecoration.none,
+                            )),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          if (widget.onTabChanged != null) {
+                            widget.onTabChanged!(1);
+                          } else {
+                            final walletCubit = context.read<WalletCubit>();
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => BlocProvider.value(
+                                value: walletCubit,
+                                child: const PaymentPage(),
+                              ),
+                            ));
+                          }
+                        },
+                        style: TextButton.styleFrom(
+                          backgroundColor: _C.blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                        ),
+                        child: const Text('Deposit',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              decoration: TextDecoration.none,
+                            )),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showBuySheet(BuildContext context, GameLoaded state) {
     showModalBottomSheet(

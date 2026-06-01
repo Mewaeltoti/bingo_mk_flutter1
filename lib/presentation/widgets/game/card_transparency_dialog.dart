@@ -66,6 +66,19 @@ void showCardTransparencyDialog(
         }
       }
     }
+
+    // Fallback: if the viewer owns this card, use their local card data
+    // so the owner always sees their real grid on any badge type.
+    if (numbersList.isEmpty) {
+      final ownCard = state.userCards.firstWhere(
+        (c) => c.cardNo.toString() == cardNo || c.id == item,
+        orElse: () => BingoCard(id: '', cardNo: 0, numbers: [], price: 10),
+      );
+      if (ownCard.id.isNotEmpty) {
+        numbersList = ownCard.numbers.expand((row) => row).toList();
+        cardNo = ownCard.cardNo.toString();
+      }
+    }
   }
 
   if (numbersList.length < 25) {
@@ -81,6 +94,10 @@ void showCardTransparencyDialog(
     markedCellSet = state.markedCells[cardNo] ?? state.markedCells[item] ?? {};
   } else if (found != null && found['markedCells'] != null) {
     markedCellSet = Set<String>.from(found['markedCells']);
+  }
+  // Always show the owner's live marked cells (works for all badge types)
+  if (markedCellSet.isEmpty) {
+    markedCellSet = state.markedCells[cardNo] ?? state.markedCells[item] ?? {};
   }
 
   showDialog(
