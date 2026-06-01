@@ -34,3 +34,8 @@ abstract class BingoRepository {
   Future<List<Map<String, dynamic>>> getPaymentAccounts();
   Future<void> initializeGame();
 }
+  /// Resets all of the current user's cards from [sessionId] back to
+  /// status:'pending' so they appear as available for the next game.
+  /// Called by the Flutter client as a belt-and-suspenders fallback
+  /// (the Cloud Function is the primary reset path).
+  Future<void> resetCardsForSession(String userId, String sessionId);

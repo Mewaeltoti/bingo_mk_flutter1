@@ -536,6 +536,56 @@ Future<List<int>> fetchDrawnNumbers(String sessionId) async {
   Future<void> initializeGame() async {
     throw UnimplementedError("Initialization is handled by Cloud Functions.");
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RESET CARDS FOR SESSION
+  // Belt-and-suspenders fallback: the Cloud Function (resetSessionCards.js)
+  // is the primary reset path. This method is called by GameCubit when it
+  // detects a sessionChanged transition so any cards the CF missed (e.g.,
+  // offline users coming back) are still reset on the client side.
+  // ─────────────────────────────────────────────────────────────────────────
+  @override
+  Future<void> resetCardsForSession(String userId, String sessionId) async {
+    if (sessionId.isEmpty) return;
+    try {
+      final snap = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('cards')
+          .where('sessionId', isEqualTo: sessionId)
+          .where('status', isEqualTo: 'registered')
+          .get();
+
+      if (snap.docs.isEmpty) return;
+
+      // Batch all updates into a single round-trip (max 500 ops per batch).
+      const int batchSize = 500;
+      var batch = _firestore.batch();
+      int ops = 0;
+
+      for (final doc in snap.docs) {
+        batch.update(doc.reference, {
+          'status': 'pending',
+          'sessionId': '',
+          'blocked': false,
+        });
+        ops++;
+        if (ops == batchSize) {
+          await batch.commit();
+          batch = _firestore.batch();
+          ops = 0;
+        }
+      }
+      if (ops > 0) await batch.commit();
+
+      Log.i('resetCardsForSession: reset ${snap.docs.length} card(s) '
+            'from session $sessionId');
+    } catch (e) {
+      Log.e('resetCardsForSession failed', e);
+      // Non-fatal — CF is the primary reset; this is a fallback.
+    }
+  }
+
   // In BingoRepositoryFirebase, add a batch version:
   Future<void> blockCards(String userId, List<String> cardIds) async {
     final batch = _firestore.batch();

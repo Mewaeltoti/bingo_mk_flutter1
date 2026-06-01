@@ -646,8 +646,16 @@ class GameCubit extends Cubit<GameState> {
             blockedCardIds: blocked,
             statusMessage: "Invalid claim! Card blocked."));
       } else if (success == true) {
-        emit(current.copyWith(
+        // Immediately add this card to claimedCardIds so the BINGO button
+        // becomes disabled before the next Firestore snapshot arrives.
+        // Without this the button stays enabled and a second tap fires
+        // a duplicate claim request to the Cloud Function.
+        final alreadyClaimed = List<String>.from(
+            (state as GameLoaded).claimedCardIds)
+          ..add(cardId);
+        emit((state as GameLoaded).copyWith(
             isActionLoading: false,
+            claimedCardIds: alreadyClaimed,
             statusMessage: "Bingo claimed! Waiting for other players..."));
       }
     } catch (e, stack) {
@@ -694,8 +702,14 @@ class GameCubit extends Cubit<GameState> {
             blockedCardIds: blocked,
             statusMessage: "Invalid claims! Cards blocked."));
       } else if (success == true) {
-        emit(current.copyWith(
+        // Same as single-claim fix: optimistically add all cardIds to
+        // claimedCardIds so every BINGO button disables immediately.
+        final alreadyClaimed = List<String>.from(
+            (state as GameLoaded).claimedCardIds)
+          ..addAll(cardIds);
+        emit((state as GameLoaded).copyWith(
             isActionLoading: false,
+            claimedCardIds: alreadyClaimed,
             statusMessage: "${cardIds.length} Bingos claimed! Waiting for other players..."));
       }
     } catch (e, stack) {

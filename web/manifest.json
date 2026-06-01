@@ -1,6 +1,6 @@
 {
-    "name": "bingo_mk",
-    "short_name": "bingo_mk",
+    "name": "BingoMk",
+    "short_name": "BingoMk",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

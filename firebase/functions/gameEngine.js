@@ -83,6 +83,13 @@ exports.drawNumberLoopHandler = async (context) => {
                         heartbeat: null,
                         loopId: null
                     });
+
+                    // FIX: reset all active cards from the finished session.
+                    // TTL (expiresAt) only *deletes* cards after 2 hours — it
+                    // does NOT flip status back to 'pending' in time for the
+                    // next game. resetAllRegisteredCards does that immediately.
+                    const cartelaService = require("./cartelaService");
+                    await cartelaService.resetAllRegisteredCards(db);
                 }
             }
             

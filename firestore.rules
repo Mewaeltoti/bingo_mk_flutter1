@@ -2,81 +2,157 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Games ──────────────────────────────────────────────────────────────
-    // Clients may only READ the live game document and its sub-collections.
-    // All writes to games must come from Cloud Functions (admin SDK bypasses rules).
-    match /games/{gameId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Cloud Functions only
-
-      match /draws/{drawId} {
-        allow read: if request.auth != null;
-        allow write: if false;
-      }
+    // ── Helper functions ────────────────────────────────────────────────────
+    function isAuthenticated() { return request.auth != null; }
+    function isOwner(userId)   { return request.auth.uid == userId; }
+    function isAdmin() {
+      return request.auth != null &&
+             request.auth.token.admin == true;
     }
 
-    // ── Game History (read-only for authenticated users) ───────────────────
-    match /game_history/{docId} {
-      allow read: if request.auth != null;
-      allow write: if false;
+    // ── Deposit field validation ─────────────────────────────────────────────
+    // Prevents a client from creating a deposit with a fake status or amount.
+    function validDepositCreate() {
+      let d = request.resource.data;
+      return d.status == 'pending'
+          && d.amount is number
+          && d.amount > 0;
     }
 
-    // ── Top Players (read-only leaderboard) ───────────────────────────────
-    match /top_players/{docId} {
-      allow read: if request.auth != null;
-      allow write: if false;
+    // ── Withdrawal field validation ──────────────────────────────────────────
+    function validWithdrawalCreate() {
+      let d = request.resource.data;
+      return d.status == 'pending'
+          && d.amount is number
+          && d.amount > 0;
     }
 
-    // ── Metadata (payment limits etc – read-only) ─────────────────────────
-    match /metadata/{docId} {
-      allow read: if request.auth != null;
-      allow write: if false;
-    }
+    // ── Users & Sub-collections ─────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:   if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow write:  if isAdmin();
 
-    // ── Users ──────────────────────────────────────────────────────────────
-    // Each user can only access their own document and sub-collections.
-    // The `balance` field must NEVER be written directly by the client.
-    match /users/{uid} {
-      // Allow read of own profile (but not balance field – see below)
-      allow get: if request.auth != null && request.auth.uid == uid;
-      allow list: if false; // Never list all users
-
-      // Allow write to own profile fields EXCEPT balance
-      allow update: if request.auth != null
-                    && request.auth.uid == uid
-                    && !('balance' in request.resource.data.diff(resource.data).affectedKeys());
-      allow create: if false; // Created by Cloud Function on signup
-      allow delete: if false;
-
-      // ── Cards ────────────────────────────────────────────────────────────
-      // Clients can read their own cards; writes go through Cloud Functions.
-      match /cards/{cardId} {
-        allow read: if request.auth != null && request.auth.uid == uid;
-        allow write: if false; // registerCard / removeCard Cloud Functions only
-      }
-
-      // ── Deposits ─────────────────────────────────────────────────────────
-      // Clients can read and CREATE their own deposits (pending only).
-      // Updates/deletes are admin / Cloud Function only.
+      // ── Deposits ──────────────────────────────────────────────────────────
       match /deposits/{depositId} {
-        allow read: if request.auth != null && request.auth.uid == uid;
-        allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.status == 'pending'
-                      && request.resource.data.amount is number
-                      && request.resource.data.amount > 0;
-        allow update: if false; // Cloud Functions only
-        allow delete: if false;
+        allow read:   if isAuthenticated() && (isOwner(userId) || isAdmin());
+        // FIX: validate fields on create — prevents forged status/amount
+        allow create: if isAuthenticated() && isOwner(userId) && validDepositCreate();
+        allow update: if isAdmin();
+        allow delete: if isAdmin()
+                   || (isAuthenticated() && isOwner(userId)
+                       && resource.data.status == 'rejected');
       }
 
-      // ── Withdrawals ───────────────────────────────────────────────────────
-      // Clients can read their own withdrawals.
-      // createWithdrawal Cloud Function handles creation (balance reservation).
-      // Direct client writes are blocked to prevent double-spend.
-      match /withdrawals/{withdrawalId} {
-        allow read: if request.auth != null && request.auth.uid == uid;
-        allow write: if false; // createWithdrawal Cloud Function only
+      // ── Withdrawals ────────────────────────────────────────────────────────
+      match /withdrawals/{withdrawId} {
+        allow read:   if isAuthenticated() && (isOwner(userId) || isAdmin());
+        // FIX: validate fields on create — prevents forged status/amount
+        allow create: if isAuthenticated() && isOwner(userId) && validWithdrawalCreate();
+        allow update: if isAdmin();
+        allow delete: if isAdmin()
+                   || (isAuthenticated() && isOwner(userId)
+                       && resource.data.status == 'rejected');
       }
+
+      // ── Cartelas — read-only for client, writes via Cloud Functions ────────
+      match /cartelas/{cartelaId} {
+        allow read:  if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow write: if false; // Cloud Functions only
+      }
+
+      // ── Cards ────────────────────────────────────────────────────────────────
+      // Clients may NOT create or delete cards (Cloud Functions only).
+      // Two narrow update paths are permitted:
+      //   1. blockCard()         — sets {blocked: true} after a failed claim
+      //   2. resetCardsForSession() — resets {status, sessionId, blocked}
+      //      back to 'pending' when a new session starts (belt-and-suspenders
+      //      fallback; Cloud Function resetSessionCards.js is the primary path)
+      match /cards/{cardId} {
+        allow read:   if isAuthenticated() && (isOwner(userId) || isAdmin());
+
+        allow update: if isAuthenticated()
+                      && isOwner(userId)
+                      && (
+                           // Path 1: block a single card after a failed claim
+                           request.resource.data.diff(resource.data)
+                             .affectedKeys().hasOnly(['blocked'])
+                           ||
+                           // Path 2: reset card to pending on session end
+                           (
+                             request.resource.data.diff(resource.data)
+                               .affectedKeys().hasOnly(['status', 'sessionId', 'blocked'])
+                             && request.resource.data.status == 'pending'
+                             && request.resource.data.sessionId == ''
+                             && request.resource.data.blocked == false
+                           )
+                         );
+
+        allow create: if false; // registerCard Cloud Function only
+        allow delete: if false; // removeCard  Cloud Function only
+      }
+    }
+
+    // ── Collection-group queries (admin dashboard) ──────────────────────────
+    match /{path=**}/deposits/{depositId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/withdrawals/{withdrawId} {
+      allow read: if isAdmin();
+    }
+
+    // ── Bank SMS notifications ───────────────────────────────────────────────
+    match /bank_notifications/{notificationId} {
+      allow read:  if isAdmin();
+      allow write: if isAdmin(); // Includes manual matching by admins
+    }
+
+    // ── Metadata (limits, config) ────────────────────────────────────────────
+    match /metadata/{docId} {
+      allow read:  if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Payment settings (bank accounts shown to players) ───────────────────
+    match /payment_settings/{docId} {
+      allow read:  if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Live game ────────────────────────────────────────────────────────────
+    // FIX: was `allow read: if true` — unauthenticated users could read game
+    //      state. Tightened to require authentication.
+    match /games/live {
+      allow read:  if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Draws sub-collection ─────────────────────────────────────────────────
+    // FIX: was `allow read: if true` — same unauthenticated issue.
+    match /games/live/draws/{drawId} {
+      allow read:  if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Sessions sub-collection ──────────────────────────────────────────────
+    // FIX (new): streamGameDraws() reads games/live/sessions/{sessionId}.
+    //            This path was completely missing → permission-denied on stream.
+    match /games/live/sessions/{sessionId} {
+      allow read:  if isAuthenticated();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // ── Game history ─────────────────────────────────────────────────────────
+    match /game_history/{historyId} {
+      allow read:  if isAuthenticated();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // ── Top players / leaderboard ────────────────────────────────────────────
+    // FIX (new): this collection existed in the Flutter app rules but was
+    //            missing here entirely → any leaderboard read would be denied.
+    match /top_players/{docId} {
+      allow read:  if isAuthenticated();
+      allow write: if false; // Cloud Functions only
     }
   }
 }

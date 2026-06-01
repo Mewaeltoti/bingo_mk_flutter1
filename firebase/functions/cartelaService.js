@@ -462,6 +462,47 @@ exports.removeCard = async (request) => {
 };
 
 exports.resetAllRegisteredCards = async (db) => {
-    // game_winners collection removed — game_history is the source of truth.
-    // TTL handles user card cleanup automatically.
+    // Reset every card that is currently 'registered' or 'claiming' back to
+    // 'pending' so players can reuse them in the next session.
+    // TTL only deletes docs after 2 hours — it does NOT reset status for the
+    // current session, so we must do it explicitly here.
+    //
+    // We use collectionGroup('cards') to reach every user's sub-collection in
+    // one query, then batch-write in chunks of 500 (Firestore hard limit).
+    const { FieldValue } = require('firebase-admin/firestore');
+
+    const snapshot = await db
+        .collectionGroup('cards')
+        .where('status', 'in', ['registered', 'claiming'])
+        .get();
+
+    if (snapshot.empty) {
+        console.log('[resetAllRegisteredCards] no active cards to reset');
+        return;
+    }
+
+    console.log(`[resetAllRegisteredCards] resetting ${snapshot.size} card(s)`);
+
+    const BATCH_SIZE = 500;
+    let batch = db.batch();
+    let ops = 0;
+
+    for (const doc of snapshot.docs) {
+        batch.update(doc.ref, {
+            status:    'pending',
+            sessionId: '',
+            blocked:   false,
+            resetAt:   FieldValue.serverTimestamp(),
+        });
+        ops++;
+        if (ops === BATCH_SIZE) {
+            await batch.commit();
+            batch = db.batch();
+            ops = 0;
+        }
+    }
+
+    if (ops > 0) await batch.commit();
+
+    console.log('[resetAllRegisteredCards] done');
 };

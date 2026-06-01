@@ -57,6 +57,13 @@ exports.claimBingo = async (request) => {
                 const cardNo = cardDoc.data().cardNo;
                 const pendingClaims = game.pendingClaims || [];
                 
+                // Primary idempotency guard: card status is set to 'claiming'
+                // atomically inside this same transaction, so concurrent requests
+                // will see the updated status and be rejected before touching pendingClaims.
+                const currentCardStatus = cardDoc.data().status;
+                if (currentCardStatus === 'claiming') {
+                    throw new Error("Already claimed for this card.");
+                }
                 if (pendingClaims.find(c => c.cardId === cardId)) {
                     throw new Error("Already claimed for this card.");
                 }
@@ -481,7 +488,11 @@ exports.rejectBingoClaim = async (request) => {
             
             transaction.update(gameRef, updates);
         }
-        transaction.update(cardRef, { status: 'registered' }); // Back to registered
+        // Reset card fully: remove 'claiming' status, clear blocked flag.
+        // Using 'pending' (not 'registered') so the player can re-register
+        // if the admin gave them a second chance, or carry the card to the
+        // next session if they don't.
+        transaction.update(cardRef, { status: 'pending', blocked: false });
     });
 
     return { success: true };
