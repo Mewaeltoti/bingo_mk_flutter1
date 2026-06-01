@@ -276,16 +276,6 @@ exports.startNewGame = async (request) => {
 
 
 
-        // Delete all game winners for the new session
-        const liveWinners = await db.collection('game_winners').get();
-        if (!liveWinners.empty) {
-            let winnerBatch = db.batch();
-            for (const doc of liveWinners.docs) {
-                winnerBatch.delete(doc.ref);
-            }
-            await winnerBatch.commit();
-        }
-
         // TTL handles card deletion; no manual batch deletion needed.
 
         return result;
@@ -407,16 +397,6 @@ exports.cancelGame = async (request) => {
 
 
 
-        // Delete all game winners for the new session
-        const liveWinners = await db.collection('game_winners').get();
-        if (!liveWinners.empty) {
-            let winnerBatch = db.batch();
-            for (const doc of liveWinners.docs) {
-                winnerBatch.delete(doc.ref);
-            }
-            await winnerBatch.commit();
-        }
-
         // TTL handles card deletion; no manual batch deletion needed.
 
         return result;
@@ -482,15 +462,6 @@ exports.removeCard = async (request) => {
 };
 
 exports.resetAllRegisteredCards = async (db) => {
-    // Delete all game winners for the new session
-    const liveWinners = await db.collection('game_winners').get();
-    if (!liveWinners.empty) {
-        let winnerBatch = db.batch();
-        for (const doc of liveWinners.docs) {
-            winnerBatch.delete(doc.ref);
-        }
-        await winnerBatch.commit();
-    }
-
-    // TTL handles card deletion; no manual batch deletion needed.
+    // game_winners collection removed — game_history is the source of truth.
+    // TTL handles user card cleanup automatically.
 };

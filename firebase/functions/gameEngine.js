@@ -135,16 +135,6 @@ exports.drawNumberLoopHandler = async (context) => {
                         for (const winner of allWinners) {
                             const userRef = db.collection('users').doc(winner.userId);
                             transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(prizePerWinner) });
-
-                            // Write to game_winners collection
-                            const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
-                            transaction.set(winnerRef, {
-                                sessionId: game.sessionId || 'N/A',
-                                cardNo: winner.cardNo.toString(),
-                                userId: winner.userId,
-                                phone: winner.phone || 'Player',
-                                createdAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
                         }
 
                         // Write to game history
@@ -264,34 +254,18 @@ exports.drawNumberLoopHandler = async (context) => {
 
             await gameDoc.ref.update(updates);
 
-            // Persist draw event and state snapshot
+            // Persist draw to single session document (1 write per draw instead of 3)
             const sessionId = game.sessionId;
             if (sessionId) {
                 try {
                     const sessionIdStr = sessionId.toString();
-                    const eventRef = db.collection('games').doc(sessionIdStr).collection('events').doc();
-                    const stateRef = db.collection('games').doc(sessionIdStr).collection('state').doc('state');
-                    const drawRef = db.collection('games').doc('live').collection('draws').doc();
+                    const sessionDocRef = db.collection('games').doc('live')
+                        .collection('sessions').doc(sessionIdStr);
 
-                    await eventRef.set({
-                        type: 'NUMBER_DRAWN',
-                        number: newNumber,
-                        timestamp: admin.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    await drawRef.set({
-                        sessionId: sessionIdStr,
-                        number: newNumber,
-                        drawnAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    await stateRef.set({
-                        currentNumber: newNumber,
-                        drawnNumbers: drawnNumbers,
-                        drawnCount: drawnNumbers.length,
-                        status: 'active',
-                        lastDrawTime: admin.firestore.FieldValue.serverTimestamp(),
-                        sessionId: sessionId
+                    await sessionDocRef.set({
+                        numbers: admin.firestore.FieldValue.arrayUnion(newNumber),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        sessionId: sessionIdStr
                     }, { merge: true });
                 } catch (persistError) {
                     console.error(`Failed to persist draw for session ${sessionId}:`, persistError);

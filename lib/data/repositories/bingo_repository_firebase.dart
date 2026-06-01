@@ -35,46 +35,36 @@ class BingoRepositoryFirebase implements BingoRepository {
     });
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // STREAM GAME DRAWS
-  // ─────────────────────────────────────────────────────────────────────────
-  @override
-  Stream<List<int>> streamGameDraws(String sessionId) {
-    return _firestore
+ @override
+Stream<List<int>> streamGameDraws(String sessionId) {
+  return _firestore
+      .collection('games')
+      .doc('live')
+      .collection('sessions')
+      .doc(sessionId)              // single doc, not a filtered collection
+      .snapshots()
+      .map((snap) {
+        if (!snap.exists || snap.data() == null) return <int>[];
+        return List<int>.from(snap.data()!['numbers'] ?? []);
+      });
+}
+
+@override
+Future<List<int>> fetchDrawnNumbers(String sessionId) async {
+  try {
+    final snap = await _firestore
         .collection('games')
         .doc('live')
-        .collection('draws')
-        .where('sessionId', isEqualTo: sessionId)
-        .orderBy('drawnAt')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((d) => d.data()['number'] as int? ?? 0)
-            .where((n) => n > 0)
-            .toList());
+        .collection('sessions')
+        .doc(sessionId)
+        .get();
+    if (!snap.exists || snap.data() == null) return [];
+    return List<int>.from(snap.data()!['numbers'] ?? []);
+  } catch (e) {
+    Log.e('fetchDrawnNumbers failed', e);
+    return [];
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // FETCH DRAWN NUMBERS
-  // ─────────────────────────────────────────────────────────────────────────
-  @override
-  Future<List<int>> fetchDrawnNumbers(String sessionId) async {
-    try {
-      final snap = await _firestore
-          .collection('games')
-          .doc('live')
-          .collection('draws')
-          .where('sessionId', isEqualTo: sessionId)
-          .orderBy('drawnAt')
-          .get();
-      return snap.docs
-          .map((d) => d.data()['number'] as int? ?? 0)
-          .where((n) => n > 0)
-          .toList();
-    } catch (e) {
-      Log.e('fetchDrawnNumbers failed', e);
-      return [];
-    }
-  }
+}
 
   // ─────────────────────────────────────────────────────────────────────────
   // STREAM DRAWN NUMBERS  (derived from streamGame)
@@ -104,11 +94,11 @@ class BingoRepositoryFirebase implements BingoRepository {
   // STREAM GAME WINNERS
   // ─────────────────────────────────────────────────────────────────────────
   @override
-  Stream<List<Map<String, dynamic>>> streamGameWinners() {
+  Stream<List<Map<String, dynamic>>> streamGameWinners(String sessionId) {
     return _firestore
         .collection('game_history')
+        .where('sessionId', isEqualTo: sessionId)  // ← only current session
         .orderBy('createdAt', descending: true)
-        .limit(50)
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => {
@@ -546,7 +536,15 @@ class BingoRepositoryFirebase implements BingoRepository {
   Future<void> initializeGame() async {
     throw UnimplementedError("Initialization is handled by Cloud Functions.");
   }
-
+  // In BingoRepositoryFirebase, add a batch version:
+  Future<void> blockCards(String userId, List<String> cardIds) async {
+    final batch = _firestore.batch();
+    for (final cardId in cardIds) {
+      final ref = _firestore.collection('users').doc(userId).collection('cards').doc(cardId);
+      batch.update(ref, {'blocked': true});
+    }
+    await batch.commit();  // 1 round-trip instead of N
+  }
   // ─────────────────────────────────────────────────────────────────────────
   // PRIVATE: Map raw Firestore data → camelCase for GameCubit
   // ─────────────────────────────────────────────────────────────────────────

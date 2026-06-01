@@ -34,20 +34,16 @@ class GameLoaded extends GameState {
   final List<String> claimedCardIds;
   final List<Map<String, dynamic>> rawClaimsData;
   final List<Map<String, dynamic>> rawWinnersData;
-
   final int? winningCardNo;
   final List<int>? winningCardNumbers;
-
   final String sessionId;
   final bool isPaused;
   final String gamePattern;
   final double gamePrice;
   final double prizePool;
-
   final bool hasWon;
   final String? winnerId;
   final GameStatus status;
-
   final int buyingCountdown;
   final int playerCount;
   final int cardsSoldCount;
@@ -89,7 +85,7 @@ class GameLoaded extends GameState {
     this.pendingClaims = const [],
     this.isActionLoading = false,
     this.claimDeadline,
-    this.isAutoDaubEnabled = true, // ON by default; user can turn it off
+    this.isAutoDaubEnabled = true,
   });
 
   List<int> get lastDrawnNumbers {
@@ -99,35 +95,12 @@ class GameLoaded extends GameState {
 
   @override
   List<Object?> get props => [
-    drawnNumbers,
-    markedCells,
-    userCards,
-    blockedCardIds,
-    winners,
-    claimedCardIds,
-    rawClaimsData,
-    rawWinnersData,
-    winningCardNo,
-    winningCardNumbers,
-    sessionId,
-    isPaused,
-    gamePattern,
-    gamePrice,
-    prizePool,
-    hasWon,
-    winnerId,
-    status,
-    buyingCountdown,
-    playerCount,
-    cardsSoldCount,
-    startTime,
-    statusStr,
-    broadcastMessage,
-    statusMessage,
-    pendingClaims,
-    isActionLoading,
-    claimDeadline,
-    isAutoDaubEnabled,
+    drawnNumbers, markedCells, userCards, blockedCardIds, winners,
+    claimedCardIds, rawClaimsData, rawWinnersData, winningCardNo,
+    winningCardNumbers, sessionId, isPaused, gamePattern, gamePrice,
+    prizePool, hasWon, winnerId, status, buyingCountdown, playerCount,
+    cardsSoldCount, startTime, statusStr, broadcastMessage, statusMessage,
+    pendingClaims, isActionLoading, claimDeadline, isAutoDaubEnabled,
   ];
 
   GameLoaded copyWith({
@@ -193,8 +166,11 @@ class GameLoaded extends GameState {
       isAutoDaubEnabled: isAutoDaubEnabled ?? this.isAutoDaubEnabled,
     );
   }
-
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GAME CUBIT
+// ─────────────────────────────────────────────────────────────────────────────
 
 class GameCubit extends Cubit<GameState> {
   final BingoRepository _bingoRepository;
@@ -202,70 +178,58 @@ class GameCubit extends Cubit<GameState> {
 
   StreamSubscription? _gameSub;
   StreamSubscription? _winnersSub;
-  StreamSubscription? _drawsSub;   // v2: lightweight game_draws INSERT stream
+  String _winnersSessionId = '';
+  StreamSubscription? _drawsSub;
   StreamSubscription? _connectivitySub;
 
   GameCubit({required BingoRepository bingoRepository, required this.userId})
-    : _bingoRepository = bingoRepository,
-      super(GameInitial()) {
+      : _bingoRepository = bingoRepository,
+        super(GameInitial()) {
     sl<AudioService>().init();
     _init();
     _subscribeConnectivity();
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // INIT
+  // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> _init() async {
     try {
       final cards = await _bingoRepository.getUserCartelas(userId, kLiveGameId);
-
       if (isClosed) return;
 
-      // Fetch the current session_id through the repository interface
       final initialSessionId = await _bingoRepository.getLiveSessionId();
 
-      emit(
-        GameLoaded(
-          drawnNumbers: [],
-          markedCells: {},
-          userCards: cards,
-          blockedCardIds: cards.where((c) => c.isBlocked).map((c) => c.id).toSet(),
-          sessionId: initialSessionId,
-          status: GameStatus.buying,
-          buyingCountdown: kDefaultBuyingCountdown,
-          playerCount: 0,
-          cardsSoldCount: cards.length,
-        ),
-      );
+      emit(GameLoaded(
+        drawnNumbers: [],
+        markedCells: {},
+        userCards: cards,
+        blockedCardIds: cards.where((c) => c.isBlocked).map((c) => c.id).toSet(),
+        sessionId: initialSessionId,
+        status: GameStatus.buying,
+        buyingCountdown: kDefaultBuyingCountdown,
+        playerCount: 0,
+        cardsSoldCount: cards.length,
+      ));
 
-      // Start the lightweight draws subscription immediately
       if (initialSessionId.isNotEmpty) {
         _resubscribeDraws(initialSessionId);
+        _resubscribeWinners(initialSessionId);
       }
 
-      /// GAME SESSION DATA — slim realtime stream (status, session, prize, etc.)
-      /// drawn_numbers are handled by _drawsSub below for lightweight payloads.
       _gameSub = _bingoRepository.streamGame(kLiveGameId).listen((gameData) {
         if (state is! GameLoaded) return;
         final current = state as GameLoaded;
 
         final statusStr = gameData['status'] ?? 'active';
         GameStatus newStatus = GameStatus.active;
-
         switch (statusStr) {
-          case 'buying':
-            newStatus = GameStatus.buying;
-            break;
-          case 'won':
-            newStatus = GameStatus.won;
-            break;
-          case 'paused':
-            newStatus = GameStatus.paused;
-            break;
-          case 'waiting':
-            newStatus = GameStatus.waiting;
-            break;
-          default:
-            newStatus = GameStatus.active;
+          case 'buying':  newStatus = GameStatus.buying;  break;
+          case 'won':     newStatus = GameStatus.won;     break;
+          case 'paused':  newStatus = GameStatus.paused;  break;
+          case 'waiting': newStatus = GameStatus.waiting; break;
+          default:        newStatus = GameStatus.active;
         }
 
         final newSessionId = (gameData['sessionId'] ?? '').toString();
@@ -276,20 +240,14 @@ class GameCubit extends Cubit<GameState> {
           AudioService().playWin();
         }
 
-        // On session change: re-subscribe draws stream for new session + reload drawn numbers
         if (sessionChanged && newSessionId.isNotEmpty) {
           _drawsSub?.cancel();
           _resubscribeDraws(newSessionId);
+          _resubscribeWinners(newSessionId);
         }
 
         if (isClosed) return;
 
-        // FIX (drawing stuck): always sync drawnNumbers from the root game
-        // document as a fallback. _drawsSub is the primary source, but if
-        // the draws subcollection query returns nothing (index not built,
-        // sessionId mismatch, cold-start race) Flutter shows a frozen board
-        // while the admin dashboard (which reads the root doc) draws normally.
-        // We take whichever list is longer so we never go backwards.
         final gameDocNumbers = sessionChanged
             ? <int>[]
             : List<int>.from(gameData['drawnNumbers'] ?? []);
@@ -297,132 +255,119 @@ class GameCubit extends Cubit<GameState> {
             ? gameDocNumbers
             : (sessionChanged ? <int>[] : null);
 
-        // Auto-daub any numbers we got from the fallback that _drawsSub missed.
         Map<String, Set<String>>? fallbackAutoMarked;
         if (mergedDrawnNumbers != null &&
             mergedDrawnNumbers.length > current.drawnNumbers.length &&
             current.isAutoDaubEnabled) {
-          final newNums = mergedDrawnNumbers
-              .sublist(current.drawnNumbers.length)
-              .toSet();
+          final newNums = mergedDrawnNumbers.sublist(current.drawnNumbers.length).toSet();
           fallbackAutoMarked = _applyAutoDaub(current, newNums);
         }
 
-        emit(
-          current.copyWith(
-            status: newStatus,
-            isPaused: gameData['isPaused'] ?? false,
-            sessionId: newSessionId,
-            gamePattern: gameData['gamePattern'] ?? 'full_house',
-            prizePool: (gameData['prizePool'] ?? 0).toDouble(),
-            gamePrice: (gameData['cardPrice'] ?? 10).toDouble(),
-            claimedCardIds: sessionChanged ? [] : List<String>.from(gameData['claims'] ?? []),
-            cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
-            playerCount: gameData['playersCount'] ?? current.playerCount,
-            winnerId: sessionChanged ? null : gameData['winnerId'],
-            winningCardNo: sessionChanged ? null : gameData['winningCardNo'],
-            winningCardNumbers: sessionChanged
-                ? null
-                : (gameData['winningCardNumbers'] != null
-                    ? List<int>.from(gameData['winningCardNumbers'])
-                    : null),
-            hasWon: sessionChanged ? false : (newStatus == GameStatus.won && gameData['winnerId'] == userId),
-            winners: sessionChanged ? [] : null,
-            rawWinnersData: sessionChanged ? [] : null,
-            rawClaimsData: sessionChanged
-                ? const []
-                : ((gameData['pendingClaims'] as List?)
-                        ?.map((c) => Map<String, dynamic>.from(c as Map))
-                        .toList() ??
-                    const []),
-            startTime: gameData['createdAt'] != null
-                ? (gameData['createdAt'] is DateTime
-                    ? gameData['createdAt'] as DateTime
-                    : DateTime.tryParse(gameData['createdAt'].toString()))
-                : null,
-            statusStr: statusStr.toUpperCase(),
-            broadcastMessage: sessionChanged ? null : gameData['broadcastMessage'],
-            statusMessage: sessionChanged ? "New game session started!" : gameData['statusMessage'],
-            pendingClaims: sessionChanged
-                ? []
-                : ((gameData['pendingClaims'] as List?)
-                        ?.map((c) => (c['cardNo'] ?? '').toString())
-                        .toList() ??
-                    []),
-            claimDeadline: sessionChanged
-                ? null
-                : (gameData['claimDeadline'] == null
-                    ? null
-                    : (gameData['claimDeadline'] is DateTime
-                        ? gameData['claimDeadline'] as DateTime
-                        : (gameData['claimDeadline'] is int
-                            ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
-                            : DateTime.tryParse(gameData['claimDeadline'].toString())))),
-            markedCells: sessionChanged ? {} : fallbackAutoMarked,
-            blockedCardIds: sessionChanged ? {} : null,
-            // Use merged numbers (fallback from root doc) when available,
-            // otherwise preserve what _drawsSub already wrote.
-            drawnNumbers: mergedDrawnNumbers,
-            userCards: current.userCards
-                .where((c) => c.sessionId == newSessionId)
-                .toList(),
-          ),
-        );
+        emit(current.copyWith(
+          status: newStatus,
+          isPaused: gameData['isPaused'] ?? false,
+          sessionId: newSessionId,
+          gamePattern: gameData['gamePattern'] ?? 'full_house',
+          prizePool: (gameData['prizePool'] ?? 0).toDouble(),
+          gamePrice: (gameData['cardPrice'] ?? 10).toDouble(),
+          claimedCardIds: sessionChanged ? [] : List<String>.from(gameData['claims'] ?? []),
+          cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
+          playerCount: gameData['playersCount'] ?? current.playerCount,
+          winnerId: sessionChanged ? null : gameData['winnerId'],
+          winningCardNo: sessionChanged ? null : gameData['winningCardNo'],
+          winningCardNumbers: sessionChanged
+              ? null
+              : (gameData['winningCardNumbers'] != null
+                  ? List<int>.from(gameData['winningCardNumbers'])
+                  : null),
+          hasWon: sessionChanged
+              ? false
+              : (newStatus == GameStatus.won && gameData['winnerId'] == userId),
+          winners: sessionChanged ? [] : null,
+          rawWinnersData: sessionChanged ? [] : null,
+          rawClaimsData: sessionChanged
+              ? const []
+              : ((gameData['pendingClaims'] as List?)
+                      ?.map((c) => Map<String, dynamic>.from(c as Map))
+                      .toList() ??
+                  const []),
+          startTime: gameData['createdAt'] != null
+              ? (gameData['createdAt'] is DateTime
+                  ? gameData['createdAt'] as DateTime
+                  : DateTime.tryParse(gameData['createdAt'].toString()))
+              : null,
+          statusStr: statusStr.toUpperCase(),
+          broadcastMessage: sessionChanged ? null : gameData['broadcastMessage'],
+          statusMessage: sessionChanged ? "New game session started!" : gameData['statusMessage'],
+          pendingClaims: sessionChanged
+              ? []
+              : ((gameData['pendingClaims'] as List?)
+                      ?.map((c) => (c['cardNo'] ?? '').toString())
+                      .toList() ??
+                  []),
+          claimDeadline: sessionChanged
+              ? null
+              : (gameData['claimDeadline'] == null
+                  ? null
+                  : (gameData['claimDeadline'] is DateTime
+                      ? gameData['claimDeadline'] as DateTime
+                      : (gameData['claimDeadline'] is int
+                          ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
+                          : DateTime.tryParse(gameData['claimDeadline'].toString())))),
+          markedCells: sessionChanged ? {} : fallbackAutoMarked,
+          blockedCardIds: sessionChanged ? {} : null,
+          drawnNumbers: mergedDrawnNumbers,
+          userCards: current.userCards.where((c) => c.sessionId == newSessionId).toList(),
+        ));
 
         final bool gameEnded = newStatus == GameStatus.won || newStatus == GameStatus.waiting;
-        final bool transitionedToBuying = newStatus == GameStatus.buying && current.status != GameStatus.buying;
+        final bool transitionedToBuying =
+            newStatus == GameStatus.buying && current.status != GameStatus.buying;
 
         if (sessionChanged || gameEnded || transitionedToBuying) {
           if (!isClosed) refreshCards();
         }
       });
-
-      /// REAL-TIME GAME WINNERS (from separate game_winners collection, isolated by sessionId!)
-      _winnersSub = _bingoRepository.streamGameWinners().listen((winnersList) {
-        if (state is! GameLoaded) return;
-        final current = state as GameLoaded;
-
-        // Strictly filter winners matching only the current session!
-        final currentSessionWinners = winnersList
-            .where((w) => w['sessionId'].toString() == current.sessionId)
-            .toList();
-
-        final cardNumbers = currentSessionWinners.map((w) => w['cardNo'].toString()).toList();
-
-        if (isClosed) return;
-        emit(current.copyWith(
-          winners: cardNumbers,
-          rawWinnersData: currentSessionWinners,
-        ));
-      });
-    } catch (e, stack) {
+    } catch (e, stack) {                          // ← catch that matches the try in _init
       Log.e("GameCubit initialization failed", e, stack);
     }
+  }                                               // ← _init closing brace (was missing!)
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // WINNERS SUBSCRIPTION
+  // ─────────────────────────────────────────────────────────────────────────
+
+  void _resubscribeWinners(String sessionId) {
+    if (_winnersSessionId == sessionId) return;
+    _winnersSub?.cancel();
+    _winnersSessionId = sessionId;
+
+    _winnersSub = _bingoRepository.streamGameWinners(sessionId).listen((winnersList) {
+      if (state is! GameLoaded || isClosed) return;
+      final current = state as GameLoaded;
+      final cardNumbers = winnersList.map((w) => w['cardNo'].toString()).toList();
+      emit(current.copyWith(winners: cardNumbers, rawWinnersData: winnersList));
+    });
   }
 
-  /// RE-FETCH CARDS
+  // ─────────────────────────────────────────────────────────────────────────
+  // RE-FETCH CARDS
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> refreshCards() async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
     try {
       final dbCards = await _bingoRepository.getUserCartelas(
-          userId, kLiveGameId,
-          sessionId: current.sessionId.isNotEmpty ? current.sessionId : null);
-      
-      // Filter database cards to only keep cards that belong to the current active session
+        userId, kLiveGameId,
+        sessionId: current.sessionId.isNotEmpty ? current.sessionId : null,
+      );
+
       final activeDbCards = dbCards.where((c) => c.sessionId == current.sessionId).toList();
-      
-      // Get all local-only pending cards from the current state that belong to the current active session
       final localPendingCards = current.userCards
           .where((c) => c.status == 'pending' && c.sessionId == current.sessionId)
           .toList();
-
-      // Combine database cards with local pending cards
       final combinedCards = [...activeDbCards, ...localPendingCards];
-
-      // Rebuild blockedCardIds strictly from persisted isBlocked flags in DB.
-      // Do NOT merge with current.blockedCardIds — that in-memory state is
-      // lost on logout/re-init and would shadow the authoritative Firestore value.
       final mergedBlocked = combinedCards.where((c) => c.isBlocked).map((c) => c.id).toSet();
 
       emit(current.copyWith(userCards: combinedCards, blockedCardIds: mergedBlocked));
@@ -431,7 +376,10 @@ class GameCubit extends Cubit<GameState> {
     }
   }
 
-  /// MARK CELL (Local Only)
+  // ─────────────────────────────────────────────────────────────────────────
+  // MARK CELL (Local Only)
+  // ─────────────────────────────────────────────────────────────────────────
+
   void markCell(String cardId, int row, int col) {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
@@ -444,13 +392,11 @@ class GameCubit extends Cubit<GameState> {
 
     final tappedNumber = tappedCard.numbers[row][col];
     final map = Map<String, Set<String>>.from(current.markedCells);
-
     final isCurrentlyMarked = (map[cardId] ?? {}).contains('$row-$col');
     final isMarking = !isCurrentlyMarked;
 
     for (var card in current.userCards) {
       final cells = Set<String>.from(map[card.id] ?? {});
-
       for (var r = 0; r < 5; r++) {
         for (var c = 0; c < 5; c++) {
           if (r == 2 && c == 2) continue;
@@ -471,7 +417,10 @@ class GameCubit extends Cubit<GameState> {
     emit(current.copyWith(markedCells: map));
   }
 
-  /// GET PENDING CARD (INSTANT local generation from data.json!)
+  // ─────────────────────────────────────────────────────────────────────────
+  // BUY CARD (local generation)
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> buyCard({int count = 1}) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
@@ -484,11 +433,12 @@ class GameCubit extends Cubit<GameState> {
         gamePrice: current.gamePrice,
         sessionId: current.sessionId,
       );
-
       emit(current.copyWith(
         userCards: [...current.userCards, ...newCards],
         isActionLoading: false,
-        statusMessage: count == 1 ? "Card selected! Click Activate to purchase." : "$count cards selected! Activate them to play.",
+        statusMessage: count == 1
+            ? "Card selected! Click Activate to purchase."
+            : "$count cards selected! Activate them to play.",
       ));
     } catch (e, stack) {
       Log.e("Failed to select local card", e, stack);
@@ -499,7 +449,10 @@ class GameCubit extends Cubit<GameState> {
     }
   }
 
-  /// REGISTER PENDING CARD (Client sends local card numbers!)
+  // ─────────────────────────────────────────────────────────────────────────
+  // REGISTER CARD
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> registerCard(String cardId) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
@@ -510,22 +463,12 @@ class GameCubit extends Cubit<GameState> {
       for (var row in card.numbers) {
         flatNumbers.addAll(row);
       }
-      
-      // Remove middle free space index 12 if sending original 24 numbers list
-      if (flatNumbers.length == 25) {
-        flatNumbers.removeAt(12);
-      }
+      if (flatNumbers.length == 25) flatNumbers.removeAt(12);
 
-      // The Cloud Function looks up cards by cartela_no (the pool key),
-      // NOT by the local UUID doc-id. Pass cardNo here so the CF can find
-      // the card in the pool, while cardId (UUID) remains the Firestore doc id.
       await _bingoRepository.registerCard(card.cardNo.toString(), flatNumbers);
 
-      // Update local state first to prevent duplicate merging!
       final updatedCards = current.userCards.map((c) {
-        if (c.id == cardId) {
-          return c.copyWith(status: 'registered', sessionId: current.sessionId);
-        }
+        if (c.id == cardId) return c.copyWith(status: 'registered', sessionId: current.sessionId);
         return c;
       }).toList();
       emit(current.copyWith(userCards: updatedCards));
@@ -536,7 +479,6 @@ class GameCubit extends Cubit<GameState> {
     } catch (e, stack) {
       Log.e("Failed to register card", e, stack);
       if (state is GameLoaded) {
-        // Remove this card locally since purchase/registration failed (e.g. duplicate or insufficient balance)
         final updatedCards = (state as GameLoaded).userCards.where((c) => c.id != cardId).toList();
         emit((state as GameLoaded).copyWith(
             userCards: updatedCards,
@@ -546,30 +488,26 @@ class GameCubit extends Cubit<GameState> {
     }
   }
 
-  /// REMOVE PENDING CARD
+  // ─────────────────────────────────────────────────────────────────────────
+  // REMOVE CARD
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> removeCard(String cardId) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-    
-    // Prevent race conditions: block remove actions while any network transaction is in progress!
-    if (current.isActionLoading) return;
 
-    // SECURE GUARD: Deletion/Discard is only allowed in the buying stage!
+    if (current.isActionLoading) return;
     if (current.status != GameStatus.buying) {
       emit(current.copyWith(statusMessage: "Cannot discard cards after the game starts!"));
       return;
     }
 
     final card = current.userCards.firstWhere((c) => c.id == cardId);
-    
-    // SECURE GUARD: Once a card is activated/registered, it can NEVER be removed!
     if (card.status == 'registered') {
       emit(current.copyWith(statusMessage: "Cannot remove an already activated card!"));
       return;
     }
-
     if (card.status == 'pending') {
-      // Pending card is local only! Remove instantly with zero network cost!
       final updatedCards = current.userCards.where((c) => c.id != cardId).toList();
       emit(current.copyWith(userCards: updatedCards, statusMessage: "Card discarded."));
       return;
@@ -585,12 +523,16 @@ class GameCubit extends Cubit<GameState> {
       Log.e("Failed to remove card", e, stack);
       if (state is GameLoaded) {
         emit((state as GameLoaded).copyWith(
-            isActionLoading: false, statusMessage: _friendlyError(e, prefix: "Could not remove card")));
+            isActionLoading: false,
+            statusMessage: _friendlyError(e, prefix: "Could not remove card")));
       }
     }
   }
 
-  /// ACTIVATE ALL PENDING CARDS (Bulk activation)
+  // ─────────────────────────────────────────────────────────────────────────
+  // REGISTER ALL PENDING
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> registerAllPending() async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
@@ -603,25 +545,17 @@ class GameCubit extends Cubit<GameState> {
       statusMessage: "Activating ${pendingCards.length} cards...",
     ));
 
-    // Build flat-number lists up front (pure CPU work, no await needed)
-    List<int> _flatNumbers(BingoCard card) {
+    List<int> flatNumbers(BingoCard card) {
       final flat = card.numbers.expand((row) => row).toList();
       if (flat.length == 25) flat.removeAt(12);
       return flat;
     }
 
-    // Fire all registrations in parallel. catchError converts each failure into
-    // an Exception so Future.wait never short-circuits on a single bad card.
-    // Previously a serial for-await loop meant the first failure (e.g. a
-    // duplicate card or insufficient balance) silently blocked every card after it.
-    //
-    // Pass cardNo (the pool key) — not the local UUID — so the CF can find
-    // the card in the pool. See registerCard() above for the same fix.
     final results = await Future.wait(
       pendingCards.map((card) => _bingoRepository
-          .registerCard(card.cardNo.toString(), _flatNumbers(card))
-          .then((_) => null)          // success → null
-          .catchError((e) => e)),     // failure → the error object
+          .registerCard(card.cardNo.toString(), flatNumbers(card))
+          .then((_) => null)
+          .catchError((e) => e)),
     );
 
     final failedIndices = [
@@ -630,8 +564,6 @@ class GameCubit extends Cubit<GameState> {
     ];
     final successCount = pendingCards.length - failedIndices.length;
 
-    // Mark succeeded cards as registered in local state immediately to prevent
-    // duplicates when refreshCards() re-fetches from Firestore.
     final failedIds = {for (var i in failedIndices) pendingCards[i].id};
     final updatedCards = current.userCards.map((c) {
       if (c.status == 'pending' && !failedIds.contains(c.id)) {
@@ -642,8 +574,8 @@ class GameCubit extends Cubit<GameState> {
     emit(current.copyWith(userCards: updatedCards));
 
     await refreshCards();
-
     if (isClosed) return;
+
     if (failedIndices.isEmpty) {
       emit((state as GameLoaded).copyWith(
         isActionLoading: false,
@@ -661,12 +593,14 @@ class GameCubit extends Cubit<GameState> {
     }
   }
 
-  /// DISCARD ALL PENDING CARDS (Bulk removal)
+  // ─────────────────────────────────────────────────────────────────────────
+  // REMOVE ALL PENDING
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> removeAllPending() async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
 
-    // SECURE GUARD: Discarding is only allowed in the buying stage!
     if (current.status != GameStatus.buying) {
       emit(current.copyWith(statusMessage: "Cannot discard cards after the game starts!"));
       return;
@@ -675,17 +609,18 @@ class GameCubit extends Cubit<GameState> {
     final pendingCards = current.userCards.where((c) => c.status == 'pending').toList();
     if (pendingCards.isEmpty) return;
 
-    // All pending cards are local only! Discard them instantly in memory with zero network cost!
     final pendingIds = pendingCards.map((c) => c.id).toSet();
     final updatedCards = current.userCards.where((c) => !pendingIds.contains(c.id)).toList();
-    
     emit(current.copyWith(
       userCards: updatedCards,
       statusMessage: "Pending cards discarded successfully!",
     ));
   }
 
-  /// CLAIM BINGO VIA CLOUD FUNCTION
+  // ─────────────────────────────────────────────────────────────────────────
+  // CLAIM BINGO
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> claimBingo(String cardId) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
@@ -697,14 +632,16 @@ class GameCubit extends Cubit<GameState> {
 
     try {
       final cardMarked = current.markedCells[cardId]?.toList() ?? <String>[];
-      final bool? success = await _bingoRepository.claimBingo(kLiveGameId, cardId, markedCells: cardMarked);
+      final bool? success = await _bingoRepository.claimBingo(
+          kLiveGameId, cardId, markedCells: cardMarked);
 
       if (success == false) {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
-        // Persist to Firestore so block survives app restart
-        _bingoRepository.blockCard(userId, cardId);
-        emit(current.copyWith(
+        await _bingoRepository.blockCard(userId, cardId);
+        await refreshCards();
+        if (isClosed) return;
+        emit((state as GameLoaded).copyWith(
             isActionLoading: false,
             blockedCardIds: blocked,
             statusMessage: "Invalid claim! Card blocked."));
@@ -723,11 +660,13 @@ class GameCubit extends Cubit<GameState> {
     }
   }
 
-  /// CLAIM MULTIPLE BINGOS VIA CLOUD FUNCTION
+  // ─────────────────────────────────────────────────────────────────────────
+  // CLAIM MULTIPLE BINGOS
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> claimMultipleBingo(List<String> cardIds) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-
     if (cardIds.isEmpty) return;
 
     emit(current.copyWith(
@@ -736,21 +675,21 @@ class GameCubit extends Cubit<GameState> {
     ));
 
     try {
-      final Map<String, List<String>> markedCellsMap = {};
-      for (var id in cardIds) {
-        markedCellsMap[id] = current.markedCells[id]?.toList() ?? <String>[];
-      }
+      final Map<String, List<String>> markedCellsMap = {
+        for (var id in cardIds)
+          id: current.markedCells[id]?.toList() ?? <String>[],
+      };
 
-      final bool? success = await _bingoRepository.claimMultipleBingo(kLiveGameId, cardIds, markedCellsMap: markedCellsMap);
+      final bool? success = await _bingoRepository.claimMultipleBingo(
+          kLiveGameId, cardIds, markedCellsMap: markedCellsMap);
 
       if (success == false) {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..addAll(cardIds);
-        // Persist to Firestore so blocks survive app restart
-        for (final id in cardIds) {
-          _bingoRepository.blockCard(userId, id);
-        }
-        emit(current.copyWith(
+        await Future.wait(cardIds.map((id) => _bingoRepository.blockCard(userId, id)));
+        await refreshCards();
+        if (isClosed) return;
+        emit((state as GameLoaded).copyWith(
             isActionLoading: false,
             blockedCardIds: blocked,
             statusMessage: "Invalid claims! Cards blocked."));
@@ -768,21 +707,27 @@ class GameCubit extends Cubit<GameState> {
       }
     }
   }
-  /// CLEAR STATUS MESSAGE
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CLEAR STATUS MESSAGE
+  // ─────────────────────────────────────────────────────────────────────────
+
   void clearStatusMessage() {
     if (state is GameLoaded) {
       emit((state as GameLoaded).copyWith(statusMessage: null));
     }
   }
 
-  /// TOGGLE AUTO-DAUB
+  // ─────────────────────────────────────────────────────────────────────────
+  // TOGGLE AUTO-DAUB
+  // ─────────────────────────────────────────────────────────────────────────
+
   void toggleAutoDaub(bool enabled) {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-    
+
     Map<String, Set<String>>? newMarkedCells;
     if (enabled) {
-      // Auto-daub all numbers drawn so far!
       final drawnSet = Set<int>.from(current.drawnNumbers);
       final map = Map<String, Set<String>>.from(current.markedCells);
       for (var card in current.userCards) {
@@ -791,68 +736,64 @@ class GameCubit extends Cubit<GameState> {
         for (var r = 0; r < 5; r++) {
           for (var c = 0; c < 5; c++) {
             if (r == 2 && c == 2) continue;
-            if (drawnSet.contains(card.numbers[r][c])) {
-              cells.add('$r-$c');
-            }
+            if (drawnSet.contains(card.numbers[r][c])) cells.add('$r-$c');
           }
         }
         map[card.id] = cells;
       }
       newMarkedCells = map;
     }
-    
+
     emit(current.copyWith(
       isAutoDaubEnabled: enabled,
       markedCells: newMarkedCells,
-      statusMessage: enabled ? "Auto-Daub Assistant enabled!" : "Auto-Daub Assistant disabled.",
+      statusMessage:
+          enabled ? "Auto-Daub Assistant enabled!" : "Auto-Daub Assistant disabled.",
     ));
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // DRAWS SUBSCRIPTION (v2)
-  // Subscribes to lightweight game_draws INSERT events for a specific session.
-  // Each INSERT adds exactly one number — no full-array retransmission.
+  // CONNECTIVITY
   // ─────────────────────────────────────────────────────────────────────────
+
   void _subscribeConnectivity() {
     _connectivitySub = ConnectivityService.instance.onlineStream
-        .where((isOnline) => isOnline) // only fire on reconnect
+        .where((isOnline) => isOnline)
         .listen((_) => onAppResumed());
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // DRAWS SUBSCRIPTION
+  // ─────────────────────────────────────────────────────────────────────────
+
   void _resubscribeDraws(String sessionId) {
     _drawsSub?.cancel();
-
     _drawsSub = _bingoRepository.streamGameDraws(sessionId).listen((allNumbers) {
       if (state is! GameLoaded || isClosed) return;
       final current = state as GameLoaded;
 
-      // The stream now delivers the FULL list every time — no race condition.
-      // Only update if something actually changed.
       if (allNumbers.length == current.drawnNumbers.length) return;
 
-      // Play audio only for newly added numbers (not on initial load)
       if (current.drawnNumbers.isNotEmpty && allNumbers.length > current.drawnNumbers.length) {
         final newNumbers = allNumbers.sublist(current.drawnNumbers.length);
         for (final n in newNumbers) {
-          if (current.status != GameStatus.paused) {
-            AudioService().callNumber(n);
-          }
+          if (current.status != GameStatus.paused) AudioService().callNumber(n);
         }
       }
 
-      // Auto-daub: mark any newly drawn numbers
       Map<String, Set<String>>? autoMarked;
       if (current.isAutoDaubEnabled && allNumbers.length > current.drawnNumbers.length) {
         final newSet = allNumbers.sublist(current.drawnNumbers.length).toSet();
         autoMarked = _applyAutoDaub(current, newSet);
       }
 
-      emit(current.copyWith(
-        drawnNumbers: allNumbers,
-        markedCells: autoMarked,
-      ));
+      emit(current.copyWith(drawnNumbers: allNumbers, markedCells: autoMarked));
     }, onError: (e) => Log.e('streamGameDraws error', e));
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
 
   Map<String, Set<String>> _applyAutoDaub(GameLoaded current, Set<int> numbersToMark) {
     final map = Map<String, Set<String>>.from(current.markedCells);
@@ -862,9 +803,7 @@ class GameCubit extends Cubit<GameState> {
       for (var r = 0; r < 5; r++) {
         for (var col = 0; col < 5; col++) {
           if (r == 2 && col == 2) continue;
-          if (numbersToMark.contains(card.numbers[r][col])) {
-            cells.add('$r-$col');
-          }
+          if (numbersToMark.contains(card.numbers[r][col])) cells.add('$r-$col');
         }
       }
       map[card.id] = cells;
@@ -872,24 +811,13 @@ class GameCubit extends Cubit<GameState> {
     return map;
   }
 
-  /// Called when the app returns to foreground.
-  /// Re-subscribes draws stream and refreshes cards in case the OS dropped
-  /// the stream while the app was backgrounded.
   void onAppResumed() {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-    if (current.sessionId.isNotEmpty) {
-      _resubscribeDraws(current.sessionId);
-    }
+    if (current.sessionId.isNotEmpty) _resubscribeDraws(current.sessionId);
     refreshCards();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // HELPERS
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /// Returns a user-friendly error message.
-  /// Raw Firebase/exception strings are logged but never shown to the user.
   String _friendlyError(Object e, {String? prefix}) {
     String message;
     final s = e.toString().toLowerCase();
@@ -902,7 +830,6 @@ class GameCubit extends Cubit<GameState> {
     } else if (s.contains('unauthenticated')) {
       message = 'Session expired. Please sign in again.';
     } else if (s.contains('insufficient balance') || s.contains('insufficient')) {
-      // Preserve balance-related messages since they're already user-friendly
       message = e.toString().replaceAll('Exception: ', '');
     } else {
       message = 'Something went wrong. Please try again.';

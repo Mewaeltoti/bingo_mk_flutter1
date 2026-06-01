@@ -11,48 +11,7 @@ exports.claimBingo = async (request) => {
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
 
-    // SECURITY FIX: Rate-limit claim attempts to prevent spam.
-    // Each user may attempt at most 3 claims per session, with a minimum 4-second
-    // gap between attempts. This is enforced atomically before the main transaction.
-    const CLAIM_WINDOW_MS = 4000;
-    const MAX_ATTEMPTS_PER_SESSION = 3;
-
     try {
-        // Quick non-transactional read to get sessionId for the rate-limit key
-        const quickGameSnap = await gameRef.get();
-        if (!quickGameSnap.exists) throw new Error("Game not found.");
-        const sessionId = (quickGameSnap.data().sessionId || '').toString();
-
-        const attemptRef = db.collection('claim_attempts').doc(`${sessionId}_${userId}`);
-        const now = Date.now();
-
-        // Atomically check and record the attempt
-        const rateLimitPassed = await db.runTransaction(async (t) => {
-            const attemptDoc = await t.get(attemptRef);
-            const data = attemptDoc.exists ? attemptDoc.data() : { count: 0, lastAttemptAt: 0 };
-
-            if (data.count >= MAX_ATTEMPTS_PER_SESSION) {
-                return false; // Too many attempts this session
-            }
-            if (now - data.lastAttemptAt < CLAIM_WINDOW_MS) {
-                return false; // Too soon after last attempt
-            }
-
-            t.set(attemptRef, {
-                count: (data.count || 0) + 1,
-                lastAttemptAt: now,
-                sessionId,
-                userId,
-                expiresAt: admin.firestore.Timestamp.fromMillis(now + 30 * 60 * 1000) // TTL: 30 min
-            });
-            return true;
-        });
-
-        if (!rateLimitPassed) {
-            throw new HttpsError('resource-exhausted', 'Too many claim attempts. Please wait before trying again.');
-        }
-
-
         const result = await db.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists) throw new Error("Game not found.");
@@ -441,16 +400,6 @@ exports.confirmBingoClaim = async (request) => {
                 for (const winner of confirmedWinners) {
                     const userRef = db.collection('users').doc(winner.userId);
                     transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(prizePerWinner) });
-
-                    // Write to game_winners collection
-                    const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
-                    transaction.set(winnerRef, {
-                        sessionId: game.sessionId || 'N/A',
-                        cardNo: winner.cardNo.toString(),
-                        userId: winner.userId,
-                        phone: winner.phone || 'Player',
-                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
                 }
 
                 // Write to game history
@@ -566,16 +515,6 @@ exports.finalizeGameAndPayout = async (request) => {
             for (const winner of winners) {
                 const userRef = db.collection('users').doc(winner.userId);
                 transaction.update(userRef, { balance: admin.firestore.FieldValue.increment(prizePerWinner) });
-
-                // Write to game_winners collection
-                const winnerRef = db.collection('game_winners').doc(winner.cardNo.toString());
-                transaction.set(winnerRef, {
-                    sessionId: game.sessionId || 'N/A',
-                    cardNo: winner.cardNo.toString(),
-                    userId: winner.userId,
-                    phone: winner.phone || 'Player',
-                    createdAt: admin.firestore.FieldValue.serverTimestamp()
-                });
             }
 
             // Write to game history
