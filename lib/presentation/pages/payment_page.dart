@@ -543,7 +543,7 @@ class _TabRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEPOSIT TAB
+// DEPOSIT TABss
 // ─────────────────────────────────────────────────────────────────────────────
 class _DepositTab extends StatelessWidget {
   final WalletLoaded state;
