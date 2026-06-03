@@ -537,7 +537,7 @@ class _TabRow extends StatelessWidget {
       labelStyle: _T.label(size: 12, color: Colors.black, spacing: 1.5),
       unselectedLabelStyle: _T.label(size: 12, color: _C.textMid, spacing: 1.5),
       dividerColor: Colors.transparent,
-      tabs: const [Tab(text: S.deposit), Tab(text: S.withdraw)],
+      tabs: const [Tab(text: S.deposit)],
     ),
   );
 }
