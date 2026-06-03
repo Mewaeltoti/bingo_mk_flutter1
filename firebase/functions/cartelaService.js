@@ -209,6 +209,7 @@ exports.registerCard = async (request) => {
 };
 
 exports.startNewGame = async (request) => {
+    if (!request.auth?.token?.admin) throw new HttpsError('permission-denied', 'Admin only.');
     const { prizePool, cardPrice, gamePattern } = request.data || {};
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
@@ -340,6 +341,7 @@ exports.seedPool = async (request) => {
     }
 };
 exports.cancelGame = async (request) => {
+    if (!request.auth?.token?.admin) throw new HttpsError('permission-denied', 'Admin only.');
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');
     const historyRef = db.collection('game_history').doc();

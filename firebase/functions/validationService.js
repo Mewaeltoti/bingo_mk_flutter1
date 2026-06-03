@@ -367,8 +367,8 @@ function validateBingoPattern(cardNumbers, drawnNumbers, pattern) {
 }
 
 exports.confirmBingoClaim = async (request) => {
-    // Basic auth check
-    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
+    // Admin-only function
+    if (!request.auth?.token?.admin) throw new HttpsError('permission-denied', 'Admin only.');
 
     const { cardId } = request.data;
     const db = admin.firestore();
@@ -499,7 +499,7 @@ exports.rejectBingoClaim = async (request) => {
 };
 
 exports.finalizeGameAndPayout = async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
+    if (!request.auth?.token?.admin) throw new HttpsError('permission-denied', 'Admin only.');
 
     const db = admin.firestore();
     const gameRef = db.collection('games').doc('live');

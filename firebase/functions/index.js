@@ -19,9 +19,9 @@ exports.seedPool = onCall({ cors: true, timeoutSeconds: 540 }, (request) => requ
 exports.cancelGame = onCall({ cors: true }, (request) => require("./cartelaService").cancelGame(request));
 exports.removeCard = onCall({ cors: true }, (request) => require("./cartelaService").removeCard(request));
 
-// Atomic withdrawal with balance reservation (double-spend prevention)
-// ✅ New — just re-export directly
-exports.createWithdrawal = require("./createWithdrawal").createWithdrawal;
+// Withdrawal lifecycle is fully handled by reconciliationService triggers:
+// onWithdrawalCreated (reserves balance) and onWithdrawalUpdated (refunds on rejection).
+// Players write directly to users/{uid}/withdrawals via the client SDK.
 // Game Engine (v1 triggers/schedule - lazy loaded)
 const functions = require("firebase-functions/v1");
 

@@ -14,7 +14,7 @@ exports.smsWebhook = async (req, res) => {
     const queryToken = req.query.token;
 
     // You should change this secret token to a strong password and set it in your SMS Forwarder app
-    const expectedToken = "BingoEthioSharedSecretToken2026";
+    const expectedToken = process.env.WEBHOOK_SECRET || functions.config().webhook?.secret
 
     const hasValidHeader = authHeader === `Bearer ${expectedToken}`;
     const hasValidQuery = queryToken === expectedToken;

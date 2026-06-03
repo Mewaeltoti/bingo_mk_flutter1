@@ -42,8 +42,13 @@ exports.drawNumberLoopHandler = async (context) => {
         if (game.status === 'won' || game.status === 'finished') {
             if (game.endTime) {
                 const end = game.endTime.toDate().getTime();
-                // Reset after 15 seconds for a fast, dynamic game loop!
-                if (Date.now() - end >= 15 * 1000) {
+                // Reset delay is configurable via metadata/settings.resetDelaySeconds (default: 15).
+                // Admin can set it to 0 for instant resets or a longer value to announce winners.
+                const settingsDoc = await db.collection('metadata').doc('settings').get();
+                const resetDelaySec = (settingsDoc.exists && typeof settingsDoc.data().resetDelaySeconds === 'number')
+                    ? settingsDoc.data().resetDelaySeconds
+                    : 15;
+                if (Date.now() - end >= resetDelaySec * 1000) {
                     const counterRef = db.collection('metadata').doc('counters');
                     const counterDoc = await counterRef.get();
                     let sessionNum = 1000;
