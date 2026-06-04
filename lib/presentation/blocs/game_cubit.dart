@@ -209,10 +209,13 @@ class GameCubit extends Cubit<GameState> {
 
   Future<void> _init() async {
     try {
-      final cards = await _bingoRepository.getUserCartelas(userId, kLiveGameId);
+      final initialSessionId = await _bingoRepository.getLiveSessionId();
+      final cards = await _bingoRepository.getUserCartelas(userId, kLiveGameId,
+          sessionId: initialSessionId.isNotEmpty ? initialSessionId : null,
+        );
       if (isClosed) return;
 
-      final initialSessionId = await _bingoRepository.getLiveSessionId();
+      
 
       emit(GameLoaded(
         drawnNumbers: [],
@@ -448,7 +451,9 @@ class GameCubit extends Cubit<GameState> {
       final localPendingCards = current.userCards
           .where((c) => c.status == 'pending' && c.sessionId == current.sessionId)
           .toList();
-      final combinedCards = [...activeDbCards, ...localPendingCards];
+      final combinedCards = [...activeDbCards, ...localPendingCards]
+          .where((c) => c.sessionId == current.sessionId)  // ← add this
+          .toList();
       // Only carry blocked state for cards that belong to the CURRENT session —
       // prevents last-session blocked badges from reappearing after refreshCards()
       // races with the async deleteCardsForSession call on session change.

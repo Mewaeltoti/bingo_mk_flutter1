@@ -416,7 +416,9 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
 
             // Bingo cards
             CardsGridWidget(
-              cards: state.userCards,
+              cards: state.userCards
+              .where((c) => c.sessionId == state.sessionId)
+              .toList(),
               markedCells: state.markedCells,
               blockedCards: state.blockedCardIds,
               drawnNumbers: state.drawnNumbers,
