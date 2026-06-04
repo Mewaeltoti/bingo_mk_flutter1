@@ -20,22 +20,22 @@ enum BingoPattern {
 extension BingoPatternExtension on BingoPattern {
   String get name {
     switch (this) {
-      case BingoPattern.fullHouse: return 'Full House';
-      case BingoPattern.singleLineH: return 'Single Line H';
-      case BingoPattern.singleLineV: return 'Single Line V';
-      case BingoPattern.singleLineD: return 'Single Line D';
-      case BingoPattern.twoLines: return 'Two Lines';
-      case BingoPattern.fourCorners: return 'Four Corners';
-      case BingoPattern.xShape: return 'X Shape';
-      case BingoPattern.tShape: return 'T Shape';
-      case BingoPattern.lShape: return 'L Shape';
-      case BingoPattern.cross: return 'Cross';
-      case BingoPattern.frame: return 'Frame';
-      case BingoPattern.postageStamp: return 'Postage Stamp';
-      case BingoPattern.smallDiamond: return 'Small Diamond';
-      case BingoPattern.arrowUp: return 'Arrow Up';
-      case BingoPattern.pyramid: return 'Pyramid';
-      case BingoPattern.uShape: return 'U Shape';
+      case BingoPattern.fullHouse: return 'ሙሉ ካርቴላ';
+      case BingoPattern.singleLineH: return 'ኣግዳሚ መስመር';
+      case BingoPattern.singleLineV: return 'ነበርቲ መስመር';
+      case BingoPattern.singleLineD: return 'ዳያጎናል መስመር';
+      case BingoPattern.twoLines: return 'ክልተ መስመራት';
+      case BingoPattern.fourCorners: return 'ኣርባዕተ ጫፋት';
+      case BingoPattern.xShape: return 'ቅርጽ X';
+      case BingoPattern.tShape: return 'ቅርጽ T';
+      case BingoPattern.lShape: return 'ቅርጽ L';
+      case BingoPattern.cross: return 'መስቀል';
+      case BingoPattern.frame: return 'ፍሬም';
+      case BingoPattern.postageStamp: return 'ስታምፕ 2x2';
+      case BingoPattern.smallDiamond: return 'ንኡሽ ዳይመንድ';
+      case BingoPattern.arrowUp: return 'ላዕሊ ዝወጽእ ቀስት';
+      case BingoPattern.pyramid: return 'ፒራሚድ';
+      case BingoPattern.uShape: return 'ቅርጽ U';
     }
   }
 
