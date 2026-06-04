@@ -143,15 +143,20 @@ class BingoCardWidget extends StatelessWidget {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: badgeColor,
+                                    color: isWinner
+                                        ? const Color(0xFFF1C100)
+                                        : badgeColor,
                                     borderRadius: BorderRadius.circular(6),
+                                    boxShadow: isWinner
+                                        ? [BoxShadow(color: const Color(0xFFF1C100).withOpacity(0.6), blurRadius: 10, spreadRadius: 1)]
+                                        : [],
                                   ),
                                   child: Text(
-                                    badgeText.toUpperCase(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    isWinner ? '🏆 WINNER!' : badgeText.toUpperCase(),
+                                    style: TextStyle(
+                                      color: isWinner ? Colors.black : Colors.white,
                                       fontSize: 8,
-                                      fontWeight: FontWeight.bold,
+                                      fontWeight: FontWeight.w900,
                                     ),
                                   ),
                                 ),
@@ -370,9 +375,15 @@ class BingoCardWidget extends StatelessWidget {
             Color borderColor = Colors.white10;
 
             if (isFree) {
-              bgColor = AppColors.success.withOpacity(0.2);
-              textColor = AppColors.success;
-              borderColor = AppColors.success;
+              // F cell is always red
+              bgColor = AppColors.danger;
+              textColor = Colors.white;
+              borderColor = AppColors.danger;
+            } else if (isWinner && drawnNumbers.contains(number)) {
+              // Winning card: highlight all matched numbers with gold
+              bgColor = const Color(0xFFF1C100).withOpacity(0.85);
+              textColor = Colors.black;
+              borderColor = const Color(0xFFF1C100);
             } else if (isMarked) {
               bgColor = AppColors.danger;
               textColor = Colors.white;
@@ -409,7 +420,7 @@ class BingoCardWidget extends StatelessWidget {
                   isFree ? 'F' : '$number',
                   style: TextStyle(
                     fontSize: cellSize * 0.45,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w900,
                     color: textColor,
                   ),
                 ),
