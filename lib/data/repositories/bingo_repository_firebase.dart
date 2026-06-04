@@ -359,11 +359,14 @@ Future<List<int>> fetchDrawnNumbers(String sessionId) async {
             'id': d.id,
             'userId': userId,
             'amount': (d.data()['amount'] as num?)?.toDouble() ?? 0.0,
+            'bank': d.data()['bank'] ?? '',
+            'accountNumber': d.data()['accountNumber'] ?? '',
             'status': d.data()['status'] ?? 'pending',
             'isReserved': d.data()['isReserved'] ?? false,
             'createdAt': (d.data()['createdAt'] as Timestamp?)?.toDate(),
             'reservedAt': (d.data()['reservedAt'] as Timestamp?)?.toDate(),
             'refundedAt': (d.data()['refundedAt'] as Timestamp?)?.toDate(),
+            'verifiedAt': (d.data()['verifiedAt'] as Timestamp?)?.toDate(),
             'rejectionReason': d.data()['rejectionReason'],
           }).toList();
     } catch (e) {
@@ -415,22 +418,63 @@ Future<List<int>> fetchDrawnNumbers(String sessionId) async {
 
   @override
   Future<void> createWithdrawal(String userId, Map<String, dynamic> data) async {
-    // Balance reservation is handled atomically by the Cloud Function.
-    // Direct Firestore writes are blocked by security rules.
+    // Pure Firestore write — no Cloud Function.
+    // Balance is NOT reserved on submit. The admin approves and deducts manually.
+    // This prevents the double-credit bug: if the CF reserved balance on submit
+    // and the admin then rejected, the refund would add back money that was
+    // never actually deducted from the user perspective — resulting in +ETB.
+    final amount = (data['amount'] as num).toDouble();
+    final bank = data['bank'] as String? ?? '';
+    final accountNumber = data['accountNumber'] as String? ?? '';
+
     try {
-      final callable = _functions.httpsCallable('createWithdrawal');
-      await callable.call({
-        'amount': data['amount'],
-        'bank': data['bank'] ?? '',
-        'accountNumber': data['accountNumber'] ?? '',
+      // Client-side balance check — give a clear error before writing.
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final balance = (userDoc.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+      if (amount > balance) {
+        throw Exception(
+          'Insufficient balance. You have ${balance.toStringAsFixed(2)} ETB available.',
+        );
+      }
+
+      // Guard against accidental double-tap: block duplicate pending request
+      // for same amount + account.
+      final existing = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('withdrawals')
+          .where('status', isEqualTo: 'pending')
+          .where('amount', isEqualTo: amount)
+          .where('accountNumber', isEqualTo: accountNumber)
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty) {
+        throw Exception(
+          'A pending withdrawal of ${amount.toStringAsFixed(0)} ETB to this '
+          'account already exists. Please wait for it to be processed.',
+        );
+      }
+
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('withdrawals')
+          .add({
+        'amount': amount,
+        'bank': bank,
+        'accountNumber': accountNumber,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
       });
-    } on FirebaseFunctionsException catch (e) {
-      Log.e('createWithdrawal CF failed', e);
-      // Surface the CF message directly — it is already user-friendly.
-      throw Exception(e.message ?? 'Withdrawal request failed. Please try again.');
+    } on FirebaseException catch (e) {
+      Log.e('createWithdrawal error', e);
+      if (e.code == 'permission-denied') {
+        throw Exception('Withdrawal failed: permission denied. Please sign in again.');
+      }
+      throw Exception('Withdrawal failed. Please try again.');
     } catch (e) {
       Log.e('createWithdrawal failed', e);
-      throw Exception('Something went wrong. Please try again.');
+      rethrow;
     }
   }
 

@@ -5,16 +5,15 @@ if (!admin.apps.length) {
 }
 
 /**
- * SMS Webhook - Receives forwarded banking SMS messages, parses them, 
- * and reconciles deposits.
+ * SMS Webhook — receives forwarded banking SMS, parses them,
+ * and auto-reconciles deposits.
+ * Withdrawal logic has been intentionally removed from this service.
+ * Withdrawals are approved manually by the admin (approve = deduct + mark done).
  */
 exports.smsWebhook = async (req, res) => {
-    // 1. Verify API Token
     const authHeader = req.headers.authorization;
     const queryToken = req.query.token;
-
-    // You should change this secret token to a strong password and set it in your SMS Forwarder app
-    const expectedToken = process.env.WEBHOOK_SECRET || functions.config().webhook?.secret
+    const expectedToken = process.env.WEBHOOK_SECRET || functions.config().webhook?.secret;
 
     const hasValidHeader = authHeader === `Bearer ${expectedToken}`;
     const hasValidQuery = queryToken === expectedToken;
@@ -32,7 +31,6 @@ exports.smsWebhook = async (req, res) => {
     try {
         console.log(`Received SMS from ${sender}: "${text}"`);
 
-        // 2. Parse CBE or Telebirr notification
         const parsed = parseSmsNotification(sender, text);
         if (!parsed) {
             console.log("SMS does not match a Telebirr or CBE credit transaction template. Ignored.");
@@ -44,85 +42,60 @@ exports.smsWebhook = async (req, res) => {
 
         const db = admin.firestore();
 
-        // 3. Match and reconcile atomically in a Firestore Transaction
         await db.runTransaction(async (transaction) => {
-            // Check if this reference has already been matched
             const bankRef = db.collection("bank_notifications").doc(reference);
             const bankDoc = await transaction.get(bankRef);
             if (bankDoc.exists && bankDoc.data().status === "matched") {
-                console.log(`Webhook: Notification for reference ${reference} has already been matched. Skipping duplicate processing.`);
+                console.log(`Notification for reference ${reference} already matched. Skipping.`);
                 return;
             }
 
-            // Search for a pending user deposit with this reference number
             const depositsSnapshot = await db.collectionGroup("deposits")
                 .where("reference", "==", reference)
                 .where("status", "==", "pending")
                 .get();
 
             if (!depositsSnapshot.empty) {
-                // Match found! Reconcile immediately
                 const depositDoc = depositsSnapshot.docs[0];
                 const depositData = depositDoc.data();
-                const userRef = depositDoc.ref.parent.parent; // deposits is subcollection of users/{userId}
+                const userRef = depositDoc.ref.parent.parent;
 
-                // Verify amount matches
                 if (Number(depositData.amount) === Number(amount)) {
                     console.log(`Match found! Auto-approving deposit for user: ${userRef.id}`);
 
-                    // Update user deposit status
                     transaction.update(depositDoc.ref, {
                         status: "approved",
                         verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
                         matchedVia: "sms_webhook"
                     });
 
-                    // Credit user's wallet
                     const userDoc = await transaction.get(userRef);
                     const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
                     transaction.update(userRef, { balance: currentBalance + Number(amount) });
 
-                    // Save matched bank notification doc
                     transaction.set(bankRef, {
-                        amount,
-                        reference,
-                        bank,
-                        sender,
-                        text,
+                        amount, reference, bank, sender, text,
                         status: "matched",
                         userId: userRef.id,
                         depositId: depositDoc.id,
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                 } else {
-                    console.warn(`Reference matched, but amounts differ! Expected ${depositData.amount}, Got ${amount}`);
-                    // Save as unmatched notification with amount_mismatch flag for manual admin review
+                    console.warn(`Reference matched but amounts differ! Expected ${depositData.amount}, Got ${amount}`);
                     transaction.set(bankRef, {
-                        amount,
-                        reference,
-                        bank,
-                        sender,
-                        text,
+                        amount, reference, bank, sender, text,
                         status: "amount_mismatch",
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                 }
             } else {
-                // NO PENDING USER DEPOSIT YET. Save bank notification as unmatched.
-                // When the user submits the reference later, the deposit trigger will match it.
                 if (!bankDoc.exists) {
                     transaction.set(bankRef, {
-                        amount,
-                        reference,
-                        bank,
-                        sender,
-                        text,
+                        amount, reference, bank, sender, text,
                         status: "unmatched",
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                     console.log(`Saved unmatched bank notification for Ref: ${reference}`);
-                } else {
-                    console.log(`Bank notification for Ref: ${reference} already exists in database.`);
                 }
             }
         });
@@ -135,7 +108,8 @@ exports.smsWebhook = async (req, res) => {
 };
 
 /**
- * Triggered on user deposit document creation to check if bank SMS arrived first.
+ * Triggered on deposit creation — checks if the bank SMS arrived first
+ * and auto-approves if reference + amount match.
  */
 exports.onDepositCreatedHandler = async (snap, context) => {
     const deposit = snap.data();
@@ -147,14 +121,13 @@ exports.onDepositCreatedHandler = async (snap, context) => {
     if (!reference) return null;
 
     try {
-        // 1. Check for duplicates in approved deposits database-wide
         const existingApproved = await db.collectionGroup("deposits")
             .where("reference", "==", reference)
             .where("status", "==", "approved")
             .get();
 
         if (!existingApproved.empty) {
-            console.warn(`Duplicate reference detected on creation: ${reference}. Rejecting.`);
+            console.warn(`Duplicate reference detected: ${reference}. Rejecting.`);
             await snap.ref.update({
                 status: "rejected",
                 rejectionReason: "This reference number has already been used for a successful deposit."
@@ -170,7 +143,6 @@ exports.onDepositCreatedHandler = async (snap, context) => {
                 const bankData = bankDoc.data();
 
                 if (bankData.status === "matched") {
-                    // Already used reference in bank_notifications
                     transaction.update(snap.ref, {
                         status: "rejected",
                         rejectionReason: "This transaction reference has already been processed."
@@ -180,38 +152,31 @@ exports.onDepositCreatedHandler = async (snap, context) => {
                 }
 
                 if (bankData.status === "unmatched") {
-                    // Check if amount matches
                     if (Number(bankData.amount) === Number(amount)) {
-                        console.log(`Reconciled deposit on create! Auto-approving reference: ${reference}`);
+                        console.log(`Reconciled on create! Auto-approving reference: ${reference}`);
 
-                        // Update user deposit
                         transaction.update(snap.ref, {
                             status: "approved",
                             verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
                             matchedVia: "on_create_trigger"
                         });
 
-                        // Update bank notification
                         transaction.update(bankRef, {
                             status: "matched",
                             userId: userId,
                             depositId: depositId
                         });
 
-                        // Credit user wallet
                         const userRef = db.collection("users").doc(userId);
                         const userDoc = await transaction.get(userRef);
                         const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
                         transaction.update(userRef, { balance: currentBalance + Number(amount) });
                     } else {
-                        console.warn(`Unmatched amount mismatch in onCreate! Bank: ${bankData.amount}, User: ${amount}`);
+                        console.warn(`Amount mismatch in onCreate! Bank: ${bankData.amount}, User: ${amount}`);
                         transaction.update(bankRef, { status: "amount_mismatch" });
                     }
                 }
             } else {
-                // Bank SMS not yet received — leave deposit PENDING for later matching.
-                // The smsWebhook will reconcile it automatically when the SMS arrives,
-                // or the admin can approve manually from the finance page.
                 console.log(`Deposit ${depositId} for user ${userId} left PENDING — bank SMS for Ref: ${reference} not yet received.`);
             }
         });
@@ -222,148 +187,137 @@ exports.onDepositCreatedHandler = async (snap, context) => {
 };
 
 /**
- * Triggered when a withdrawal request is created. Reserves the user's balance.
+ * Triggered when a withdrawal document is created.
+ *
+ * Previous behaviour (REMOVED):
+ *   - Reserved balance immediately on submit
+ *   - Rejected if balance insufficient
+ *   - onWithdrawalUpdated then refunded on rejection → caused double-credit bug
+ *
+ * New behaviour:
+ *   - Balance is NOT touched on submit (Flutter already validated it)
+ *   - Admin sees the pending request, pays the user manually, then calls
+ *     approveWithdrawal() which deducts the balance once and marks it done
+ *   - No rejection path — admin either approves or deletes the record
  */
 exports.onWithdrawalCreatedHandler = async (snap, context) => {
-    const withdrawal = snap.data();
-    const userId = context.params.userId;
-    const db = admin.firestore();
-
-    const amount = Number(withdrawal.amount);
-    if (isNaN(amount) || amount <= 0) {
-        await snap.ref.update({
-            status: "rejected",
-            isReserved: false,
-            rejectionReason: "Invalid withdrawal amount requested."
-        });
-        return null;
-    }
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            const userRef = db.collection("users").doc(userId);
-            const userDoc = await transaction.get(userRef);
-
-            if (!userDoc.exists) {
-                throw new Error("User does not exist.");
-            }
-
-            const currentBalance = Number(userDoc.data().balance || 0);
-            if (currentBalance < amount) {
-                console.warn(`User ${userId} requested withdrawal of ${amount} with insufficient balance (${currentBalance}). Rejecting.`);
-                transaction.update(snap.ref, {
-                    status: "rejected",
-                    isReserved: false,
-                    rejectionReason: "Insufficient balance in your wallet."
-                });
-            } else {
-                console.log(`Reserving ${amount} ETB from user ${userId}'s balance for withdrawal.`);
-                transaction.update(userRef, {
-                    balance: currentBalance - amount
-                });
-                transaction.update(snap.ref, {
-                    status: "pending",
-                    isReserved: true,
-                    reservedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
-        });
-    } catch (error) {
-        console.error("onWithdrawalCreated Trigger error:", error);
-    }
+    // Nothing to do — withdrawal just sits as 'pending' until admin approves.
+    console.log(`Withdrawal created for user ${context.params.userId}, amount: ${snap.data().amount} ETB. Awaiting admin approval.`);
     return null;
 };
 
 /**
- * Triggered when a withdrawal is updated. If marked rejected, refunds the user.
+ * Called by the admin panel to approve a withdrawal.
+ * Atomically deducts the balance and marks the withdrawal as approved.
+ * This is the ONLY place the balance is ever deducted for a withdrawal.
  */
-exports.onWithdrawalUpdatedHandler = async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
-    const userId = context.params.userId;
-    const db = admin.firestore();
+exports.approveWithdrawalHandler = async (request) => {
+    const { userId, withdrawalId } = request.data;
 
-    // If status transitioned to rejected and we had actually reserved the funds, refund
-    if (before.status === "pending" && after.status === "rejected" && before.isReserved === true) {
-        const amount = Number(after.amount);
-        console.log(`Withdrawal was rejected. Refunding ${amount} ETB to User: ${userId}`);
-        
-        try {
-            await db.runTransaction(async (transaction) => {
-                const userRef = db.collection("users").doc(userId);
-                const userDoc = await transaction.get(userRef);
-
-                const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
-                transaction.update(userRef, {
-                    balance: currentBalance + amount
-                });
-                transaction.update(change.after.ref, {
-                    isReserved: false,
-                    refundedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-            });
-        } catch (error) {
-            console.error("onWithdrawalUpdated Trigger refund error:", error);
-        }
+    if (!request.auth || request.auth.token.admin !== true) {
+        throw new Error("permission-denied: Admin only.");
     }
-    return null;
+
+    if (!userId || !withdrawalId) {
+        throw new Error("invalid-argument: userId and withdrawalId required.");
+    }
+
+    const db = admin.firestore();
+    const withdrawalRef = db.collection("users").doc(userId).collection("withdrawals").doc(withdrawalId);
+    const userRef = db.collection("users").doc(userId);
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const withdrawalDoc = await transaction.get(withdrawalRef);
+            if (!withdrawalDoc.exists) {
+                throw new Error("not-found: Withdrawal does not exist.");
+            }
+
+            const withdrawal = withdrawalDoc.data();
+            if (withdrawal.status !== "pending") {
+                throw new Error(`already-processed: Withdrawal is already ${withdrawal.status}.`);
+            }
+
+            const amount = Number(withdrawal.amount);
+            if (isNaN(amount) || amount <= 0) {
+                throw new Error("invalid-argument: Invalid withdrawal amount.");
+            }
+
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists) {
+                throw new Error("not-found: User does not exist.");
+            }
+
+            const currentBalance = Number(userDoc.data().balance || 0);
+            if (currentBalance < amount) {
+                throw new Error(`failed-precondition: Insufficient balance. User has ${currentBalance} ETB, withdrawal is ${amount} ETB.`);
+            }
+
+            // Deduct balance and mark approved atomically
+            transaction.update(userRef, { balance: currentBalance - amount });
+            transaction.update(withdrawalRef, {
+                status: "approved",
+                verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            console.log(`Withdrawal ${withdrawalId} approved for user ${userId}. Deducted ${amount} ETB.`);
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error("approveWithdrawal error:", error);
+        throw new Error(error.message);
+    }
 };
 
 /**
  * Regex parser for Telebirr and CBE transaction confirmation messages.
  */
 function parseSmsNotification(sender, text) {
-    // Normalize spaces and casing
     const cleanText = text.replace(/\s+/g, ' ');
     const lowerSender = sender.toLowerCase();
 
-    // 1. TELEBIRR PARSING
-    // Standard template: "You have received 150.00 ETB from ... Ref: Trans.Ref: A1B2C3D4E5"
+    // TELEBIRR
     if (lowerSender.includes("telebirr") || lowerSender.includes("802")) {
         const amountRegex = /(?:received|transferred)\s*([\d,.]+)\s*ETB/i;
         const refRegex = /(?:Ref|reference|Trans\.Ref):\s*([a-zA-Z0-9]+)/i;
-
         const amountMatch = cleanText.match(amountRegex);
         const refMatch = cleanText.match(refRegex);
-
         if (amountMatch && refMatch) {
-            const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
-            const reference = refMatch[1].trim();
-            return { amount, reference, bank: "Telebirr" };
+            return {
+                amount: parseFloat(amountMatch[1].replace(/,/g, '')),
+                reference: refMatch[1].trim(),
+                bank: "Telebirr"
+            };
         }
     }
 
-    // 2. CBE PARSING
-    // Handles CBE Mobile App: "Credited with ETB 1,100.00 ... Ref No FT26133721GP"
-    // Handles CBE USSD: "You have received ETB 100.00 ... https://Mbreciept.cbe.com.et/FT26134ML0BQ-17643426"
+    // CBE
     if (lowerSender.includes("cbe") || lowerSender.includes("cbebirr") || lowerSender.includes("1000")) {
-        // Match deposit amount: "credited with ETB 1,100.00" or "received ETB 100.00"
         const amountRegex = /(?:credited\s+with|received|transfer\s+of)\s*(?:ETB)?\s*([\d,.]+)/i;
-        const amountMatch = cleanText.match(amountRegex);
-
-        // CBE reference numbers always start with FT followed by 10 alphanumeric characters (12 chars total).
-        // This is robust enough to extract it from "Ref No FT...", "FT..." or inside the receipt URLs!
         const ftRegex = /(FT[A-Z0-9]{10})/i;
+        const amountMatch = cleanText.match(amountRegex);
         const refMatch = cleanText.match(ftRegex);
-
         if (amountMatch && refMatch) {
-            const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
-            const reference = refMatch[1].trim();
-            return { amount, reference, bank: "CBE" };
+            return {
+                amount: parseFloat(amountMatch[1].replace(/,/g, '')),
+                reference: refMatch[1].trim(),
+                bank: "CBE"
+            };
         }
     }
 
-    // 3. GENERIC FALLBACK
+    // GENERIC FALLBACK
     const genericAmountRegex = /(?:ETB|Birr)\s*([\d,.]+)/i;
     const genericRefRegex = /(?:Ref|Txn|Reference):\s*([a-zA-Z0-9]+)/i;
-
     const gAmountMatch = cleanText.match(genericAmountRegex);
     const gRefMatch = cleanText.match(genericRefRegex);
-
     if (gAmountMatch && gRefMatch) {
-        const amount = parseFloat(gAmountMatch[1].replace(/,/g, ''));
-        const reference = gRefMatch[1].trim();
-        return { amount, reference, bank: "Generic" };
+        return {
+            amount: parseFloat(gAmountMatch[1].replace(/,/g, '')),
+            reference: gRefMatch[1].trim(),
+            bank: "Generic"
+        };
     }
 
     return null;

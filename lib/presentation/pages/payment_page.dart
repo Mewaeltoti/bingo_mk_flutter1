@@ -537,13 +537,13 @@ class _TabRow extends StatelessWidget {
       labelStyle: _T.label(size: 12, color: Colors.black, spacing: 1.5),
       unselectedLabelStyle: _T.label(size: 12, color: _C.textMid, spacing: 1.5),
       dividerColor: Colors.transparent,
-      tabs: const [Tab(text: S.deposit)],
+      tabs: const [Tab(text: S.deposit), Tab(text: S.withdraw)],
     ),
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEPOSIT TABss
+// DEPOSIT TAB
 // ─────────────────────────────────────────────────────────────────────────────
 class _DepositTab extends StatelessWidget {
   final WalletLoaded state;
@@ -1028,6 +1028,8 @@ class _HistorySection extends StatelessWidget {
           _ReceiptRow('Status', status.toUpperCase(), valueColor: statusColor),
           if (item['createdAt'] != null) _ReceiptRow('Submitted', _fmt(item['createdAt'])),
           if (item['verifiedAt'] != null) _ReceiptRow('Verified', _fmt(item['verifiedAt'])),
+          if (!isDeposit && item['reservedAt'] != null) _ReceiptRow('Reserved', _fmt(item['reservedAt'])),
+          if (!isDeposit && item['refundedAt'] != null) _ReceiptRow('Refunded', _fmt(item['refundedAt'])),
           if (item['matchedVia'] != null) _ReceiptRow('Matched via', item['matchedVia']),
           if (item['rejectionReason'] != null) ...[
             const SizedBox(height: 10),

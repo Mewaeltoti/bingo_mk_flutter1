@@ -1,51 +1,81 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ---- Helper functions -------------------------------------------------
+
     function isAuthenticated() { return request.auth != null; }
-    function isOwner(userId) { return request.auth.uid == userId; }
+    function isOwner(userId)   { return request.auth.uid == userId; }
     function isAdmin() {
-      return isAuthenticated() && 
-             (request.auth.token.admin == true || 
-              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+      return request.auth != null &&
+             request.auth.token.admin == true;
     }
 
-    // ---- Users & Sub‑collections -------------------------------------------
+    function validDepositCreate() {
+      let d = request.resource.data;
+      return d.status == 'pending'
+          && d.amount is number
+          && d.amount > 0;
+    }
+
+    // Withdrawal validation: client writes status=pending, amount>0, bank, accountNumber.
+    // Balance is NOT reserved here — admin approves via approveWithdrawal CF which
+    // atomically deducts balance. No rejection path exists; admin deletes if needed.
+    function validWithdrawalCreate() {
+      let d = request.resource.data;
+      return d.status == 'pending'
+          && d.amount is number
+          && d.amount > 0
+          && d.bank is string
+          && d.accountNumber is string;
+    }
+
     match /users/{userId} {
-      // Users can read their own profile or any profile if they are admin.
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-      // Only admins can modify user documents (e.g., role changes).
+      allow read:  if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow write: if isAdmin();
 
-      // ----- Deposits (user can create, admin can modify)
       match /deposits/{depositId} {
-        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-        allow create: if isAuthenticated() && isOwner(userId);
+        allow read:   if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow create: if isAuthenticated() && isOwner(userId) && validDepositCreate();
         allow update: if isAdmin();
-        allow delete: if isAdmin() || (isAuthenticated() && isOwner(userId) && resource.data.status == 'rejected');
+        allow delete: if isAdmin()
+                   || (isAuthenticated() && isOwner(userId)
+                       && resource.data.status == 'rejected');
       }
 
-      // ----- Withdrawals (user can create, admin can modify)
       match /withdrawals/{withdrawId} {
-        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-        allow create: if isAuthenticated() && isOwner(userId);
+        allow read:   if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow create: if isAuthenticated() && isOwner(userId) && validWithdrawalCreate();
+        // Only admin can update (approve) or delete withdrawals.
+        // There is no client-side rejection — admin either approves or deletes.
         allow update: if isAdmin();
-        allow delete: if isAdmin() || (isAuthenticated() && isOwner(userId) && resource.data.status == 'rejected');
+        allow delete: if isAdmin();
       }
 
-      // ----- Cartelas & Cards – read‑only for client, write only via CF
       match /cartelas/{cartelaId} {
-        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-        allow write: if false;   // Cloud Functions only
+        allow read:  if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow write: if false;
       }
+
       match /cards/{cardId} {
-        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-        allow write: if false;   // Cloud Functions only
+        allow read:   if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow update: if isAuthenticated()
+                      && isOwner(userId)
+                      && (
+                           request.resource.data.diff(resource.data)
+                             .affectedKeys().hasOnly(['blocked'])
+                           ||
+                           (
+                             request.resource.data.diff(resource.data)
+                               .affectedKeys().hasOnly(['status', 'sessionId', 'blocked'])
+                             && request.resource.data.status == 'pending'
+                             && request.resource.data.sessionId == ''
+                             && request.resource.data.blocked == false
+                           )
+                         );
+        allow create: if false;
+        allow delete: if isAuthenticated() && isOwner(userId);
       }
     }
 
-    // ---- Collection Group Rules for Admin Queries ---------------------------
     match /{path=**}/deposits/{depositId} {
       allow read: if isAdmin();
     }
@@ -53,38 +83,48 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
-    // ---- Bank SMS Notifications ---------------------------------------------
     match /bank_notifications/{notificationId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin(); // Allowed for admins during manual matching too!
+      allow read:  if isAdmin();
+      allow write: if isAdmin();
     }
 
-    // ---- Metadata Rules (Limits, etc.) --------------------------------------
     match /metadata/{docId} {
-      allow read: if isAuthenticated();
+      allow read:  if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // ---- Payment Settings (Bank accounts displayed to players) --------------
-    // Admin web saves to payment_settings/current
-    // Flutter app reads from payment_settings/current (after fix)
     match /payment_settings/{docId} {
-      allow read: if isAuthenticated();
+      allow read:  if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // ---- Live Game Document -------------------------------------------------
     match /games/live {
-      // UI can freely read the live game state.
-      allow read: if true;
-      // Writes (e.g., start/stop game, admin actions) must be admin‑only.
+      allow read:  if isAuthenticated();
+      allow update: if isAdmin()
+                 || (isAuthenticated()
+                     && request.resource.data.diff(resource.data)
+                          .affectedKeys().hasOnly(['blockedCardNos']));
+      allow create, delete: if isAdmin();
+    }
+
+    match /games/live/draws/{drawId} {
+      allow read:  if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // ---- Game History & Leaderboard ----------------------------------------
+    match /games/live/sessions/{sessionId} {
+      allow read:  if isAuthenticated();
+      allow write: if false;
+    }
+
     match /game_history/{historyId} {
-      allow read: if isAuthenticated();
-      allow write: if false;   // Cloud Functions only
+      allow read:  if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /top_players/{docId} {
+      allow read:  if isAuthenticated();
+      allow write: if false;
     }
   }
 }

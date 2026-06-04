@@ -142,15 +142,18 @@ class WalletCubit extends Cubit<WalletState> {
     String message;
     final s = e.toString().toLowerCase();
     if (s.contains('permission') || s.contains('permission-denied')) {
-      message = 'Permission denied. Please sign in again.';
+      message = e.toString().contains('sign in') 
+          ? e.toString().replaceAll('Exception: ', '')
+          : 'Permission denied. Please sign in again.';
     } else if (s.contains('network') || s.contains('unavailable')) {
       message = 'Network error. Please check your connection.';
     } else if (s.contains('unauthenticated')) {
       message = 'Session expired. Please sign in again.';
-    } else if (s.contains('already been submitted') || s.contains('already exists')) {
-      // Preserve duplicate-reference messages — already user-friendly
+    } else if (s.contains('already been submitted') || s.contains('already exists') ||
+               s.contains('pending withdrawal') || s.contains('already exists')) {
+      // Preserve duplicate-reference / duplicate-withdrawal messages — already user-friendly
       message = e.toString().replaceAll('Exception: ', '');
-    } else if (s.contains('insufficient')) {
+    } else if (s.contains('insufficient') || s.contains('available:')) {
       message = e.toString().replaceAll('Exception: ', '');
     } else {
       message = 'Something went wrong. Please try again.';
