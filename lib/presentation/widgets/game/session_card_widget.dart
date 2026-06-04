@@ -49,23 +49,24 @@ List<List<bool>> _patternGrid(String rawPattern) {
   if (p.contains('full') || p.contains('house')) {
     return List.generate(5, (_) => List.filled(5, true));
   }
-  // Single line (row 2 by default — row index 1)
+  // Single line — highlight ALL rows (any row wins)
   if (p.contains('single') || p == 'line' || p == 'one_line') {
-    return List.generate(5, (r) => List.generate(5, (c) => r == 2));
-  }
-  // Two lines / double line
+  return List.generate(5, (r) => List.generate(5, (c) => r == 2));
+}
+  // Two lines / double line — FIX: must be BEFORE the T check
   if (p.contains('two') || p.contains('double')) {
+    // Highlight rows 0+2+4 as representative; all combos of any 2 rows win
     return List.generate(5, (r) => List.generate(5, (c) => r == 1 || r == 3));
   }
-  // T shape
-  if (p.startsWith('t')) {
+  // T shape — FIX: use exact match / contains('t_shape'), not startsWith('t')
+  if (p == 't_shape' || p.contains('t_shape')) {
     return List.generate(5, (r) => List.generate(5, (c) => r == 0 || c == 2));
   }
-  // L shape
-  if (p.startsWith('l')) {
+  // L shape — FIX: use exact match, not startsWith('l')
+  if (p == 'l_shape' || p.contains('l_shape')) {
     return List.generate(5, (r) => List.generate(5, (c) => c == 0 || r == 4));
   }
-  // X (cross / diagonal cross)
+  // X (diagonal cross)
   if (p == 'x' || p.contains('diagonal')) {
     return List.generate(5, (r) => List.generate(5, (c) => r == c || r + c == 4));
   }
@@ -83,7 +84,7 @@ List<List<bool>> _patternGrid(String rawPattern) {
     return List.generate(5, (r) => List.generate(5, (c) =>
         r == 0 || r == 4 || c == 0 || c == 4));
   }
-  // Default: single middle row
+  // Default fallback
   return List.generate(5, (r) => List.generate(5, (c) => r == 2));
 }
 
@@ -92,16 +93,18 @@ String _patternDescription(String rawPattern) {
   if (p.contains('full') || p.contains('house')) {
     return 'Mark ALL 25 numbers on your card to win.';
   }
+  if (p.contains('single') || p == 'line' || p == 'one_line') {
+  return 'Mark any 1 complete horizontal row to win. (Any row counts!)';
+}
+  // FIX: two/double before T
   if (p.contains('two') || p.contains('double')) {
     return 'Mark any 2 complete horizontal rows to win.';
   }
-  if (p.contains('single') || p == 'line' || p == 'one_line') {
-    return 'Mark any 1 complete horizontal row to win.';
-  }
-  if (p.startsWith('t')) {
+  // FIX: exact match for T and L
+  if (p == 't_shape' || p.contains('t_shape')) {
     return 'Mark the top row + middle column to form a T shape.';
   }
-  if (p.startsWith('l')) {
+  if (p == 'l_shape' || p.contains('l_shape')) {
     return 'Mark the left column + bottom row to form an L shape.';
   }
   if (p == 'x' || p.contains('diagonal')) {
@@ -118,7 +121,6 @@ String _patternDescription(String rawPattern) {
   }
   return 'Mark the highlighted cells on your card to win.';
 }
-
 void _showPatternHelpDialog(BuildContext context, String gamePattern) {
   final grid = _patternGrid(gamePattern);
   final desc = _patternDescription(gamePattern);
