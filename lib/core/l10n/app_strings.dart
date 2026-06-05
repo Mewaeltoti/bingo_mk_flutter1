@@ -158,6 +158,71 @@ abstract class S {
   // ── Card Transparency Dialog ──────────────────────────────────────────────
   static const close            = 'ዕፀ';                     // Close
 
+  // ── Game Patterns (Tigrinya names & descriptions) ────────────────────────
+  // Pattern display names
+  static const patternFullHouse    = 'ምሉእ ቤት';         // Full House
+  static const patternSingleLine   = 'ሓደ መስመር';        // Single Line
+  static const patternTwoLines     = 'ክልተ መስመር';       // Two Lines
+  static const patternTShape       = 'T ቅርጺ';           // T Shape
+  static const patternLShape       = 'L ቅርጺ';           // L Shape
+  static const patternXShape       = 'X ቅርጺ';           // X Shape (diagonal cross)
+  static const patternPlus         = '+ ቅርጺ';           // Plus / Cross
+  static const patternCorners      = 'ኣርባዕቲኡ ኩርናዓት';  // Four Corners
+  static const patternFrame        = 'ዙሪያ ዳርጋ';        // Frame / Border
+
+  // Pattern descriptions (shown in the help dialog)
+  static const patternFullHouseDesc  = 'ንምዕዋት ኩሎም 25 ቁጽሪታት ናይ ካርታኻ ምልክት ግበር።';
+  // Mark ALL 25 numbers on your card to win.
+  static const patternSingleLineDesc = 'ንምዕዋት ዝኾነ 1 ምሉእ ሓቢጥ ሎሚ ምልክት ግበር። (ዝኾነ ሓቢጥ ይሓሽ!)';
+  // Mark any 1 complete horizontal row to win. (Any row counts!)
+  static const patternTwoLinesDesc   = 'ንምዕዋት ዝኾነ 2 ምሉኣት ሓቢጥ ሎምታት ምልክት ግበር።';
+  // Mark any 2 complete horizontal rows to win.
+  static const patternTShapeDesc     = 'ናይ T ቅርጺ ንምፍጣር ናይ ላዕሊ ሓቢጥ + ማእከላይ ዓምዲ ምልክት ግበር።';
+  // Mark the top row + middle column to form a T shape.
+  static const patternLShapeDesc     = 'ናይ L ቅርጺ ንምፍጣር ጸጋማይ ዓምዲ + ታሕቲ ሓቢጥ ምልክት ግበር።';
+  // Mark the left column + bottom row to form an L shape.
+  static const patternXShapeDesc     = 'ናይ X ቅርጺ ንምፍጣር ክልቲኡ ሰዋሰዋዊ መስመራት (ካብ ኩርናዕ ናብ ኩርናዕ) ምልክት ግበር።';
+  // Mark both diagonals (corner to corner) to form an X.
+  static const patternPlusDesc       = 'ናይ + ቅርጺ ንምፍጣር ማእከላይ ሓቢጥ + ማእከላይ ዓምዲ ምልክት ግበር።';
+  // Mark the middle row + middle column to form a Plus (+).
+  static const patternCornersDesc    = 'ንምዕዋት ኩሎም 4 ኩርናዓት ናይ ካርታኻ ምልክት ግበር።';
+  // Mark all 4 corner cells of your card to win.
+  static const patternFrameDesc      = 'ናይ ካርታኻ ዙሪያ ዳርጋ ኩሉ ምልክት ግበር።';
+  // Mark all cells on the outer edge of your card.
+  static const patternDefaultDesc    = 'ንምዕዋት ዝተጸብጸቡ ሴሎ ምልክት ግበር።';
+  // Mark the highlighted cells on your card to win.
+
+  /// Translates a raw [pattern] string (English, from Firestore/admin) into
+  /// its Tigrinya display name.
+  static String patternName(String rawPattern) {
+    final p = rawPattern.toLowerCase().replaceAll(' ', '_');
+    if (p.contains('full') || p.contains('house')) return patternFullHouse;
+    if (p.contains('single') || p == 'line' || p == 'one_line') return patternSingleLine;
+    if (p.contains('two') || p.contains('double')) return patternTwoLines;
+    if (p == 't_shape' || p.contains('t_shape')) return patternTShape;
+    if (p == 'l_shape' || p.contains('l_shape')) return patternLShape;
+    if (p == 'x' || p.contains('diagonal')) return patternXShape;
+    if (p.contains('plus') || p.contains('cross') || p.contains('+')) return patternPlus;
+    if (p.contains('corner')) return patternCorners;
+    if (p.contains('frame') || p.contains('border')) return patternFrame;
+    return rawPattern.toUpperCase().replaceAll('_', ' '); // unknown: show as-is
+  }
+
+  /// Translates a raw [pattern] string into its Tigrinya description.
+  static String patternDesc(String rawPattern) {
+    final p = rawPattern.toLowerCase().replaceAll(' ', '_');
+    if (p.contains('full') || p.contains('house')) return patternFullHouseDesc;
+    if (p.contains('single') || p == 'line' || p == 'one_line') return patternSingleLineDesc;
+    if (p.contains('two') || p.contains('double')) return patternTwoLinesDesc;
+    if (p == 't_shape' || p.contains('t_shape')) return patternTShapeDesc;
+    if (p == 'l_shape' || p.contains('l_shape')) return patternLShapeDesc;
+    if (p == 'x' || p.contains('diagonal')) return patternXShapeDesc;
+    if (p.contains('plus') || p.contains('cross') || p.contains('+')) return patternPlusDesc;
+    if (p.contains('corner')) return patternCornersDesc;
+    if (p.contains('frame') || p.contains('border')) return patternFrameDesc;
+    return patternDefaultDesc;
+  }
+
   // ── Terms of Service (full text) ─────────────────────────────────────────
   static const termsBody =
       'ቢንጎ መቐለ ብምጥቃምካ ምስ ዝስዕቡ ትሰማማዕ:\n\n'
