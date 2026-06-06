@@ -2,7 +2,7 @@
   "name": "bingo-functions",
   "description": "Cloud Functions for Real-Time Multiplayer Bingo",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "dependencies": {

@@ -1,9 +1,5 @@
 const admin = require("firebase-admin");
 
-if (!admin.apps.length) {
-    admin.initializeApp();
-}
-
 /**
  * SMS Webhook — receives forwarded banking SMS, parses them,
  * and auto-reconciles deposits.
@@ -13,7 +9,7 @@ if (!admin.apps.length) {
 exports.smsWebhook = async (req, res) => {
     const authHeader = req.headers.authorization;
     const queryToken = req.query.token;
-    const expectedToken = process.env.WEBHOOK_SECRET || functions.config().webhook?.secret;
+    const expectedToken = process.env.WEBHOOK_SECRET;
 
     const hasValidHeader = authHeader === `Bearer ${expectedToken}`;
     const hasValidQuery = queryToken === expectedToken;
