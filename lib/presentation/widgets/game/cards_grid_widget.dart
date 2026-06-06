@@ -16,9 +16,9 @@ class CardsGridWidget extends StatelessWidget {
   final int? winningCardNo;
   final DateTime? claimDeadline;
   final List<String> claimedCardIds;
-  /// Card numbers the user has starred as lucky/favourite.
+  /// Card IDs the user has starred as lucky/favourite.
   /// During the buying phase these cards float to the top of the grid.
-  final Set<int> favouriteCardNos;
+  final Set<String> favouriteCardIds;
 
   const CardsGridWidget({
     super.key,
@@ -30,7 +30,7 @@ class CardsGridWidget extends StatelessWidget {
     this.winningCardNo,
     this.claimDeadline,
     this.claimedCardIds = const [],
-    this.favouriteCardNos = const {},
+    this.favouriteCardIds = const {},
   });
 
   @override
@@ -69,14 +69,14 @@ class CardsGridWidget extends StatelessWidget {
 
     final drawnSet = Set<int>.from(drawnNumbers);
 
-    // During the buying phase, favourite (pending) cards float to the top so
-    // the user can tap "Register" on their lucky card before others grab it.
-    // In all other phases the order stays as-is (server order, stable).
+    // During the buying phase, favourite cards float to the top so the user
+    // can tap "Register" on their lucky card before others grab it.
+    // In all other phases the order stays stable (server order).
     final List<BingoCard> sortedCards = List.from(cards);
-    if (status == GameStatus.buying && favouriteCardNos.isNotEmpty) {
+    if (status == GameStatus.buying && favouriteCardIds.isNotEmpty) {
       sortedCards.sort((a, b) {
-        final aFav = favouriteCardNos.contains(a.cardNo) ? 0 : 1;
-        final bFav = favouriteCardNos.contains(b.cardNo) ? 0 : 1;
+        final aFav = favouriteCardIds.contains(a.id) ? 0 : 1;
+        final bFav = favouriteCardIds.contains(b.id) ? 0 : 1;
         return aFav.compareTo(bFav);
       });
     }
@@ -94,17 +94,12 @@ class CardsGridWidget extends StatelessWidget {
       ),
       itemBuilder: (_, i) {
         final card = sortedCards[i];
-        // BUG FIX: check isBlocked by BOTH blockedCards set (in-memory) AND
-        // card.isBlocked (persisted flag from Firestore). Previously only
-        // blockedCards set was checked, so freshly-loaded blocked cards
-        // (where isBlocked=true in DB but not yet in the Set) were not blocked.
         final isBlocked = blockedCards.contains(card.id) || card.isBlocked;
         final isPending = card.status == 'pending';
         final isBuyingPhase = status == GameStatus.buying;
         final isUnregistered = (isPending && !isBuyingPhase) || status == GameStatus.waiting;
         final isAlreadyClaimed = claimedCardIds.contains(card.id);
-        final isFavourite = favouriteCardNos.contains(card.cardNo);
-        // BUG FIX: a card is a winner if its cardNo matches winningCardNo.
+        final isFavourite = favouriteCardIds.contains(card.id);
         final isWinner = winningCardNo != null && card.cardNo == winningCardNo;
 
         final cardWidget = BingoCardWidget(
@@ -117,19 +112,15 @@ class CardsGridWidget extends StatelessWidget {
           isWinner: isWinner,
           isAlreadyClaimed: isAlreadyClaimed,
           isFavourite: isFavourite,
-          onToggleFavourite: card.cardNo > 0
-              ? () => context.read<GameCubit>().toggleFavourite(card.cardNo)
-              : null,
+          // Star is always shown — pending cards have no cardNo yet but the
+          // user still wants to mark their lucky card before registering it.
+          onToggleFavourite: () => context.read<GameCubit>().toggleFavourite(card.id),
           onMarkCell: (!isPending && !isBlocked && !isWinner)
               ? (r, c) => context.read<GameCubit>().markCell(card.id, r, c)
               : null,
           onRegister: (status == GameStatus.buying && !isBlocked)
               ? () => context.read<GameCubit>().registerCard(card.id)
               : null,
-          // BUG FIX: blocked and winner cards must NOT get an onBingoClaim
-          // callback. Previously blocked cards still received the callback,
-          // which meant the BINGO button could still fire claimBingo() on them
-          // despite the visual opacity suggesting they were disabled.
           onBingoClaim: (isBlocked || isWinner || isAlreadyClaimed)
               ? null
               : () => context.read<GameCubit>().claimBingo(card.id),

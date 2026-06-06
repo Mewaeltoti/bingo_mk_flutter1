@@ -174,10 +174,11 @@ class GameUIState extends Equatable {
   final List<String> claimedCardIds;
   final bool isActionLoading;
   final bool isAutoDaubEnabled;
-  /// Card numbers the user has starred as favourites (persisted locally via
+  /// Card IDs the user has starred as favourites (persisted locally via
   /// FavouritesService). Favourited cards float to the top of the grid
   /// during the buying phase so the user can buy their lucky card faster.
-  final Set<int> favouriteCardNos;
+  /// Uses card.id (Firestore doc ID) because pending cards have no cardNo yet.
+  final Set<String> favouriteCardIds;
 
   const GameUIState({
     this.markedCells = const {},
@@ -185,13 +186,13 @@ class GameUIState extends Equatable {
     this.claimedCardIds = const [],
     this.isActionLoading = false,
     this.isAutoDaubEnabled = true,
-    this.favouriteCardNos = const {},
+    this.favouriteCardIds = const {},
   });
 
   @override
   List<Object?> get props => [
     markedCells, blockedCardIds, claimedCardIds,
-    isActionLoading, isAutoDaubEnabled, favouriteCardNos,
+    isActionLoading, isAutoDaubEnabled, favouriteCardIds,
   ];
 
   GameUIState copyWith({
@@ -200,7 +201,7 @@ class GameUIState extends Equatable {
     List<String>? claimedCardIds,
     bool? isActionLoading,
     bool? isAutoDaubEnabled,
-    Set<int>? favouriteCardNos,
+    Set<String>? favouriteCardIds,
   }) {
     return GameUIState(
       markedCells: markedCells ?? this.markedCells,
@@ -208,7 +209,7 @@ class GameUIState extends Equatable {
       claimedCardIds: claimedCardIds ?? this.claimedCardIds,
       isActionLoading: isActionLoading ?? this.isActionLoading,
       isAutoDaubEnabled: isAutoDaubEnabled ?? this.isAutoDaubEnabled,
-      favouriteCardNos: favouriteCardNos ?? this.favouriteCardNos,
+      favouriteCardIds: favouriteCardIds ?? this.favouriteCardIds,
     );
   }
 }
@@ -285,7 +286,7 @@ class GameLoaded extends GameState {
   List<String>             get claimedCardIds   => ui.claimedCardIds;
   bool                     get isActionLoading  => ui.isActionLoading;
   bool                     get isAutoDaubEnabled => ui.isAutoDaubEnabled;
-  Set<int>                 get favouriteCardNos => ui.favouriteCardNos;
+  Set<String>                 get favouriteCardIds => ui.favouriteCardIds;
 
   @override
   List<Object?> get props => [session, ui];
@@ -335,7 +336,7 @@ class GameLoaded extends GameState {
     List<String>? claimedCardIds,
     bool? isActionLoading,
     bool? isAutoDaubEnabled,
-    Set<int>? favouriteCardNos,
+    Set<String>? favouriteCardIds,
   }) {
     return GameLoaded(
       session: session.copyWith(
@@ -371,7 +372,7 @@ class GameLoaded extends GameState {
         claimedCardIds: claimedCardIds,
         isActionLoading: isActionLoading,
         isAutoDaubEnabled: isAutoDaubEnabled,
-        favouriteCardNos: favouriteCardNos,
+        favouriteCardIds: favouriteCardIds,
       ),
     );
   }
@@ -439,11 +440,11 @@ class GameCubit extends Cubit<GameState> {
         ),
       ));
 
-      // Load persisted favourite card numbers and reflect them in UI state.
+      // Load persisted favourite card IDs and reflect them in UI state.
       final favourites = await sl<FavouritesService>().load(userId);
       if (!isClosed && state is GameLoaded && favourites.isNotEmpty) {
         emit((state as GameLoaded).copyWithUI(
-          (state as GameLoaded).ui.copyWith(favouriteCardNos: favourites),
+          (state as GameLoaded).ui.copyWith(favouriteCardIds: favourites),
         ));
       }
 
@@ -1065,27 +1066,27 @@ class GameCubit extends Cubit<GameState> {
   // FAVOURITES
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Toggles [cardNo] in or out of the user's local favourites list.
+  /// Toggles [cardId] in or out of the user's local favourites list.
   ///
   /// Persisted via [FavouritesService] (SharedPreferences) so the list
   /// survives app restarts. The UI reflects the change immediately via
   /// an optimistic emit; the async persist runs in the background.
-  Future<void> toggleFavourite(int cardNo) async {
+  Future<void> toggleFavourite(String cardId) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
 
     // Optimistic emit — update UI before the disk write completes.
-    final updated = Set<int>.from(current.favouriteCardNos);
-    if (updated.contains(cardNo)) {
-      updated.remove(cardNo);
+    final updated = Set<String>.from(current.favouriteCardIds);
+    if (updated.contains(cardId)) {
+      updated.remove(cardId);
     } else {
-      updated.add(cardNo);
+      updated.add(cardId);
     }
-    emit(current.copyWithUI(current.ui.copyWith(favouriteCardNos: updated)));
+    emit(current.copyWithUI(current.ui.copyWith(favouriteCardIds: updated)));
 
     // Persist in the background; errors are non-fatal (preference only).
     try {
-      await sl<FavouritesService>().toggle(userId, cardNo);
+      await sl<FavouritesService>().toggle(userId, cardId);
     } catch (e) {
       Log.e('toggleFavourite persist failed', e);
     }

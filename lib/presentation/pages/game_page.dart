@@ -506,7 +506,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                   : state.winningCardNo,
               claimDeadline: state.claimDeadline,
               claimedCardIds: state.claimedCardIds,
-              favouriteCardNos: state.favouriteCardNos,
+              favouriteCardIds: state.favouriteCardIds,
             ),
                 ],
               ),
