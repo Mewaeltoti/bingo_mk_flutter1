@@ -460,7 +460,9 @@ exports.confirmBingoClaim = async (request) => {
 };
 
 exports.rejectBingoClaim = async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in.');
+    // Must mirror confirmBingoClaim — admin-only to prevent any authenticated
+    // user from clearing a legitimate winner's claim status.
+    if (!request.auth?.token?.admin) throw new HttpsError('permission-denied', 'Admin only.');
 
     const { cardId, userId } = request.data;
     const db = admin.firestore();

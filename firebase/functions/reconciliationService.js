@@ -65,9 +65,12 @@ exports.smsWebhook = async (req, res) => {
                         matchedVia: "sms_webhook"
                     });
 
-                    const userDoc = await transaction.get(userRef);
-                    const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
-                    transaction.update(userRef, { balance: currentBalance + Number(amount) });
+                    // FieldValue.increment avoids the read-modify-write race where
+                    // two concurrent webhooks both read the same balance and only
+                    // one credit lands. No manual read needed.
+                    transaction.update(userRef, {
+                        balance: admin.firestore.FieldValue.increment(Number(amount))
+                    });
 
                     transaction.set(bankRef, {
                         amount, reference, bank, sender, text,
@@ -164,9 +167,10 @@ exports.onDepositCreatedHandler = async (snap, context) => {
                         });
 
                         const userRef = db.collection("users").doc(userId);
-                        const userDoc = await transaction.get(userRef);
-                        const currentBalance = userDoc.exists ? (userDoc.data().balance || 0) : 0;
-                        transaction.update(userRef, { balance: currentBalance + Number(amount) });
+                        // FieldValue.increment avoids the same race as in smsWebhook.
+                        transaction.update(userRef, {
+                            balance: admin.firestore.FieldValue.increment(Number(amount))
+                        });
                     } else {
                         console.warn(`Amount mismatch in onCreate! Bank: ${bankData.amount}, User: ${amount}`);
                         transaction.update(bankRef, { status: "amount_mismatch" });
@@ -249,8 +253,12 @@ exports.approveWithdrawalHandler = async (request) => {
                 throw new Error(`failed-precondition: Insufficient balance. User has ${currentBalance} ETB, withdrawal is ${amount} ETB.`);
             }
 
-            // Deduct balance and mark approved atomically
-            transaction.update(userRef, { balance: currentBalance - amount });
+            // Deduct balance and mark approved atomically.
+            // FieldValue.increment(-amount) is safer than manual subtraction
+            // and consistent with how deposits are credited.
+            transaction.update(userRef, {
+                balance: admin.firestore.FieldValue.increment(-amount)
+            });
             transaction.update(withdrawalRef, {
                 status: "approved",
                 verifiedAt: admin.firestore.FieldValue.serverTimestamp(),

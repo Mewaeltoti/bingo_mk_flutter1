@@ -20,6 +20,10 @@ class BingoCardWidget extends StatelessWidget {
   final bool isWinner;
   final DateTime? claimDeadline;
   final bool isAlreadyClaimed;
+  /// Whether this card number is in the user's local favourites list.
+  final bool isFavourite;
+  /// Called when the user taps the star icon. Null hides the star entirely.
+  final VoidCallback? onToggleFavourite;
 
   const BingoCardWidget({
     super.key,
@@ -38,6 +42,8 @@ class BingoCardWidget extends StatelessWidget {
     this.isWinner = false,
     this.claimDeadline,
     this.isAlreadyClaimed = false,
+    this.isFavourite = false,
+    this.onToggleFavourite,
   });
 
   @override
@@ -162,6 +168,23 @@ class BingoCardWidget extends StatelessWidget {
                                 ),
                               ],
                               const Spacer(),
+                              // Favourite star — shown whenever onToggleFavourite
+                              // is provided (i.e. card has a valid cardNo).
+                              if (onToggleFavourite != null)
+                                GestureDetector(
+                                  onTap: onToggleFavourite,
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    child: Icon(
+                                      isFavourite ? Icons.star_rounded : Icons.star_outline_rounded,
+                                      size: 16,
+                                      color: isFavourite
+                                          ? const Color(0xFFF1C100)  // gold
+                                          : Colors.white38,
+                                    ),
+                                  ),
+                                ),
                               if (onRemove != null)
                                 IconButton(
                                   padding: EdgeInsets.zero,

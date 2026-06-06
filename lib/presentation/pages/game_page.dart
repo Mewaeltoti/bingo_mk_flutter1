@@ -139,6 +139,12 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsCubit, SettingsState>(
+      // Only rebuild the page tree when the theme or language actually changes.
+      // Without this, every SettingsState emit (e.g. any unrelated settings
+      // toggle) forces the entire GamePage subtree to re-evaluate.
+      buildWhen: (prev, next) =>
+          prev.isLightMode != next.isLightMode ||
+          prev.isAmharic != next.isAmharic,
       builder: (context, _) => BlocConsumer<GameCubit, GameState>(
       listener: (context, state) {
         if (state is GameLoaded) {
@@ -221,7 +227,9 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
               appBar: _buildAppBar(context, state),
               body: state is GameLoaded
                   ? _buildBody(context, state)
-                  : const GamePageSkeleton(),
+                  : state is GameStreamError
+                      ? _buildStreamErrorFallback(context, state)
+                      : const GamePageSkeleton(),
               floatingActionButton: state is GameLoaded &&
                       state.status == GameStatus.buying
                   ? _BuyCardsButton(onTap: () => _showBuySheet(context, state))
@@ -315,6 +323,50 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
         ),
         const SizedBox(width: 4),
       ],
+    );
+  }
+
+  /// Shown when [GameStreamError] is emitted — i.e. the Firestore stream died
+  /// mid-game and connectivity resubscription could not recover it.
+  /// Gives the player a clear explanation and a one-tap retry instead of
+  /// leaving them staring at a frozen board indefinitely.
+  Widget _buildStreamErrorFallback(BuildContext context, GameStreamError state) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 56, color: _C.danger),
+            const SizedBox(height: 16),
+            Text(
+              'Connection Lost',
+              style: _T.body(size: 18, weight: FontWeight.w700),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              state.message,
+              style: _T.body(size: 13, color: _C.textMid),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => context.read<GameCubit>().reconnect(),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reconnect'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _C.gold,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -454,6 +506,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                   : state.winningCardNo,
               claimDeadline: state.claimDeadline,
               claimedCardIds: state.claimedCardIds,
+              favouriteCardNos: state.favouriteCardNos,
             ),
                 ],
               ),

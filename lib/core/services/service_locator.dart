@@ -5,6 +5,7 @@ import '../../data/repositories/auth_repository_firebase.dart';
 import '../../data/repositories/bingo_repository_firebase.dart';
 import 'audio_service.dart';
 import 'card_generator_service.dart';
+import 'favourites_service.dart';
 
 final sl = GetIt.instance;
 
@@ -12,6 +13,7 @@ Future<void> initServiceLocator() async {
   // Services
   sl.registerLazySingleton<AudioService>(() => AudioService());
   sl.registerLazySingleton<CardGeneratorService>(() => CardGeneratorService());
+  sl.registerLazySingleton<FavouritesService>(() => FavouritesService());
 
   // Repositories — Firebase implementations
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryFirebase());

@@ -189,7 +189,14 @@ exports.registerCard = async (request) => {
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 2 * 60 * 60 * 1000))
             });
-            transaction.update(gameRef, { cardsSold: admin.firestore.FieldValue.increment(1) });
+            // Increment both cardsSold and prizePool atomically in the same
+            // transaction write that deducts the buyer's balance. This keeps
+            // prizePool = sum(actual balance debits) at all times, eliminating
+            // the mismatch that arose when a card buy failed mid-flight.
+            transaction.update(gameRef, {
+                cardsSold: admin.firestore.FieldValue.increment(1),
+                prizePool: admin.firestore.FieldValue.increment(price),
+            });
 
             // Record assignment atomically
             transaction.set(assignmentRef, {
@@ -442,9 +449,15 @@ exports.removeCard = async (request) => {
                 // Refund user if in buying phase
                 if (gameData.status === 'buying') {
                     if (userDoc.exists) {
-                        const currentBalance = userDoc.data().balance || 0;
                         const price = gameData.cardPrice || 10;
-                        transaction.update(userRef, { balance: currentBalance + price });
+                        // FieldValue.increment avoids the same race as in smsWebhook.
+                        transaction.update(userRef, {
+                            balance: admin.firestore.FieldValue.increment(price)
+                        });
+                        // Keep prizePool in sync with the refund.
+                        transaction.update(gameRef, {
+                            prizePool: admin.firestore.FieldValue.increment(-price)
+                        });
                     }
                 }
 

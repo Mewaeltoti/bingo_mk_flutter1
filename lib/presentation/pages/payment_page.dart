@@ -7,58 +7,7 @@ import '../../core/theme/app_theme.dart';
 import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
 import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
-
-// ─── Design tokens ────────────────────────────────────────────────────────────
-class _C {
-  static bool get _l => SettingsCubit.isLightModeGlobal;
-
-  // Base surfaces
-  static Color get bg        => _l ? const Color(0xFFF2F4F7) : const Color(0xFF050D1A);
-  static Color get card      => _l ? const Color(0xFFFFFFFF) : const Color(0xFF0D1B2A);
-  static Color get cardHigh  => _l ? const Color(0xFFF9FAFB) : const Color(0xFF112236);
-  static Color get divider   => _l ? const Color(0xFFEAECF0) : const Color(0xFF1C2E40);
-
-  // Brand
-  static const gold       = Color(0xFFD4AF37);
-  static const goldDim    = Color(0xFFA07C1E);
-  static const goldFill   = Color(0x1AD4AF37);
-  static const goldBorder = Color(0x40D4AF37);
-  static const blue       = Color(0xFF1A237E);
-  static const blueMid    = Color(0xFF283593);
-  static const accent     = Color(0xFF42A5F5);
-
-  // Semantic
-  static const success    = Color(0xFF2A9D8F);
-  static const danger     = Color(0xFFE63946);
-  static const warning    = Color(0xFFF59E0B);
-
-  // Text
-  static Color get textHigh => _l ? const Color(0xFF101828) : Colors.white;
-  static Color get textMid  => _l ? const Color(0xFF475467) : const Color(0xFFB0BEC5);
-  static Color get textLow  => _l ? const Color(0xFF667085) : const Color(0xFF607D8B);
-}
-
-// ─── Shared text styles ───────────────────────────────────────────────────────
-class _T {
-  static const mono = TextStyle(fontFamily: 'Orbitron');
-  static TextStyle label({double size = 11, Color? color, double spacing = 0.8}) =>
-      TextStyle(
-        fontFamily: 'Outfit',
-        fontSize: size,
-        fontWeight: FontWeight.w600,
-        letterSpacing: spacing,
-        color: color ?? _C.textMid,
-      );
-  static TextStyle body({double size = 13, Color? color, FontWeight weight = FontWeight.w400}) =>
-      TextStyle(fontFamily: 'Outfit', fontSize: size, fontWeight: weight, color: color ?? _C.textHigh);
-}
-
-// ─── Decoration helpers ───────────────────────────────────────────────────────
-BoxDecoration _cardDeco({Color? border, Color? bg}) => BoxDecoration(
-  color: bg ?? _C.card,
-  borderRadius: BorderRadius.circular(16),
-  border: Border.all(color: border ?? _C.divider, width: 0.5),
-);
+import 'package:bingo_mk/core/theme/app_tokens.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class PaymentPage extends StatefulWidget {
@@ -120,11 +69,11 @@ class _PaymentPageState extends State<PaymentPage>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(children: [
-          const Icon(Icons.check_circle_rounded, color: _C.success, size: 18),
+          const Icon(Icons.check_circle_rounded, color: AppTokens.success, size: 18),
           const SizedBox(width: 8),
-          Text('${label}${S.copied}', style: _T.body(size: 13, weight: FontWeight.w600)),
+          Text('${label}${S.copied}', style: AppText.body(size: 13, weight: FontWeight.w600)),
         ]),
-        backgroundColor: _C.cardHigh,
+        backgroundColor: AppTokens.cardHigh,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         duration: const Duration(seconds: 2),
@@ -160,7 +109,7 @@ class _PaymentPageState extends State<PaymentPage>
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsCubit, SettingsState>(
       builder: (context, _) => Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppTokens.bg,
       body: BlocConsumer<WalletCubit, WalletState>(
         listener: (context, state) {
           if (state is WalletLoaded) {
@@ -184,13 +133,13 @@ class _PaymentPageState extends State<PaymentPage>
                     content: Row(children: [
                       Icon(
                         isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
-                        color: isError ? Colors.red[300] : _C.success,
+                        color: isError ? Colors.red[300] : AppTokens.success,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(msg, style: _T.body(size: 13, weight: FontWeight.w600))),
+                      Expanded(child: Text(msg, style: AppText.body(size: 13, weight: FontWeight.w600))),
                     ]),
-                    backgroundColor: _C.cardHigh,
+                    backgroundColor: AppTokens.cardHigh,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     duration: Duration(seconds: isError ? 4 : 2),
@@ -213,8 +162,8 @@ class _PaymentPageState extends State<PaymentPage>
                 _WalletHeader(balance: state.balance),
                 Expanded(
                   child: RefreshIndicator(
-                    color: _C.gold,
-                    backgroundColor: _C.card,
+                    color: AppTokens.goldAlt,
+                    backgroundColor: AppTokens.card,
                     onRefresh: () => context.read<WalletCubit>().loadWallet(),
                     child: CustomScrollView(
                       physics: const BouncingScrollPhysics(
@@ -280,9 +229,9 @@ class _PaymentPageState extends State<PaymentPage>
           if (state is WalletError) {
             return Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.wifi_off_rounded, color: _C.textLow, size: 52),
+                Icon(Icons.wifi_off_rounded, color: AppTokens.textLow, size: 52),
                 const SizedBox(height: 16),
-                Text(state.message, style: _T.body(color: _C.textMid), textAlign: TextAlign.center),
+                Text(state.message, style: AppText.body(color: AppTokens.textMid), textAlign: TextAlign.center),
                 const SizedBox(height: 24),
                 _GoldButton(
                   label: S.retry,
@@ -350,8 +299,8 @@ class _PaymentPageState extends State<PaymentPage>
       _depositAmountCtrl.clear(); _referenceCtrl.clear();
       setState(() { _depositAmountError = null; _referenceError = null; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(S.depositSubmitted, style: _T.body(size: 13)),
-        backgroundColor: _C.success,
+        content: Text(S.depositSubmitted, style: AppText.body(size: 13)),
+        backgroundColor: AppTokens.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -383,8 +332,8 @@ class _PaymentPageState extends State<PaymentPage>
       _withdrawAmountCtrl.clear(); _accountCtrl.clear();
       setState(() { _withdrawAmountError = null; _accountError = null; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(S.withdrawalSubmitted, style: _T.body(size: 13)),
-        backgroundColor: _C.success,
+        content: Text(S.withdrawalSubmitted, style: AppText.body(size: 13)),
+        backgroundColor: AppTokens.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -398,42 +347,42 @@ class _PaymentPageState extends State<PaymentPage>
       context: ctx,
       barrierDismissible: false,
       builder: (dialogCtx) => AlertDialog(
-        backgroundColor: _C.cardHigh,
+        backgroundColor: AppTokens.cardHigh,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: _C.danger.withOpacity(0.12),
+              color: AppTokens.danger.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.close_rounded, color: _C.danger, size: 20),
+            child: const Icon(Icons.close_rounded, color: AppTokens.danger, size: 20),
           ),
           const SizedBox(width: 12),
           Text('$type Rejected',
-              style: _T.body(size: 16, weight: FontWeight.bold)),
+              style: AppText.body(size: 16, weight: FontWeight.bold)),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Your $type of $amount ETB was rejected.',
-              style: _T.body(color: _C.textMid)),
+              style: AppText.body(color: AppTokens.textMid)),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _C.danger.withOpacity(0.06),
+              color: AppTokens.danger.withOpacity(0.06),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _C.danger.withOpacity(0.2)),
+              border: Border.all(color: AppTokens.danger.withOpacity(0.2)),
             ),
             child: Text('Reason: $reason',
-                style: _T.body(size: 12, color: _C.danger, weight: FontWeight.w600)),
+                style: AppText.body(size: 12, color: AppTokens.danger, weight: FontWeight.w600)),
           ),
         ]),
         actions: [
           TextButton(
             onPressed: () { Navigator.pop(dialogCtx); onDelete(); },
             child: Text(S.dismiss,
-                style: _T.label(size: 12, color: _C.gold, spacing: 1.0)),
+                style: AppText.label(size: 12, color: AppTokens.goldAlt, spacing: 1.0)),
           ),
         ],
       ),
@@ -464,7 +413,7 @@ class _WalletHeader extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(S.availableBalance, style: _T.label(size: 10, color: _C.textLow, spacing: 0.5)),
+                    Text(S.availableBalance, style: AppText.label(size: 10, color: AppTokens.textLow, spacing: 0.5)),
                     const SizedBox(height: 2),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -472,15 +421,15 @@ class _WalletHeader extends StatelessWidget {
                       children: [
                         Text(
                           balance.toStringAsFixed(2),
-                          style: _T.mono.copyWith(
+                          style: AppText.display.copyWith(
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
-                            color: _C.gold,
+                            color: AppTokens.goldAlt,
                             letterSpacing: -0.5,
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Text('ETB', style: _T.label(size: 11, color: _C.goldDim, spacing: 0.5)),
+                        Text('ETB', style: AppText.label(size: 11, color: AppTokens.goldAltDim, spacing: 0.5)),
                       ],
                     ),
                   ],
@@ -488,16 +437,16 @@ class _WalletHeader extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: _C.goldFill,
+                    color: AppTokens.goldAltFill,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _C.goldBorder, width: 0.75),
+                    border: Border.all(color: AppTokens.goldAltBorder, width: 0.75),
                   ),
-                  child: const Icon(Icons.account_balance_wallet_rounded, color: _C.gold, size: 16),
+                  child: const Icon(Icons.account_balance_wallet_rounded, color: AppTokens.goldAlt, size: 16),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Container(height: 0.5, color: _C.divider),
+            Container(height: 0.5, color: AppTokens.divider),
           ],
         ),
       ),
@@ -513,14 +462,14 @@ class _StatusBanner extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
     decoration: BoxDecoration(
-      color: _C.danger.withOpacity(0.07),
+      color: AppTokens.danger.withOpacity(0.07),
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: _C.danger.withOpacity(0.25)),
+      border: Border.all(color: AppTokens.danger.withOpacity(0.25)),
     ),
     child: Row(children: [
-      const Icon(Icons.error_outline_rounded, color: _C.danger, size: 17),
+      const Icon(Icons.error_outline_rounded, color: AppTokens.danger, size: 17),
       const SizedBox(width: 10),
-      Expanded(child: Text(message, style: _T.body(size: 12, color: _C.danger))),
+      Expanded(child: Text(message, style: AppText.body(size: 12, color: AppTokens.danger))),
     ]),
   );
 }
@@ -532,7 +481,7 @@ class _TabRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(4),
-    decoration: _cardDeco(),
+    decoration: glassDeco(),
     child: TabBar(
       controller: controller,
       indicator: BoxDecoration(
@@ -543,9 +492,9 @@ class _TabRow extends StatelessWidget {
       ),
       indicatorSize: TabBarIndicatorSize.tab,
       labelColor: Colors.black,
-      unselectedLabelColor: _C.textMid,
-      labelStyle: _T.label(size: 12, color: Colors.black, spacing: 1.5),
-      unselectedLabelStyle: _T.label(size: 12, color: _C.textMid, spacing: 1.5),
+      unselectedLabelColor: AppTokens.textMid,
+      labelStyle: AppText.label(size: 12, color: Colors.black, spacing: 1.5),
+      unselectedLabelStyle: AppText.label(size: 12, color: AppTokens.textMid, spacing: 1.5),
       tabs: [Tab(text: S.deposit), Tab(text: S.withdraw)],
     ),
   );
@@ -582,7 +531,7 @@ class _DepositTab extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       // Minimalist Full-Width Accounts List
       if (state.bankAccounts.isNotEmpty) ...[
-        Text(S.copyAccountDetails, style: _T.label(size: 11, color: _C.textLow)),
+        Text(S.copyAccountDetails, style: AppText.label(size: 11, color: AppTokens.textLow)),
         const SizedBox(height: 8),
         Column(
           children: state.bankAccounts.map((a) {
@@ -594,9 +543,9 @@ class _DepositTab extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: _C.card,
+                color: AppTokens.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.divider, width: 0.75),
+                border: Border.all(color: AppTokens.divider, width: 0.75),
               ),
               child: Row(
                 children: [
@@ -604,18 +553,18 @@ class _DepositTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(bank.toUpperCase(), style: _T.label(size: 9, color: isMobile ? _C.accent : const Color(0xFF9FA8DA), spacing: 0.5)),
+                        Text(bank.toUpperCase(), style: AppText.label(size: 9, color: isMobile ? AppTokens.blueAccent : const Color(0xFF9FA8DA), spacing: 0.5)),
                         const SizedBox(height: 2),
-                        Text(number, style: _T.mono.copyWith(fontSize: 14, fontWeight: FontWeight.bold, color: _C.textHigh)),
+                        Text(number, style: AppText.display.copyWith(fontSize: 14, fontWeight: FontWeight.bold, color: AppTokens.textHigh)),
                         if (name.isNotEmpty) ...[
                           const SizedBox(height: 1),
-                          Text(name, style: _T.label(size: 9, color: _C.textLow), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(name, style: AppText.label(size: 9, color: AppTokens.textLow), maxLines: 1, overflow: TextOverflow.ellipsis),
                         ]
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.copy_rounded, color: _C.gold, size: 16),
+                    icon: const Icon(Icons.copy_rounded, color: AppTokens.goldAlt, size: 16),
                     onPressed: () => onCopy(number, '$bank number'),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -631,7 +580,7 @@ class _DepositTab extends StatelessWidget {
       // Minimalist Inputs Form
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: _cardDeco(),
+        decoration: glassDeco(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -702,7 +651,7 @@ class _WithdrawTab extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: _cardDeco(),
+        decoration: glassDeco(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -757,14 +706,14 @@ class _LimitsPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
     decoration: BoxDecoration(
-      color: _C.goldFill,
+      color: AppTokens.goldAltFill,
       borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: _C.goldBorder),
+      border: Border.all(color: AppTokens.goldAltBorder),
     ),
     child: Row(children: [
-      const Icon(Icons.info_outline_rounded, color: _C.gold, size: 15),
+      const Icon(Icons.info_outline_rounded, color: AppTokens.goldAlt, size: 15),
       const SizedBox(width: 8),
-      Text(label, style: _T.label(size: 11, color: _C.gold, spacing: 0.3)),
+      Text(label, style: AppText.label(size: 11, color: AppTokens.goldAlt, spacing: 0.3)),
     ]),
   );
 }
@@ -777,24 +726,24 @@ class _StepCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
-    decoration: _cardDeco(),
+    decoration: glassDeco(),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         if (step != null) ...[
           Container(
             width: 24, height: 24,
             decoration: BoxDecoration(
-              color: _C.goldFill,
+              color: AppTokens.goldAltFill,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: _C.goldBorder),
+              border: Border.all(color: AppTokens.goldAltBorder),
             ),
             alignment: Alignment.center,
             child: Text('$step',
-                style: _T.label(size: 11, color: _C.gold, spacing: 0)),
+                style: AppText.label(size: 11, color: AppTokens.goldAlt, spacing: 0)),
           ),
           const SizedBox(width: 10),
         ],
-        Text(title, style: _T.body(size: 13, weight: FontWeight.w600)),
+        Text(title, style: AppText.body(size: 13, weight: FontWeight.w600)),
       ]),
       const SizedBox(height: 14),
       child,
@@ -815,39 +764,39 @@ class _AccountTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: _C.bg,
+        color: AppTokens.bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _C.divider),
+        border: Border.all(color: AppTokens.divider),
       ),
       child: Row(children: [
         Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
             color: isMobile
-                ? _C.accent.withOpacity(0.08)
-                : _C.blue.withOpacity(0.15),
+                ? AppTokens.blueAccent.withOpacity(0.08)
+                : AppTokens.blueDeep.withOpacity(0.15),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             isMobile ? Icons.phone_android_rounded : Icons.account_balance_rounded,
-            color: isMobile ? _C.accent : const Color(0xFF7986CB),
+            color: isMobile ? AppTokens.blueAccent : const Color(0xFF7986CB),
             size: 20,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(bank.toUpperCase(), style: _T.label(
+          Text(bank.toUpperCase(), style: AppText.label(
               size: 10,
-              color: isMobile ? _C.accent : const Color(0xFF9FA8DA),
+              color: isMobile ? AppTokens.blueAccent : const Color(0xFF9FA8DA),
               spacing: 0.8)),
           const SizedBox(height: 2),
-          Text(number, style: _T.mono.copyWith(
-              fontSize: 14, fontWeight: FontWeight.bold, color: _C.textHigh)),
+          Text(number, style: AppText.display.copyWith(
+              fontSize: 14, fontWeight: FontWeight.bold, color: AppTokens.textHigh)),
           if (name.isNotEmpty)
-            Text(name, style: _T.label(size: 10, color: _C.textLow, spacing: 0.3)),
+            Text(name, style: AppText.label(size: 10, color: AppTokens.textLow, spacing: 0.3)),
         ])),
         IconButton(
-          icon: const Icon(Icons.copy_rounded, color: _C.gold, size: 18),
+          icon: const Icon(Icons.copy_rounded, color: AppTokens.goldAlt, size: 18),
           onPressed: () => onCopy(number, '$bank number'),
           tooltip: 'Copy',
           constraints: const BoxConstraints(),
@@ -877,36 +826,36 @@ class _WalletField extends StatelessWidget {
     return TextField(
       controller: controller,
       keyboardType: inputType,
-      style: _T.body(size: 14),
+      style: AppText.body(size: 14),
       onChanged: onChanged,
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: hasError ? _C.danger : _C.gold, size: 19),
+        prefixIcon: Icon(icon, color: hasError ? AppTokens.danger : AppTokens.goldAlt, size: 19),
         hintText: hint,
-        hintStyle: _T.body(size: 13, color: _C.textLow),
+        hintStyle: AppText.body(size: 13, color: AppTokens.textLow),
         errorText: errorText,
-        errorStyle: _T.label(size: 11, color: _C.danger, spacing: 0.2),
+        errorStyle: AppText.label(size: 11, color: AppTokens.danger, spacing: 0.2),
         filled: true,
-        fillColor: _C.bg,
+        fillColor: AppTokens.bg,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-            color: hasError ? _C.danger.withOpacity(0.5) : _C.divider,
+            color: hasError ? AppTokens.danger.withOpacity(0.5) : AppTokens.divider,
             width: 0.75,
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-              color: hasError ? _C.danger : _C.gold, width: 1.5),
+              color: hasError ? AppTokens.danger : AppTokens.goldAlt, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _C.danger, width: 1.0),
+          borderSide: const BorderSide(color: AppTokens.danger, width: 1.0),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _C.danger, width: 1.5),
+          borderSide: const BorderSide(color: AppTokens.danger, width: 1.5),
         ),
       ),
     );
@@ -926,25 +875,25 @@ class _WalletDropdown extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12),
     decoration: BoxDecoration(
-      color: _C.bg,
+      color: AppTokens.bg,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: _C.divider, width: 0.75),
+      border: Border.all(color: AppTokens.divider, width: 0.75),
     ),
     child: DropdownButtonFormField<String>(
       value: value,
-      dropdownColor: _C.card,
-      style: _T.body(size: 14),
-      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _C.gold, size: 20),
+      dropdownColor: AppTokens.card,
+      style: AppText.body(size: 14),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTokens.goldAlt, size: 20),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: _C.gold, size: 19),
+        prefixIcon: Icon(icon, color: AppTokens.goldAlt, size: 19),
         labelText: label,
-        labelStyle: _T.label(size: 11, color: _C.textLow, spacing: 0.3),
+        labelStyle: AppText.label(size: 11, color: AppTokens.textLow, spacing: 0.3),
         border: InputBorder.none,
         contentPadding: const EdgeInsets.symmetric(vertical: 4),
       ),
       items: items.map((item) => DropdownMenuItem(
         value: item,
-        child: Text(item, style: _T.body(size: 14)),
+        child: Text(item, style: AppText.body(size: 14)),
       )).toList(),
       onChanged: onChanged,
     ),
@@ -987,7 +936,7 @@ class _GoldButton extends StatelessWidget {
                     ),
                   )
                 : Text(label,
-                    style: _T.label(size: 13, color: Colors.black, spacing: 1.5)),
+                    style: AppText.label(size: 13, color: Colors.black, spacing: 1.5)),
           ),
         ),
       ),
@@ -1008,7 +957,7 @@ class _HistorySection extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: Text(title, style: _T.body(size: 13, weight: FontWeight.w600)),
+        child: Text(title, style: AppText.body(size: 13, weight: FontWeight.w600)),
       ),
       if (visible.isEmpty)
         _EmptyInfo(isDeposit ? 'No deposits yet' : 'No withdrawals yet')
@@ -1020,8 +969,8 @@ class _HistorySection extends StatelessWidget {
 
   static void _showReceipt(BuildContext context, Map<String, dynamic> item, bool isDeposit) {
     final status = item['status'] as String? ?? 'pending';
-    final statusColor = status == 'approved' ? _C.success
-        : (status == 'pending' ? _C.warning : _C.danger);
+    final statusColor = status == 'approved' ? AppTokens.success
+        : (status == 'pending' ? AppTokens.warning : AppTokens.danger);
     final statusIcon  = status == 'approved' ? Icons.check_circle_rounded
         : (status == 'pending' ? Icons.schedule_rounded : Icons.cancel_rounded);
 
@@ -1036,7 +985,7 @@ class _HistorySection extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: _C.cardHigh,
+      backgroundColor: AppTokens.cardHigh,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => Padding(
@@ -1044,19 +993,19 @@ class _HistorySection extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Center(child: Container(width: 36, height: 4,
-            decoration: BoxDecoration(color: _C.divider, borderRadius: BorderRadius.circular(2)))),
+            decoration: BoxDecoration(color: AppTokens.divider, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 20),
           Row(children: [
             Icon(isDeposit ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                color: _C.gold),
+                color: AppTokens.goldAlt),
             const SizedBox(width: 10),
             Text(isDeposit ? 'Deposit Receipt' : 'Withdrawal Receipt',
-                style: _T.body(size: 16, weight: FontWeight.bold)),
+                style: AppText.body(size: 16, weight: FontWeight.bold)),
             const Spacer(),
             Icon(statusIcon, color: statusColor, size: 22),
           ]),
           const SizedBox(height: 16),
-          Container(height: 0.5, color: _C.divider),
+          Container(height: 0.5, color: AppTokens.divider),
           const SizedBox(height: 14),
           _ReceiptRow('Amount', '${item['amount']} ETB', large: true),
           _ReceiptRow('Bank', item['bank'] ?? '—'),
@@ -1073,12 +1022,12 @@ class _HistorySection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _C.danger.withOpacity(0.07),
+                color: AppTokens.danger.withOpacity(0.07),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _C.danger.withOpacity(0.2)),
+                border: Border.all(color: AppTokens.danger.withOpacity(0.2)),
               ),
               child: Text('Reason: ${item['rejectionReason']}',
-                  style: _T.body(size: 12, color: _C.danger)),
+                  style: AppText.body(size: 12, color: AppTokens.danger)),
             ),
           ],
           if (status == 'pending') ...[
@@ -1086,17 +1035,17 @@ class _HistorySection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _C.warning.withOpacity(0.07),
+                color: AppTokens.warning.withOpacity(0.07),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _C.warning.withOpacity(0.2)),
+                border: Border.all(color: AppTokens.warning.withOpacity(0.2)),
               ),
               child: Row(children: [
                 const Icon(Icons.notifications_active_outlined,
-                    color: _C.warning, size: 15),
+                    color: AppTokens.warning, size: 15),
                 const SizedBox(width: 8),
                 Expanded(child: Text(
                     "You'll receive a push notification when approved.",
-                    style: _T.body(size: 11, color: _C.warning))),
+                    style: AppText.body(size: 11, color: AppTokens.warning))),
               ]),
             ),
           ],
@@ -1115,14 +1064,14 @@ class _HistoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = item['status'] as String? ?? 'pending';
-    final statusColor = status == 'approved' ? _C.success
-        : (status == 'pending' ? _C.warning : _C.danger);
+    final statusColor = status == 'approved' ? AppTokens.success
+        : (status == 'pending' ? AppTokens.warning : AppTokens.danger);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: _cardDeco(),
+        decoration: glassDeco(),
         child: Row(children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -1138,16 +1087,16 @@ class _HistoryTile extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(item['bank'] as String? ?? '—',
-                style: _T.body(size: 13, weight: FontWeight.w600)),
+                style: AppText.body(size: 13, weight: FontWeight.w600)),
             const SizedBox(height: 2),
             Text(item['reference'] ?? item['accountNumber'] ?? '—',
-                style: _T.label(size: 10, color: _C.textLow, spacing: 0.2),
+                style: AppText.label(size: 10, color: AppTokens.textLow, spacing: 0.2),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
           ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text('${item['amount']} ETB',
-                style: _T.mono.copyWith(
-                    fontSize: 13, fontWeight: FontWeight.bold, color: _C.gold)),
+                style: AppText.display.copyWith(
+                    fontSize: 13, fontWeight: FontWeight.bold, color: AppTokens.goldAlt)),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -1156,11 +1105,11 @@ class _HistoryTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(5),
               ),
               child: Text(status.toUpperCase(),
-                  style: _T.label(size: 9, color: statusColor, spacing: 0.5)),
+                  style: AppText.label(size: 9, color: statusColor, spacing: 0.5)),
             ),
           ]),
           const SizedBox(width: 4),
-          Icon(Icons.chevron_right, color: _C.textLow, size: 16),
+          Icon(Icons.chevron_right, color: AppTokens.textLow, size: 16),
         ]),
       ),
     );
@@ -1176,11 +1125,11 @@ class _ReceiptRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 5),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: _T.label(size: 12, color: _C.textLow, spacing: 0.2)),
+      Text(label, style: AppText.label(size: 12, color: AppTokens.textLow, spacing: 0.2)),
       Flexible(child: Text(value, textAlign: TextAlign.right,
           style: large
-              ? _T.mono.copyWith(fontSize: 18, fontWeight: FontWeight.bold, color: valueColor ?? _C.gold)
-              : _T.body(size: 13, color: valueColor ?? _C.textHigh, weight: FontWeight.w500))),
+              ? AppText.display.copyWith(fontSize: 18, fontWeight: FontWeight.bold, color: valueColor ?? AppTokens.goldAlt)
+              : AppText.body(size: 13, color: valueColor ?? AppTokens.textHigh, weight: FontWeight.w500))),
     ]),
   );
 }
@@ -1192,9 +1141,9 @@ class _EmptyInfo extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 24),
     child: Column(children: [
-      Icon(Icons.inbox_outlined, color: _C.textLow, size: 36),
+      Icon(Icons.inbox_outlined, color: AppTokens.textLow, size: 36),
       const SizedBox(height: 10),
-      Text(message, style: _T.label(size: 12, color: _C.textLow, spacing: 0.2)),
+      Text(message, style: AppText.label(size: 12, color: AppTokens.textLow, spacing: 0.2)),
     ]),
   );
 }

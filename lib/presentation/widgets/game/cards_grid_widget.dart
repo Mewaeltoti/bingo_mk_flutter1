@@ -16,6 +16,9 @@ class CardsGridWidget extends StatelessWidget {
   final int? winningCardNo;
   final DateTime? claimDeadline;
   final List<String> claimedCardIds;
+  /// Card numbers the user has starred as lucky/favourite.
+  /// During the buying phase these cards float to the top of the grid.
+  final Set<int> favouriteCardNos;
 
   const CardsGridWidget({
     super.key,
@@ -27,6 +30,7 @@ class CardsGridWidget extends StatelessWidget {
     this.winningCardNo,
     this.claimDeadline,
     this.claimedCardIds = const [],
+    this.favouriteCardNos = const {},
   });
 
   @override
@@ -65,7 +69,17 @@ class CardsGridWidget extends StatelessWidget {
 
     final drawnSet = Set<int>.from(drawnNumbers);
 
+    // During the buying phase, favourite (pending) cards float to the top so
+    // the user can tap "Register" on their lucky card before others grab it.
+    // In all other phases the order stays as-is (server order, stable).
     final List<BingoCard> sortedCards = List.from(cards);
+    if (status == GameStatus.buying && favouriteCardNos.isNotEmpty) {
+      sortedCards.sort((a, b) {
+        final aFav = favouriteCardNos.contains(a.cardNo) ? 0 : 1;
+        final bFav = favouriteCardNos.contains(b.cardNo) ? 0 : 1;
+        return aFav.compareTo(bFav);
+      });
+    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -89,10 +103,8 @@ class CardsGridWidget extends StatelessWidget {
         final isBuyingPhase = status == GameStatus.buying;
         final isUnregistered = (isPending && !isBuyingPhase) || status == GameStatus.waiting;
         final isAlreadyClaimed = claimedCardIds.contains(card.id);
+        final isFavourite = favouriteCardNos.contains(card.cardNo);
         // BUG FIX: a card is a winner if its cardNo matches winningCardNo.
-        // Previously this was also passed to CardsGridWidget from game_page,
-        // but winningCardNo was null during 'active' status — now it correctly
-        // shows WINNER badge as soon as the won state arrives.
         final isWinner = winningCardNo != null && card.cardNo == winningCardNo;
 
         final cardWidget = BingoCardWidget(
@@ -104,6 +116,10 @@ class CardsGridWidget extends StatelessWidget {
           isUnregistered: isUnregistered,
           isWinner: isWinner,
           isAlreadyClaimed: isAlreadyClaimed,
+          isFavourite: isFavourite,
+          onToggleFavourite: card.cardNo > 0
+              ? () => context.read<GameCubit>().toggleFavourite(card.cardNo)
+              : null,
           onMarkCell: (!isPending && !isBlocked && !isWinner)
               ? (r, c) => context.read<GameCubit>().markCell(card.id, r, c)
               : null,

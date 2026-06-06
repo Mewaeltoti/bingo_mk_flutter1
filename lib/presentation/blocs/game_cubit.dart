@@ -9,6 +9,7 @@ import '../../core/services/logger_service.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/card_generator_service.dart';
 import '../../core/services/connectivity_service.dart';
+import '../../core/services/favourites_service.dart';
 
 const Object _sentinel = Object();
 
@@ -17,22 +18,32 @@ const int kDefaultBuyingCountdown = 120;
 
 enum GameStatus { buying, active, won, waiting, paused }
 
-abstract class GameState extends Equatable {
-  @override
-  List<Object?> get props => [];
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// SUB-STATES
+//
+// GameLoaded previously had 26 props in a single flat class. This caused two
+// problems:
+//   1. Any server snapshot (drawn number, player count, status) triggered an
+//      Equatable rebuild of the entire state including UI-only fields.
+//   2. Every new feature added another prop to a class that was already hard
+//      to read.
+//
+// Solution: split into two focused value objects that GameLoaded composes.
+//
+//   GameSessionState  — server-owned data (Firestore stream → cubit → UI)
+//   GameUIState       — client-owned data (user interactions → cubit → UI)
+//
+// GameLoaded itself stays the public API: state.drawnNumbers, state.isActionLoading
+// etc. all still work unchanged. The UI doesn't need to know about the split.
+// ─────────────────────────────────────────────────────────────────────────────
 
-class GameInitial extends GameState {}
-
-class GameLoading extends GameState {}
-
-class GameLoaded extends GameState {
+/// All data that originates from Firestore / Cloud Functions.
+/// Updated on every server snapshot. Isolated so that a drawn-number update
+/// does not force Equatable to re-compare UI fields like markedCells.
+class GameSessionState extends Equatable {
   final List<int> drawnNumbers;
-  final Map<String, Set<String>> markedCells;
   final List<BingoCard> userCards;
-  final Set<String> blockedCardIds;
   final List<String> winners;
-  final List<String> claimedCardIds;
   final List<Map<String, dynamic>> rawClaimsData;
   final List<Map<String, dynamic>> rawWinnersData;
   final int? winningCardNo;
@@ -53,19 +64,13 @@ class GameLoaded extends GameState {
   final String? broadcastMessage;
   final String? statusMessage;
   final List<String> pendingClaims;
-  final bool isActionLoading;
   final DateTime? claimDeadline;
-  final bool isAutoDaubEnabled;
-  /// Card numbers blocked across ALL players this session (from game doc).
   final List<int> allBlockedCardNos;
 
-  GameLoaded({
+  const GameSessionState({
     required this.drawnNumbers,
-    required this.markedCells,
     required this.userCards,
-    this.blockedCardIds = const {},
     this.winners = const [],
-    this.claimedCardIds = const [],
     this.rawClaimsData = const [],
     this.rawWinnersData = const [],
     this.winningCardNo,
@@ -86,9 +91,7 @@ class GameLoaded extends GameState {
     this.broadcastMessage,
     this.statusMessage,
     this.pendingClaims = const [],
-    this.isActionLoading = false,
     this.claimDeadline,
-    this.isAutoDaubEnabled = true,
     this.allBlockedCardNos = const [],
   });
 
@@ -99,22 +102,17 @@ class GameLoaded extends GameState {
 
   @override
   List<Object?> get props => [
-    drawnNumbers, markedCells, userCards, blockedCardIds, winners,
-    claimedCardIds, rawClaimsData, rawWinnersData, winningCardNo,
-    winningCardNumbers, sessionId, isPaused, gamePattern, gamePrice,
-    prizePool, hasWon, winnerId, status, buyingCountdown, playerCount,
-    cardsSoldCount, startTime, statusStr, broadcastMessage, statusMessage,
-    allBlockedCardNos,
-    pendingClaims, isActionLoading, claimDeadline, isAutoDaubEnabled,
+    drawnNumbers, userCards, winners, rawClaimsData, rawWinnersData,
+    winningCardNo, winningCardNumbers, sessionId, isPaused, gamePattern,
+    gamePrice, prizePool, hasWon, winnerId, status, buyingCountdown,
+    playerCount, cardsSoldCount, startTime, statusStr, broadcastMessage,
+    statusMessage, pendingClaims, claimDeadline, allBlockedCardNos,
   ];
 
-  GameLoaded copyWith({
+  GameSessionState copyWith({
     List<int>? drawnNumbers,
-    Map<String, Set<String>>? markedCells,
     List<BingoCard>? userCards,
-    Set<String>? blockedCardIds,
     List<String>? winners,
-    List<String>? claimedCardIds,
     List<Map<String, dynamic>>? rawClaimsData,
     List<Map<String, dynamic>>? rawWinnersData,
     int? winningCardNo,
@@ -135,18 +133,13 @@ class GameLoaded extends GameState {
     Object? broadcastMessage = _sentinel,
     Object? statusMessage = _sentinel,
     List<String>? pendingClaims,
-    bool? isActionLoading,
     Object? claimDeadline = _sentinel,
-    bool? isAutoDaubEnabled,
     List<int>? allBlockedCardNos,
   }) {
-    return GameLoaded(
+    return GameSessionState(
       drawnNumbers: drawnNumbers ?? this.drawnNumbers,
-      markedCells: markedCells ?? this.markedCells,
       userCards: userCards ?? this.userCards,
-      blockedCardIds: blockedCardIds ?? this.blockedCardIds,
       winners: winners ?? this.winners,
-      claimedCardIds: claimedCardIds ?? this.claimedCardIds,
       rawClaimsData: rawClaimsData ?? this.rawClaimsData,
       rawWinnersData: rawWinnersData ?? this.rawWinnersData,
       winningCardNo: winningCardNo ?? this.winningCardNo,
@@ -167,10 +160,219 @@ class GameLoaded extends GameState {
       broadcastMessage: broadcastMessage == _sentinel ? this.broadcastMessage : broadcastMessage as String?,
       statusMessage: statusMessage == _sentinel ? this.statusMessage : statusMessage as String?,
       pendingClaims: pendingClaims ?? this.pendingClaims,
-      isActionLoading: isActionLoading ?? this.isActionLoading,
       claimDeadline: claimDeadline == _sentinel ? this.claimDeadline : claimDeadline as DateTime?,
-      isAutoDaubEnabled: isAutoDaubEnabled ?? this.isAutoDaubEnabled,
       allBlockedCardNos: allBlockedCardNos ?? this.allBlockedCardNos,
+    );
+  }
+}
+
+/// All data that lives only on the client — user interactions, optimistic
+/// updates, and display toggles. Never written to Firestore.
+class GameUIState extends Equatable {
+  final Map<String, Set<String>> markedCells;
+  final Set<String> blockedCardIds;
+  final List<String> claimedCardIds;
+  final bool isActionLoading;
+  final bool isAutoDaubEnabled;
+  /// Card numbers the user has starred as favourites (persisted locally via
+  /// FavouritesService). Favourited cards float to the top of the grid
+  /// during the buying phase so the user can buy their lucky card faster.
+  final Set<int> favouriteCardNos;
+
+  const GameUIState({
+    this.markedCells = const {},
+    this.blockedCardIds = const {},
+    this.claimedCardIds = const [],
+    this.isActionLoading = false,
+    this.isAutoDaubEnabled = true,
+    this.favouriteCardNos = const {},
+  });
+
+  @override
+  List<Object?> get props => [
+    markedCells, blockedCardIds, claimedCardIds,
+    isActionLoading, isAutoDaubEnabled, favouriteCardNos,
+  ];
+
+  GameUIState copyWith({
+    Map<String, Set<String>>? markedCells,
+    Set<String>? blockedCardIds,
+    List<String>? claimedCardIds,
+    bool? isActionLoading,
+    bool? isAutoDaubEnabled,
+    Set<int>? favouriteCardNos,
+  }) {
+    return GameUIState(
+      markedCells: markedCells ?? this.markedCells,
+      blockedCardIds: blockedCardIds ?? this.blockedCardIds,
+      claimedCardIds: claimedCardIds ?? this.claimedCardIds,
+      isActionLoading: isActionLoading ?? this.isActionLoading,
+      isAutoDaubEnabled: isAutoDaubEnabled ?? this.isAutoDaubEnabled,
+      favouriteCardNos: favouriteCardNos ?? this.favouriteCardNos,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOP-LEVEL STATES
+// ─────────────────────────────────────────────────────────────────────────────
+
+abstract class GameState extends Equatable {
+  @override
+  List<Object?> get props => [];
+}
+
+class GameInitial extends GameState {}
+
+class GameLoading extends GameState {}
+
+/// Emitted when the Firestore stream dies mid-game (e.g. permission revoked,
+/// network error that connectivity resubscription cannot recover from).
+/// The UI should show a recovery prompt instead of freezing silently.
+class GameStreamError extends GameState {
+  final String message;
+  GameStreamError(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
+/// The loaded state the rest of the app works with.
+///
+/// Composes [GameSessionState] and [GameUIState] but exposes every field as a
+/// direct getter so all existing UI code (`state.drawnNumbers`,
+/// `state.isActionLoading`, etc.) works without modification.
+///
+/// To update: use [copyWithSession] for server data, [copyWithUI] for
+/// interaction data, or [copyWith] when both change in the same emit.
+class GameLoaded extends GameState {
+  final GameSessionState session;
+  final GameUIState ui;
+
+  GameLoaded({required this.session, required this.ui});
+
+  // ── Server-owned field pass-throughs ────────────────────────────────────
+  List<int>          get drawnNumbers      => session.drawnNumbers;
+  List<BingoCard>    get userCards         => session.userCards;
+  List<String>       get winners           => session.winners;
+  List<Map<String, dynamic>> get rawClaimsData  => session.rawClaimsData;
+  List<Map<String, dynamic>> get rawWinnersData => session.rawWinnersData;
+  int?               get winningCardNo     => session.winningCardNo;
+  List<int>?         get winningCardNumbers => session.winningCardNumbers;
+  String             get sessionId         => session.sessionId;
+  bool               get isPaused          => session.isPaused;
+  String             get gamePattern       => session.gamePattern;
+  double             get gamePrice         => session.gamePrice;
+  double             get prizePool         => session.prizePool;
+  bool               get hasWon            => session.hasWon;
+  String?            get winnerId          => session.winnerId;
+  GameStatus         get status            => session.status;
+  int                get buyingCountdown   => session.buyingCountdown;
+  int                get playerCount       => session.playerCount;
+  int                get cardsSoldCount    => session.cardsSoldCount;
+  DateTime?          get startTime         => session.startTime;
+  String             get statusStr         => session.statusStr;
+  String?            get broadcastMessage  => session.broadcastMessage;
+  String?            get statusMessage     => session.statusMessage;
+  List<String>       get pendingClaims     => session.pendingClaims;
+  DateTime?          get claimDeadline     => session.claimDeadline;
+  List<int>          get allBlockedCardNos => session.allBlockedCardNos;
+  List<int>          get lastDrawnNumbers  => session.lastDrawnNumbers;
+
+  // ── Client-owned field pass-throughs ────────────────────────────────────
+  Map<String, Set<String>> get markedCells      => ui.markedCells;
+  Set<String>              get blockedCardIds   => ui.blockedCardIds;
+  List<String>             get claimedCardIds   => ui.claimedCardIds;
+  bool                     get isActionLoading  => ui.isActionLoading;
+  bool                     get isAutoDaubEnabled => ui.isAutoDaubEnabled;
+  Set<int>                 get favouriteCardNos => ui.favouriteCardNos;
+
+  @override
+  List<Object?> get props => [session, ui];
+
+  // ── Targeted copy helpers ────────────────────────────────────────────────
+
+  /// Use when only server data changes (Firestore snapshot).
+  GameLoaded copyWithSession(GameSessionState newSession) =>
+      GameLoaded(session: newSession, ui: ui);
+
+  /// Use when only UI/interaction state changes (user tap, toggle).
+  GameLoaded copyWithUI(GameUIState newUI) =>
+      GameLoaded(session: session, ui: newUI);
+
+  /// Full copyWith — maps all 26 original props to the right sub-object.
+  /// Keeps the original call sites working without modification.
+  GameLoaded copyWith({
+    // Session fields
+    List<int>? drawnNumbers,
+    List<BingoCard>? userCards,
+    List<String>? winners,
+    List<Map<String, dynamic>>? rawClaimsData,
+    List<Map<String, dynamic>>? rawWinnersData,
+    int? winningCardNo,
+    List<int>? winningCardNumbers,
+    String? sessionId,
+    bool? isPaused,
+    String? gamePattern,
+    double? gamePrice,
+    double? prizePool,
+    bool? hasWon,
+    String? winnerId,
+    GameStatus? status,
+    int? buyingCountdown,
+    int? playerCount,
+    int? cardsSoldCount,
+    DateTime? startTime,
+    String? statusStr,
+    Object? broadcastMessage = _sentinel,
+    Object? statusMessage = _sentinel,
+    List<String>? pendingClaims,
+    Object? claimDeadline = _sentinel,
+    List<int>? allBlockedCardNos,
+    // UI fields
+    Map<String, Set<String>>? markedCells,
+    Set<String>? blockedCardIds,
+    List<String>? claimedCardIds,
+    bool? isActionLoading,
+    bool? isAutoDaubEnabled,
+    Set<int>? favouriteCardNos,
+  }) {
+    return GameLoaded(
+      session: session.copyWith(
+        drawnNumbers: drawnNumbers,
+        userCards: userCards,
+        winners: winners,
+        rawClaimsData: rawClaimsData,
+        rawWinnersData: rawWinnersData,
+        winningCardNo: winningCardNo,
+        winningCardNumbers: winningCardNumbers,
+        sessionId: sessionId,
+        isPaused: isPaused,
+        gamePattern: gamePattern,
+        gamePrice: gamePrice,
+        prizePool: prizePool,
+        hasWon: hasWon,
+        winnerId: winnerId,
+        status: status,
+        buyingCountdown: buyingCountdown,
+        playerCount: playerCount,
+        cardsSoldCount: cardsSoldCount,
+        startTime: startTime,
+        statusStr: statusStr,
+        broadcastMessage: broadcastMessage,
+        statusMessage: statusMessage,
+        pendingClaims: pendingClaims,
+        claimDeadline: claimDeadline,
+        allBlockedCardNos: allBlockedCardNos,
+      ),
+      ui: ui.copyWith(
+        markedCells: markedCells,
+        blockedCardIds: blockedCardIds,
+        claimedCardIds: claimedCardIds,
+        isActionLoading: isActionLoading,
+        isAutoDaubEnabled: isAutoDaubEnabled,
+        favouriteCardNos: favouriteCardNos,
+      ),
     );
   }
 }
@@ -188,11 +390,11 @@ class GameCubit extends Cubit<GameState> {
   String _winnersSessionId = '';
   StreamSubscription? _drawsSub;
   StreamSubscription? _connectivitySub;
-  // BUG-FIX (Bug 3): Track the last session ID for which we have already
-  // cleared stale per-session fields (blockedCardNos, winners).  When the
-  // session changes we reset those fields to empty on the first snapshot; on
-  // every subsequent snapshot in the SAME new session we must NOT re-read the
-  // stale Firestore values that the CF may not have cleared yet.
+  // Track the last session ID for which we have already cleared stale
+  // per-session fields (blockedCardNos, winners). When the session changes we
+  // reset those fields to empty on the first snapshot; on every subsequent
+  // snapshot in the SAME new session we must NOT re-read the stale Firestore
+  // values that the CF may not have cleared yet.
   String _lastClearedSessionId = '';
 
   GameCubit({required BingoRepository bingoRepository, required this.userId})
@@ -207,6 +409,13 @@ class GameCubit extends Cubit<GameState> {
   // INIT
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// Public entry point for the error-fallback reconnect button.
+  /// Resets state to loading and re-runs the full initialization sequence.
+  Future<void> reconnect() async {
+    emit(GameLoading());
+    await _init();
+  }
+
   Future<void> _init() async {
     try {
       final initialSessionId = await _bingoRepository.getLiveSessionId();
@@ -215,19 +424,28 @@ class GameCubit extends Cubit<GameState> {
         );
       if (isClosed) return;
 
-      
-
       emit(GameLoaded(
-        drawnNumbers: [],
-        markedCells: {},
-        userCards: cards,
-        blockedCardIds: cards.where((c) => c.isBlocked).map((c) => c.id).toSet(),
-        sessionId: initialSessionId,
-        status: GameStatus.buying,
-        buyingCountdown: kDefaultBuyingCountdown,
-        playerCount: 0,
-        cardsSoldCount: cards.length,
+        session: GameSessionState(
+          drawnNumbers: [],
+          userCards: cards,
+          sessionId: initialSessionId,
+          status: GameStatus.buying,
+          buyingCountdown: kDefaultBuyingCountdown,
+          playerCount: 0,
+          cardsSoldCount: cards.length,
+        ),
+        ui: GameUIState(
+          blockedCardIds: cards.where((c) => c.isBlocked).map((c) => c.id).toSet(),
+        ),
       ));
+
+      // Load persisted favourite card numbers and reflect them in UI state.
+      final favourites = await sl<FavouritesService>().load(userId);
+      if (!isClosed && state is GameLoaded && favourites.isNotEmpty) {
+        emit((state as GameLoaded).copyWithUI(
+          (state as GameLoaded).ui.copyWith(favouriteCardNos: favourites),
+        ));
+      }
 
       if (initialSessionId.isNotEmpty) {
         _resubscribeDraws(initialSessionId);
@@ -266,19 +484,10 @@ class GameCubit extends Cubit<GameState> {
 
         if (isClosed) return;
 
-        // BUG-FIX (Bug 3): When the session changes, record it so we can
-        // suppress stale blockedCardNos on every subsequent snapshot of the
-        // NEW session — not just the first one.  The CF may leave old data in
-        // games/live for several snapshots after the session ID rotates, so
-        // checking `sessionChanged` alone (which is only true for one snapshot)
-        // is insufficient.  We keep blockedCardNos empty for the entire new
-        // session until the admin explicitly blocks a card in that session.
         if (sessionChanged && newSessionId.isNotEmpty) {
           _lastClearedSessionId = newSessionId;
         }
         if (gameEnded) {
-          // Also suppress on game-end: CF may not have cleared blockedCardNos
-          // by the time the won/waiting snapshot arrives.
           _lastClearedSessionId = newSessionId;
         }
         final bool suppressStaleBlocked = newSessionId == _lastClearedSessionId;
@@ -298,21 +507,18 @@ class GameCubit extends Cubit<GameState> {
           fallbackAutoMarked = _applyAutoDaub(current, newNums);
         }
 
-        // Derive the blocked card numbers for this snapshot.
-        // If we are in suppress mode (new/ended session) always use [].
-        // Otherwise read from Firestore as normal.
         final List<int> resolvedBlockedCardNos = suppressStaleBlocked
             ? []
             : List<int>.from(gameData['blockedCardNos'] ?? []);
 
-        emit(current.copyWith(
+        // Server-owned fields → update session sub-state only.
+        final newSession = current.session.copyWith(
           status: newStatus,
           isPaused: gameData['isPaused'] ?? false,
           sessionId: newSessionId,
           gamePattern: gameData['gamePattern'] ?? 'full_house',
           prizePool: (gameData['prizePool'] ?? 0).toDouble(),
           gamePrice: (gameData['cardPrice'] ?? 10).toDouble(),
-          claimedCardIds: sessionChanged ? [] : List<String>.from(gameData['claims'] ?? []),
           cardsSoldCount: gameData['cardsSold'] ?? current.cardsSoldCount,
           playerCount: gameData['playersCount'] ?? current.playerCount,
           winnerId: sessionChanged ? null : gameData['winnerId'],
@@ -325,10 +531,6 @@ class GameCubit extends Cubit<GameState> {
           hasWon: sessionChanged
               ? false
               : (newStatus == GameStatus.won && gameData['winnerId'] == userId),
-          // Use winningCardNo from games/live immediately so all users see
-          // the winner badge the instant the game ends — before game_history
-          // is written by the CF. _winnersSub will overwrite with full data
-          // once it arrives. Clear on session change as usual.
           winners: sessionChanged
               ? []
               : (newStatus == GameStatus.won && gameData['winningCardNo'] != null
@@ -364,42 +566,30 @@ class GameCubit extends Cubit<GameState> {
                       : (gameData['claimDeadline'] is int
                           ? DateTime.fromMillisecondsSinceEpoch(gameData['claimDeadline'] as int)
                           : DateTime.tryParse(gameData['claimDeadline'].toString())))),
-          markedCells: sessionChanged ? {} : fallbackAutoMarked,
-          blockedCardIds: (sessionChanged || gameEnded) ? {} : null,
           drawnNumbers: mergedDrawnNumbers,
-          // BUG-FIX (card disappears after activation): Previously this filter
-          // ran on EVERY games/live snapshot, including trivial ones like
-          // cardsSold incrementing during the buying phase.  If the snapshot
-          // fired while registerCard's refreshCards() was still in-flight,
-          // `current.userCards` didn't yet contain the newly-registered card
-          // and the filter dropped it — making the card vanish until the next
-          // refresh.  The sessionId filter is only needed when the session
-          // actually changes (to discard cards from the old session); on normal
-          // in-session snapshots we leave userCards untouched.
           userCards: sessionChanged
               ? current.userCards.where((c) => c.sessionId == newSessionId || c.status == 'pending').toList()
-              : null, // null → copyWith keeps the existing userCards
-          // Use the resolved value (suppressed when session just changed/ended).
+              : null,
           allBlockedCardNos: resolvedBlockedCardNos,
-        ));
+        );
+
+        // Client-owned fields → update UI sub-state only.
+        final newUI = current.ui.copyWith(
+          markedCells: sessionChanged ? {} : fallbackAutoMarked,
+          blockedCardIds: (sessionChanged || gameEnded) ? {} : null,
+          claimedCardIds: sessionChanged ? [] : null,
+        );
+
+        emit(GameLoaded(session: newSession, ui: newUI));
 
         final bool transitionedToBuying =
             newStatus == GameStatus.buying && current.status != GameStatus.buying;
 
-        // BUG-FIX (Bug 3 continued): Once the game becomes active in this
-        // session, the admin may legitimately block cards. Lift suppression so
-        // real blockedCardNos written by the CF are visible going forward.
         if (newStatus == GameStatus.active && newSessionId == _lastClearedSessionId) {
           _lastClearedSessionId = '';
         }
 
-        // When a session ends (won / waiting / canceled) or the session ID rotates,
-        // delete the user's cards for the OLD session, then refresh.
-        // We await the delete before refreshing so stale blocked cards don't
-        // flash back from Firestore before the delete completes.
         if ((gameEnded && current.status != newStatus) || sessionChanged) {
-          // Both branches were previously `current.sessionId` — on sessionChanged
-          // we must delete the OLD session (previous value), not the new one.
           final sessionToDelete = current.sessionId;
           if (sessionToDelete.isNotEmpty) {
             await _bingoRepository
@@ -411,11 +601,14 @@ class GameCubit extends Cubit<GameState> {
         if (sessionChanged || gameEnded || transitionedToBuying) {
           if (!isClosed) refreshCards();
         }
+      }, onError: (Object e, StackTrace stack) {
+        Log.e('GameCubit main stream error', e, stack);
+        if (!isClosed) emit(GameStreamError('Connection lost. Please restart the game.'));
       });
-    } catch (e, stack) {                          // ← catch that matches the try in _init
+    } catch (e, stack) {
       Log.e("GameCubit initialization failed", e, stack);
     }
-  }                                               // ← _init closing brace (was missing!)
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // WINNERS SUBSCRIPTION
@@ -430,7 +623,10 @@ class GameCubit extends Cubit<GameState> {
       if (state is! GameLoaded || isClosed) return;
       final current = state as GameLoaded;
       final cardNumbers = winnersList.map((w) => w['cardNo'].toString()).toList();
-      emit(current.copyWith(winners: cardNumbers, rawWinnersData: winnersList));
+      // Winners come from the server → session sub-state.
+      emit(current.copyWithSession(
+        current.session.copyWith(winners: cardNumbers, rawWinnersData: winnersList),
+      ));
     });
   }
 
@@ -452,9 +648,6 @@ class GameCubit extends Cubit<GameState> {
           .where((c) => c.status == 'pending')
           .toList();
       final combinedCards = [...activeDbCards, ...localPendingCards].toList();
-      // Only carry blocked state for cards that belong to the CURRENT session —
-      // prevents last-session blocked badges from reappearing after refreshCards()
-      // races with the async deleteCardsForSession call on session change.
       final mergedBlocked = combinedCards
           .where((c) => c.isBlocked && c.sessionId == current.sessionId)
           .map((c) => c.id)
@@ -504,7 +697,8 @@ class GameCubit extends Cubit<GameState> {
     }
 
     AudioService().playMark();
-    emit(current.copyWith(markedCells: map));
+    // markCell is UI-only → update only the UI sub-state.
+    emit(current.copyWithUI(current.ui.copyWith(markedCells: map)));
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -514,7 +708,7 @@ class GameCubit extends Cubit<GameState> {
   Future<void> buyCard({int count = 1}) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-    emit(current.copyWith(isActionLoading: true));
+    emit(current.copyWithUI(current.ui.copyWith(isActionLoading: true)));
     try {
       final existingCardNos = current.userCards.map((c) => c.cardNo).toSet();
       final newCards = await sl<CardGeneratorService>().generateCards(
@@ -523,6 +717,7 @@ class GameCubit extends Cubit<GameState> {
         gamePrice: current.gamePrice,
         sessionId: current.sessionId,
       );
+      // New cards go in session (userCards) but we also clear the loading flag (UI).
       emit(current.copyWith(
         userCards: [...current.userCards, ...newCards],
         isActionLoading: false,
@@ -546,7 +741,7 @@ class GameCubit extends Cubit<GameState> {
   Future<void> registerCard(String cardId) async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
-    emit(current.copyWith(isActionLoading: true));
+    emit(current.copyWithUI(current.ui.copyWith(isActionLoading: true)));
     try {
       final card = current.userCards.firstWhere((c) => c.id == cardId);
       final List<int> flatNumbers = [];
@@ -561,7 +756,7 @@ class GameCubit extends Cubit<GameState> {
         if (c.id == cardId) return c.copyWith(status: 'registered', sessionId: current.sessionId);
         return c;
       }).toList();
-      emit(current.copyWith(userCards: updatedCards));
+      emit(current.copyWithSession(current.session.copyWith(userCards: updatedCards)));
 
       await refreshCards();
       emit((state as GameLoaded).copyWith(
@@ -603,7 +798,7 @@ class GameCubit extends Cubit<GameState> {
       return;
     }
 
-    emit(current.copyWith(isActionLoading: true));
+    emit(current.copyWithUI(current.ui.copyWith(isActionLoading: true)));
     try {
       await _bingoRepository.removeCard(cardId);
       await refreshCards();
@@ -661,7 +856,7 @@ class GameCubit extends Cubit<GameState> {
       }
       return c;
     }).toList();
-    emit(current.copyWith(userCards: updatedCards));
+    emit(current.copyWithSession(current.session.copyWith(userCards: updatedCards)));
 
     await refreshCards();
     if (isClosed) return;
@@ -729,7 +924,6 @@ class GameCubit extends Cubit<GameState> {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..add(cardId);
         await _bingoRepository.blockCard(userId, cardId);
-        // Broadcast so other players see the blocked badge.
         final blockedCard = current.userCards.firstWhereOrNull((card) => card.id == cardId);
         if (blockedCard != null) {
           await _bingoRepository.broadcastBlockedCard(blockedCard.cardNo);
@@ -741,16 +935,18 @@ class GameCubit extends Cubit<GameState> {
             blockedCardIds: blocked,
             statusMessage: "Invalid claim! Card blocked."));
       } else if (success == true) {
-        // Immediately add this card to claimedCardIds so the BINGO button
-        // becomes disabled before the next Firestore snapshot arrives.
-        // Without this the button stays enabled and a second tap fires
-        // a duplicate claim request to the Cloud Function.
         final alreadyClaimed = List<String>.from(
             (state as GameLoaded).claimedCardIds)
           ..add(cardId);
-        emit((state as GameLoaded).copyWith(
+        // Optimistic UI update → UI sub-state only.
+        emit((state as GameLoaded).copyWithUI(
+          (state as GameLoaded).ui.copyWith(
             isActionLoading: false,
             claimedCardIds: alreadyClaimed,
+          ),
+        ));
+        // Status message spans both → full copyWith.
+        emit((state as GameLoaded).copyWith(
             statusMessage: "Bingo claimed! Waiting for other players..."));
       }
     } catch (e, stack) {
@@ -790,7 +986,6 @@ class GameCubit extends Cubit<GameState> {
         AudioService().playError();
         final blocked = Set<String>.from(current.blockedCardIds)..addAll(cardIds);
         await Future.wait(cardIds.map((id) => _bingoRepository.blockCard(userId, id)));
-        // Broadcast all blocked card numbers.
         final blockedCards = current.userCards.where((card) => cardIds.contains(card.id)).toList();
         await Future.wait(blockedCards.map((card) => _bingoRepository.broadcastBlockedCard(card.cardNo)));
         await refreshCards();
@@ -800,14 +995,16 @@ class GameCubit extends Cubit<GameState> {
             blockedCardIds: blocked,
             statusMessage: "Invalid claims! Cards blocked."));
       } else if (success == true) {
-        // Same as single-claim fix: optimistically add all cardIds to
-        // claimedCardIds so every BINGO button disables immediately.
         final alreadyClaimed = List<String>.from(
             (state as GameLoaded).claimedCardIds)
           ..addAll(cardIds);
-        emit((state as GameLoaded).copyWith(
+        emit((state as GameLoaded).copyWithUI(
+          (state as GameLoaded).ui.copyWith(
             isActionLoading: false,
             claimedCardIds: alreadyClaimed,
+          ),
+        ));
+        emit((state as GameLoaded).copyWith(
             statusMessage: "${cardIds.length} Bingos claimed! Waiting for other players..."));
       }
     } catch (e, stack) {
@@ -856,16 +1053,43 @@ class GameCubit extends Cubit<GameState> {
       newMarkedCells = map;
     }
 
+    // toggleAutoDaub is purely UI → UI sub-state + statusMessage via copyWith.
     emit(current.copyWith(
       isAutoDaubEnabled: enabled,
       markedCells: newMarkedCells,
-      statusMessage:
-          enabled ? "Auto-Daub Assistant enabled!" : "Auto-Daub Assistant disabled.",
+      statusMessage: enabled ? "Auto-Daub Assistant enabled!" : "Auto-Daub Assistant disabled.",
     ));
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // CONNECTIVITY
+  // FAVOURITES
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Toggles [cardNo] in or out of the user's local favourites list.
+  ///
+  /// Persisted via [FavouritesService] (SharedPreferences) so the list
+  /// survives app restarts. The UI reflects the change immediately via
+  /// an optimistic emit; the async persist runs in the background.
+  Future<void> toggleFavourite(int cardNo) async {
+    if (state is! GameLoaded) return;
+    final current = state as GameLoaded;
+
+    // Optimistic emit — update UI before the disk write completes.
+    final updated = Set<int>.from(current.favouriteCardNos);
+    if (updated.contains(cardNo)) {
+      updated.remove(cardNo);
+    } else {
+      updated.add(cardNo);
+    }
+    emit(current.copyWithUI(current.ui.copyWith(favouriteCardNos: updated)));
+
+    // Persist in the background; errors are non-fatal (preference only).
+    try {
+      await sl<FavouritesService>().toggle(userId, cardNo);
+    } catch (e) {
+      Log.e('toggleFavourite persist failed', e);
+    }
+  }
   // ─────────────────────────────────────────────────────────────────────────
 
   void _subscribeConnectivity() {
@@ -899,6 +1123,7 @@ class GameCubit extends Cubit<GameState> {
         autoMarked = _applyAutoDaub(current, newSet);
       }
 
+      // drawnNumbers comes from server → session; autoMarked is UI.
       emit(current.copyWith(drawnNumbers: allNumbers, markedCells: autoMarked));
     }, onError: (e) => Log.e('streamGameDraws error', e));
   }
