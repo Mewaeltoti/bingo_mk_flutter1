@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../domain/entities/bingo_card.dart';
 import '../../core/theme/app_theme.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
+import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
 
 class BingoCardWidget extends StatelessWidget {
   final BingoCard card;
@@ -101,7 +102,7 @@ class BingoCardWidget extends StatelessWidget {
                   opacity: isCardDisabled ? 0.6 : 1.0,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppColors.darkCard,
+                      color: SettingsCubit.isLightModeGlobal ? const Color(0xFFFFFFFF) : AppColors.darkCard,
                       borderRadius: BorderRadius.circular(20),
                       // BUG FIX: blocked cards get a red border so the user
                       // immediately sees why the card is inactive.
@@ -110,12 +111,12 @@ class BingoCardWidget extends StatelessWidget {
                             ? AppColors.danger.withOpacity(0.5)
                             : isWinner
                                 ? AppColors.success.withOpacity(0.5)
-                                : Colors.white10,
+                                : SettingsCubit.isLightModeGlobal ? const Color(0xFFE4E7EC) : Colors.white10,
                         width: (isBlocked || isWinner) ? 1.5 : 1.0,
                       ),
                       boxShadow: const [
                         BoxShadow(
-                          color: Colors.black45,
+                          color: SettingsCubit.isLightModeGlobal ? const Color(0x18000000) : Colors.black45,
                           blurRadius: 15,
                           offset: Offset(0, 8),
                         ),
@@ -132,7 +133,7 @@ class BingoCardWidget extends StatelessWidget {
                               Text(
                                 "CARD #${card.cardNo}",
                                 style: const TextStyle(
-                                  color: Colors.white70,
+                                  color: SettingsCubit.isLightModeGlobal ? const Color(0xFF667085) : Colors.white70,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 10,
                                   letterSpacing: 0.5,
@@ -166,7 +167,7 @@ class BingoCardWidget extends StatelessWidget {
                                 IconButton(
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
-                                  icon: const Icon(Icons.cancel, size: 16, color: Colors.white70),
+                                  icon: Icon(Icons.cancel, size: 16, color: SettingsCubit.isLightModeGlobal ? const Color(0xFF667085) : Colors.white70),
                                   onPressed: onRemove,
                                 ),
                             ],
@@ -370,9 +371,10 @@ class BingoCardWidget extends StatelessWidget {
             final isFree = row == 2 && col == 2;
             final isMarked = isFree || markedCells.contains('$row-$col');
 
-            Color bgColor = Colors.white.withOpacity(0.04);
-            Color textColor = Colors.white70;
-            Color borderColor = Colors.white.withOpacity(0.05);
+            final bool _lm = SettingsCubit.isLightModeGlobal;
+            Color bgColor = _lm ? const Color(0xFFF0F2F5) : Colors.white.withOpacity(0.04);
+            Color textColor = _lm ? const Color(0xFF344054) : Colors.white70;
+            Color borderColor = _lm ? const Color(0xFFD0D5DD) : Colors.white.withOpacity(0.05);
 
             if (isFree) {
               bgColor = AppColors.danger.withOpacity(0.9);

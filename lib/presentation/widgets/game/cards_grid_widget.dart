@@ -5,6 +5,7 @@ import '../bingo_card_widget.dart';
 import '../../blocs/game_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
 
 class CardsGridWidget extends StatelessWidget {
   final List<BingoCard> cards;
@@ -37,23 +38,23 @@ class CardsGridWidget extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 60),
             child: Column(
               children: [
-                Icon(Icons.style_outlined, size: 64, color: AppColors.textSecondary.withOpacity(0.2)),
+                Icon(Icons.style_outlined, size: 64, color: (SettingsCubit.isLightModeGlobal ? const Color(0xFF667085) : AppColors.textSecondary).withOpacity(0.3)),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   "NO CARDS PURCHASED",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: SettingsCubit.isLightModeGlobal ? const Color(0xFF475467) : AppColors.textSecondary,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.1,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   "Buy some cards during the buying phase!",
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  style: TextStyle(color: SettingsCubit.isLightModeGlobal ? const Color(0xFF475467) : AppColors.textSecondary, fontSize: 13),
                 ),
               ],
             ),
