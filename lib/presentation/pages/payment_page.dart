@@ -204,67 +204,73 @@ class _PaymentPageState extends State<PaymentPage>
             return const Center(child: AppSpinner());
           }
           if (state is WalletLoaded) {
-            return RefreshIndicator(
-              color: _C.gold,
-              backgroundColor: _C.card,
-              onRefresh: () => context.read<WalletCubit>().loadWallet(),
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics()),
-                slivers: [
-                  _SliverWalletHeader(balance: state.balance),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        if (state.statusMessage != null) ...[
-                          const SizedBox(height: 12),
-                          _StatusBanner(message: state.statusMessage!),
-                        ],
-                        const SizedBox(height: 20),
-                        _TabRow(controller: _tabController),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: 1800, // tall enough to avoid nested scroll
-                          child: TabBarView(
-                            controller: _tabController,
-                            physics: const NeverScrollableScrollPhysics(),
-                            children: [
-                              _DepositTab(
-                                state: state,
-                                amountCtrl: _depositAmountCtrl,
-                                referenceCtrl: _referenceCtrl,
-                                amountError: _depositAmountError,
-                                referenceError: _referenceError,
-                                selectedBank: _selectedDepositBank,
-                                onBankChanged: (v) => setState(() => _selectedDepositBank = v),
-                                onAmountChanged: (v) => _validateDepositAmt(v, state.limits),
-                                onReferenceChanged: (v) => setState(() =>
-                                    _referenceError = v.trim().isEmpty ? S.referenceRequired : null),
-                                onCopy: _copy,
-                                onSubmit: () => _submitDeposit(state),
+            return Column(
+              children: [
+                _WalletHeader(balance: state.balance),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: _C.gold,
+                    backgroundColor: _C.card,
+                    onRefresh: () => context.read<WalletCubit>().loadWallet(),
+                    child: CustomScrollView(
+                      physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics()),
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              if (state.statusMessage != null) ...[
+                                const SizedBox(height: 12),
+                                _StatusBanner(message: state.statusMessage!),
+                              ],
+                              const SizedBox(height: 20),
+                              _TabRow(controller: _tabController),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                height: 1800, // tall enough to avoid nested scroll
+                                child: TabBarView(
+                                  controller: _tabController,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  children: [
+                                    _DepositTab(
+                                      state: state,
+                                      amountCtrl: _depositAmountCtrl,
+                                      referenceCtrl: _referenceCtrl,
+                                      amountError: _depositAmountError,
+                                      referenceError: _referenceError,
+                                      selectedBank: _selectedDepositBank,
+                                      onBankChanged: (v) => setState(() => _selectedDepositBank = v),
+                                      onAmountChanged: (v) => _validateDepositAmt(v, state.limits),
+                                      onReferenceChanged: (v) => setState(() =>
+                                          _referenceError = v.trim().isEmpty ? S.referenceRequired : null),
+                                      onCopy: _copy,
+                                      onSubmit: () => _submitDeposit(state),
+                                    ),
+                                    _WithdrawTab(
+                                      state: state,
+                                      amountCtrl: _withdrawAmountCtrl,
+                                      accountCtrl: _accountCtrl,
+                                      amountError: _withdrawAmountError,
+                                      accountError: _accountError,
+                                      selectedBank: _selectedWithdrawBank,
+                                      onBankChanged: (v) => setState(() => _selectedWithdrawBank = v),
+                                      onAmountChanged: (v) => _validateWithdrawAmt(v, state.limits, state.balance),
+                                      onAccountChanged: (v) => setState(() =>
+                                          _accountError = v.trim().isEmpty ? S.accountRequired : null),
+                                      onSubmit: () => _submitWithdraw(state),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              _WithdrawTab(
-                                state: state,
-                                amountCtrl: _withdrawAmountCtrl,
-                                accountCtrl: _accountCtrl,
-                                amountError: _withdrawAmountError,
-                                accountError: _accountError,
-                                selectedBank: _selectedWithdrawBank,
-                                onBankChanged: (v) => setState(() => _selectedWithdrawBank = v),
-                                onAmountChanged: (v) => _validateWithdrawAmt(v, state.limits, state.balance),
-                                onAccountChanged: (v) => setState(() =>
-                                    _accountError = v.trim().isEmpty ? S.accountRequired : null),
-                                onSubmit: () => _submitWithdraw(state),
-                              ),
-                            ],
+                            ]),
                           ),
                         ),
-                      ]),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             );
           }
           if (state is WalletError) {
@@ -433,63 +439,62 @@ class _PaymentPageState extends State<PaymentPage>
 // ─────────────────────────────────────────────────────────────────────────────
 // SLIVER HEADER — Balance hero
 // ─────────────────────────────────────────────────────────────────────────────
-class _SliverWalletHeader extends StatelessWidget {
+class _WalletHeader extends StatelessWidget {
   final double balance;
-  const _SliverWalletHeader({required this.balance});
+  const _WalletHeader({required this.balance});
 
   @override
   Widget build(BuildContext context) {
-    return SliverToBoxAdapter(
+    return SafeArea(
+      bottom: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 56, 16, 24),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0A1628), Color(0xFF0D1B2A), Color(0xFF050D1A)],
-            stops: [0.0, 0.5, 1.0],
-          ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(S.availableBalance, style: _T.label(size: 10, color: _C.textLow, spacing: 0.5)),
+                    const SizedBox(height: 2),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          balance.toStringAsFixed(2),
+                          style: _T.mono.copyWith(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: _C.gold,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text('ETB', style: _T.label(size: 11, color: _C.goldDim, spacing: 0.5)),
+                      ],
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _C.goldFill,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _C.goldBorder, width: 0.75),
+                  ),
+                  child: const Icon(Icons.account_balance_wallet_rounded, color: _C.gold, size: 16),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(height: 0.5, color: _C.divider),
+          ],
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Title row
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: _C.goldFill,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.goldBorder),
-              ),
-              child: const Icon(Icons.account_balance_wallet_rounded,
-                  color: _C.gold, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Text(S.walletTitle, style: _T.label(size: 13, color: _C.gold, spacing: 2.5)),
-          ]),
-          const SizedBox(height: 20),
-          // Balance
-          Text(S.availableBalance, style: _T.label(size: 11, color: _C.textLow, spacing: 0.5)),
-          const SizedBox(height: 6),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(
-              balance.toStringAsFixed(2),
-              style: _T.mono.copyWith(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: _C.gold,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 5),
-              child: Text('ETB', style: _T.label(size: 14, color: _C.goldDim, spacing: 1.0)),
-            ),
-          ]),
-          const SizedBox(height: 20),
-          // Divider line
-          Container(height: 0.5, color: _C.divider),
-        ]),
       ),
     );
   }
@@ -536,12 +541,14 @@ class _TabRow extends StatelessWidget {
       unselectedLabelColor: _C.textMid,
       labelStyle: _T.label(size: 12, color: Colors.black, spacing: 1.5),
       unselectedLabelStyle: _T.label(size: 12, color: _C.textMid, spacing: 1.5),
-      dividerColor: Colors.transparent,
-      tabs: const [Tab(text: S.deposit), Tab(text: S.withdraw)],
+      tabs: [Tab(text: S.deposit), Tab(text: S.withdraw)],
     ),
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DEPOSIT TAB
+// ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 // DEPOSIT TAB
 // ─────────────────────────────────────────────────────────────────────────────
@@ -568,66 +575,93 @@ class _DepositTab extends StatelessWidget {
     final activeBank = selectedBank ?? (banks.isNotEmpty ? banks.first : 'Telebirr');
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _LimitsPill(
-        label: 'Deposit range: ${state.limits.minDeposit.toStringAsFixed(0)} – '
-            '${state.limits.maxDeposit.toStringAsFixed(0)} ETB',
-      ),
-      const SizedBox(height: 20),
-      // Step 1
-      _StepCard(
-        step: 1,
-        title: S.copyAccountDetails,
-        child: state.bankAccounts.isEmpty
-            ? _EmptyInfo(S.noPaymentAccounts)
-            : Column(
-                children: state.bankAccounts.map((a) {
-                  final bank   = a['bank'] as String? ?? '';
-                  final number = a['accountNumber'] as String? ?? a['number'] as String? ?? '';
-                  final name   = a['accountName'] as String? ?? a['name'] as String? ?? '';
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _AccountTile(bank: bank, number: number, name: name, onCopy: onCopy),
-                  );
-                }).toList(),
+      // Minimalist Full-Width Accounts List
+      if (state.bankAccounts.isNotEmpty) ...[
+        Text(S.copyAccountDetails, style: _T.label(size: 11, color: _C.textLow)),
+        const SizedBox(height: 8),
+        Column(
+          children: state.bankAccounts.map((a) {
+            final bank   = a['bank'] as String? ?? '';
+            final number = a['accountNumber'] as String? ?? a['number'] as String? ?? '';
+            final name   = a['accountName'] as String? ?? a['name'] as String? ?? '';
+            final isMobile = bank.toLowerCase().contains('tele') || bank.toLowerCase().contains('m-pesa');
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: _C.card,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _C.divider, width: 0.75),
               ),
-      ),
-      const SizedBox(height: 12),
-      // Step 2
-      _StepCard(
-        step: 2,
-        title: S.submitReference,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (banks.isNotEmpty) ...[
-            _WalletDropdown(
-              label: S.bankPaidTo,
-              value: banks.contains(activeBank) ? activeBank : banks.first,
-              items: banks,
-              onChanged: onBankChanged,
-              icon: Icons.account_balance_wallet_rounded,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(bank.toUpperCase(), style: _T.label(size: 9, color: isMobile ? _C.accent : const Color(0xFF9FA8DA), spacing: 0.5)),
+                        const SizedBox(height: 2),
+                        Text(number, style: _T.mono.copyWith(fontSize: 14, fontWeight: FontWeight.bold, color: _C.textHigh)),
+                        if (name.isNotEmpty) ...[
+                          const SizedBox(height: 1),
+                          Text(name, style: _T.label(size: 9, color: _C.textLow), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ]
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded, color: _C.gold, size: 16),
+                    onPressed: () => onCopy(number, '$bank number'),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+      ],
+
+      // Minimalist Inputs Form
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDeco(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (banks.isNotEmpty) ...[
+              _WalletDropdown(
+                label: S.bankPaidTo,
+                value: banks.contains(activeBank) ? activeBank : banks.first,
+                items: banks,
+                onChanged: onBankChanged,
+                icon: Icons.account_balance_wallet_rounded,
+              ),
+              const SizedBox(height: 10),
+            ],
+            _WalletField(
+              controller: amountCtrl,
+              hint: '${S.amountSent} (Min ${state.limits.minDeposit.toStringAsFixed(0)} - Max ${state.limits.maxDeposit.toStringAsFixed(0)} ETB)',
+              icon: Icons.monetization_on_rounded,
+              inputType: TextInputType.number,
+              errorText: amountError,
+              onChanged: onAmountChanged,
             ),
             const SizedBox(height: 10),
+            _WalletField(
+              controller: referenceCtrl,
+              hint: S.transactionRef,
+              icon: Icons.receipt_long_rounded,
+              errorText: referenceError,
+              onChanged: onReferenceChanged,
+            ),
+            const SizedBox(height: 16),
+            _GoldButton(label: S.submitDeposit, onTap: onSubmit, isLoading: state.isActionLoading),
           ],
-          _WalletField(
-            controller: amountCtrl,
-            hint: S.amountSent,
-            icon: Icons.monetization_on_rounded,
-            inputType: TextInputType.number,
-            errorText: amountError,
-            onChanged: onAmountChanged,
-          ),
-          const SizedBox(height: 10),
-          _WalletField(
-            controller: referenceCtrl,
-            hint: S.transactionRef,
-            icon: Icons.receipt_long_rounded,
-            errorText: referenceError,
-            onChanged: onReferenceChanged,
-          ),
-          const SizedBox(height: 16),
-          _GoldButton(label: S.submitDeposit, onTap: onSubmit, isLoading: state.isActionLoading),
-        ]),
+        ),
       ),
-      const SizedBox(height: 20),
+      const SizedBox(height: 24),
       _HistorySection(
           title: S.depositHistory,
           items: state.deposits,
@@ -661,46 +695,44 @@ class _WithdrawTab extends StatelessWidget {
     final activeBank = selectedBank ?? (banks.isNotEmpty ? banks.first : 'Telebirr');
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _LimitsPill(
-        label: 'Withdrawal range: ${state.limits.minWithdraw.toStringAsFixed(0)} – '
-            '${state.limits.maxWithdraw.toStringAsFixed(0)} ETB',
-      ),
-      const SizedBox(height: 20),
-      _StepCard(
-        step: null,
-        title: S.withdrawalDetails,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (banks.isNotEmpty) ...[
-            _WalletDropdown(
-              label: S.withdrawalBank,
-              value: banks.contains(activeBank) ? activeBank : banks.first,
-              items: banks,
-              onChanged: onBankChanged,
-              icon: Icons.account_balance_rounded,
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDeco(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (banks.isNotEmpty) ...[
+              _WalletDropdown(
+                label: S.withdrawalBank,
+                value: banks.contains(activeBank) ? activeBank : banks.first,
+                items: banks,
+                onChanged: onBankChanged,
+                icon: Icons.account_balance_rounded,
+              ),
+              const SizedBox(height: 10),
+            ],
+            _WalletField(
+              controller: amountCtrl,
+              hint: '${S.amount} (Min ${state.limits.minWithdraw.toStringAsFixed(0)} - Max ${state.limits.maxWithdraw.toStringAsFixed(0)} ETB)',
+              icon: Icons.monetization_on_rounded,
+              inputType: TextInputType.number,
+              errorText: amountError,
+              onChanged: onAmountChanged,
             ),
             const SizedBox(height: 10),
+            _WalletField(
+              controller: accountCtrl,
+              hint: S.accountPhone,
+              icon: Icons.account_box_rounded,
+              errorText: accountError,
+              onChanged: onAccountChanged,
+            ),
+            const SizedBox(height: 16),
+            _GoldButton(label: S.requestWithdrawal, onTap: onSubmit, isLoading: state.isActionLoading),
           ],
-          _WalletField(
-            controller: amountCtrl,
-            hint: S.amount,
-            icon: Icons.monetization_on_rounded,
-            inputType: TextInputType.number,
-            errorText: amountError,
-            onChanged: onAmountChanged,
-          ),
-          const SizedBox(height: 10),
-          _WalletField(
-            controller: accountCtrl,
-            hint: S.accountPhone,
-            icon: Icons.account_box_rounded,
-            errorText: accountError,
-            onChanged: onAccountChanged,
-          ),
-          const SizedBox(height: 16),
-          _GoldButton(label: S.requestWithdrawal, onTap: onSubmit, isLoading: state.isActionLoading),
-        ]),
+        ),
       ),
-      const SizedBox(height: 20),
+      const SizedBox(height: 24),
       _HistorySection(
           title: S.withdrawalHistory,
           items: state.withdrawals,

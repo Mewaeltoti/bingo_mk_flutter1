@@ -146,9 +146,9 @@ class _SkeletonState extends State<Skeleton>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: const [
-                Color(0xFFEBEBF4),
-                Color(0xFFF4F4F4),
-                Color(0xFFEBEBF4),
+                Color(0xFF0F1626),
+                Color(0xFF1B243B),
+                Color(0xFF0F1626),
               ],
               stops: [0.1, _animation.value.clamp(0.1, 0.9), 0.9],
               transform: _SlidingGradientTransform(

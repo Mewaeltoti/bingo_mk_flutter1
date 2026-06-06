@@ -120,7 +120,7 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       await _authRepository.signInWithEmail(
         _formatPhone(phone),
-        password,
+        _formatPinAsPassword(password),
       );
     } catch (e) {
       emit(AuthError("Login failed. Check your credentials."));
@@ -143,7 +143,7 @@ class AuthCubit extends Cubit<AuthState> {
 
       await _authRepository.signUpWithEmail(
         email,
-        password,
+        _formatPinAsPassword(password),
         phone,
       );
     } catch (e) {
@@ -164,6 +164,13 @@ class AuthCubit extends Cubit<AuthState> {
   String _formatPhone(String phone) {
     final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
     return '$clean@bingo.mk';
+  }
+
+  /// ======================================================
+  /// FORMAT PIN AS PASSWORD (FIREBASE 6-CHAR LIMIT BYPASS)
+  /// ======================================================
+  String _formatPinAsPassword(String pin) {
+    return '${pin}_bingo_secure_salt';
   }
 
   /// ======================================================

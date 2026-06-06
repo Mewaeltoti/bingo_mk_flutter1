@@ -286,8 +286,8 @@ exports.drawNumberLoopHandler = async (context) => {
             }
         }
 
-        // Wait for 20 seconds between each number draw (slow draw for better player experience)
-        await new Promise(resolve => setTimeout(resolve, 20000));
+        // Wait for 14 seconds between each number draw (adjusted for better pace)
+        await new Promise(resolve => setTimeout(resolve, 14000));
     }
 
     return null;

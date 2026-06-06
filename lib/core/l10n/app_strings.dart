@@ -1,199 +1,201 @@
-/// App-wide UI strings in Tigrinya (ትግርኛ) with English fallback keys.
+/// App-wide UI strings in Amharic (አማርኛ) with English fallback keys.
 ///
 /// Usage:
 ///   import 'package:bingo_mk/core/l10n/app_strings.dart';
 ///   Text(S.welcomeBack)
 abstract class S {
+  static bool isAmharic = true;
+
   // ── Splash ──────────────────────────────────────────────────────────────
-  static const authorizedOnly   = 'AUTHORIZED ACCESS ONLY';      // AUTHORIZED ACCESS ONLY
-  static const bingo            = 'ቢንጎ';                    // BINGO
+  static String get authorizedOnly => isAmharic ? 'የተፈቀደላቸው ሰዎች ብቻ' : 'AUTHORIZED ACCESS ONLY';
+  static String get bingo => isAmharic ? 'ቢንጎ' : 'BINGO';
   static const mk               = 'MK';
-  static const establishingSecurity = 'ESTABLISHING SECURITY…'; // ESTABLISHING SECURITY
-  static const ready            = 'ተዳሊዩ';                  // READY
-  static const enterLounge      = 'ናብ ቢንጎ እቶ';             // ENTER LOUNGE
-  static const tagline          = 'ናይ ሞያዊ ቢንጎ ልዑል ተሞኩሮ ተቐበሎ።'; // Experience the height of professional bingo.
+  static String get establishingSecurity => isAmharic ? 'ደህንነት እየተረጋገጠ ነው…' : 'ESTABLISHING SECURITY';
+  static String get ready => isAmharic ? 'ዝግጁ' : 'READY';
+  static String get enterLounge => isAmharic ? 'ወደ ቢንጎ ግባ' : 'ENTER LOUNGE';
+  static String get tagline => isAmharic ? 'ምርጥ የቢንጎ ጨዋታን ይጫወቱ።' : 'Experience the height of professional bingo.';
 
   // ── Login ────────────────────────────────────────────────────────────────
-  static const vip              = 'VIP';
-  static const accessOnly       = 'ፍቑዳት ጥራይ';             // ACCESS ONLY
-  static const premiumGamingSuite = 'ፕሪሚየም ጌሚንግ ';     // PREMIUM GAMING SUITE
-  static const welcomeBack      = 'እንቋዕ ደሓን ተመለስካ';       // Welcome Back
-  static const accessAccount    = 'ሕሳብካ ክፈት';        // Access your high-stakes account
-  static const phoneNumber      = 'ቁጽሪ ተሌፎን';             // Phone Number
-  static const password         = 'Password';               // Password
-  static const forgotPassword   = 'Forgot Password?';         // Forgot Password?
-  static const or               = 'ወይ';                     // OR
-  static const biometrics       = 'ባዮሜትሪክስ';               // Biometrics
-  static const passkey          = 'ፓስኪ';                   // Passkey
-  static const signIn           = 'እቶ';                     // SIGN IN
-  static const noAccount        = 'ሕሳብ የብልካን?';            // Don't have an account?
-  static const signUpNow        = 'ሕጂ ተመዝገብ';              // Sign Up Now
+  static const vip              = 'ቪአይፒ (VIP)';
+  static String get accessOnly => isAmharic ? 'ለተፈቀደላቸው ብቻ' : 'ACCESS ONLY';
+  static String get premiumGamingSuite => isAmharic ? 'ፕሪሚየም ጌሚንግ' : 'PREMIUM GAMING SUITE';
+  static String get welcomeBack => isAmharic ? 'እንኳን ደህና መጡ' : 'Welcome Back';
+  static String get accessAccount => isAmharic ? 'ወደ አካውንትዎ ይግቡ' : 'Access your high-stakes account';
+  static String get phoneNumber => isAmharic ? 'ስልክ ቁጥር' : 'Phone Number';
+  static String get password => isAmharic ? 'የይለፍ ቃል (Password)' : 'Password';
+  static String get forgotPassword => isAmharic ? 'የይለፍ ቃል ረስተዋል?' : 'Forgot Password?';
+  static String get or => isAmharic ? 'ወይም' : 'OR';
+  static String get biometrics => isAmharic ? 'ባዮሜትሪክስ' : 'Biometrics';
+  static String get passkey => isAmharic ? 'ፓስኪ (Passkey)' : 'Passkey';
+  static String get signIn => isAmharic ? 'ግባ' : 'SIGN IN';
+  static String get noAccount => isAmharic ? 'አካውንት የለዎትም?' : 'Don\'t have an account?';
+  static String get signUpNow => isAmharic ? 'አሁን ይመዝገቡ' : 'Sign Up Now';
 
   // ── Sign Up ──────────────────────────────────────────────────────────────
-  static const createAccount    = 'ሕሳብ ፍጠር';               // Create Account
-  static const joinCommunity    = 'ናብ ቢንጎ መቐለ ማሕበረሰብ ተጸምበር'; // Join the Bingo Mekele community
-  static const phoneHint        = 'ቁጽሪ ተሌፎን (ንምሳሌ 0912…)'; // Phone number (e.g. 0912…)
-  static const passwordHint     = 'ሕስብ-ቃል';               // Password
-  static const confirmPasswordHint = 'ሕስብ-ቃልካ ኣረጋጽ';      // Confirm password
-  static const createAccountBtn = 'ሕሳብ ፍጠር';               // CREATE ACCOUNT
-  static const alreadyHaveAccount = 'ሕሳብ ኣለካ?';            // Already have an account?
-  static const signInLink       = 'እቶ';                     // Sign In
-  static const confirmAge       = 'ዕድሚኡ 18+ ምዃኑ ኣረጋጽ';     // Please confirm you are 18+ and agree to the Terms
-  static const iConfirmAge      = 'ዕድሚኤ ';
-  static const years18OrOlder   = '18 ዓመትን ልዕሊኡን ምዃነይ ኣረጋጽ';
-  static const andAgreeTo       = ' ፡ ናብ ';
-  static const termsOfService   = 'ናይ ኣገልግሎት ውዕሊ';        // Terms of Service
-  static const agreed           = ' ተሰማሚዐ።';
+  static String get createAccount => isAmharic ? 'አካውንት ይፍጠሩ' : 'Create Account';
+  static String get joinCommunity => isAmharic ? 'የቢንጎ ማህበረሰብን ይቀላቀሉ' : 'Join the Bingo community';
+  static String get phoneHint => isAmharic ? 'ስልክ ቁጥር (ለምሳሌ 0912…)' : 'Phone number (e.g. 0912…)';
+  static String get passwordHint => isAmharic ? 'የይለፍ ቃል' : 'Password';
+  static String get confirmPasswordHint => isAmharic ? 'የይለፍ ቃልዎን ያረጋግጡ' : 'Confirm password';
+  static String get createAccountBtn => isAmharic ? 'አካውንት ይፍጠሩ' : 'CREATE ACCOUNT';
+  static String get alreadyHaveAccount => isAmharic ? 'አካውንት አለዎት?' : 'Already have an account?';
+  static String get signInLink => isAmharic ? 'ግባ' : 'Sign In';
+  static String get confirmAge => isAmharic ? 'እባክዎ ዕድሜዎ 18+ መሆኑን እና በውልና ደንቦቹ መስማማትዎን ያረጋግጡ' : 'Please confirm you are 18+ and agree to the Terms';
+  static const iConfirmAge      = 'እኔ ዕድሜዬ ';
+  static const years18OrOlder   = '18 ዓመት ወይም ከዚያ በላይ መሆኑን አረጋግጣለሁ';
+  static const andAgreeTo       = ' እና በ ';
+  static String get termsOfService => isAmharic ? 'የአጠቃቀም ደንቦች' : 'Terms of Service';
+  static const agreed           = ' እስማማለሁ።';
 
   // ── Validation ───────────────────────────────────────────────────────────
-  static const enterValidPhone   = 'ቅኑዕ ቁጽሪ ተሌፎን ኣእቱ';    // Enter a valid phone number
-  static const atLeast8Chars     = 'ቢያንስ 8 ፊደላት ኣድለዩ';     // At least 8 characters required
-  static const passwordsNoMatch  = 'Passwords do not match';      // Passwords do not match
-  static const phoneRequired     = 'ቁጽሪ ተሌፎን ኣድለዩ';        // Phone number required
-  static const passwordRequired  = 'Password required';          // Password required
-  static const confirmPassRequired = 'Please confirm password';       // Please confirm password
-  static const enterValidNumber  = 'ቅኑዕ ቁጽሪ ኣቑም';           // Enter a valid number
-  static const insufficientBalance = 'Insufficient balance';          // Insufficient balance
-  static const referenceRequired = 'Reference ኣድለዩ';            // Reference required
-  static const accountRequired   = 'CBE Account ቁጽሪ ኣድለዩ';         // Account required
+  static String get enterValidPhone => isAmharic ? 'ትክክለኛ ስልክ ቁጥር ያስገቡ' : 'Enter a valid phone number';
+  static String get atLeast8Chars => isAmharic ? 'ቢያንስ 8 ፊደላት/ቁጥሮች ያስፈልጋሉ' : 'At least 8 characters required';
+  static String get passwordsNoMatch => isAmharic ? 'የይለፍ ቃሎቹ አይዛመዱም' : 'Passwords do not match';
+  static String get phoneRequired => isAmharic ? 'ስልክ ቁጥር ያስፈልጋል' : 'Phone number required';
+  static String get passwordRequired => isAmharic ? 'የይለፍ ቃል ያስፈልጋል' : 'Password required';
+  static String get confirmPassRequired => isAmharic ? 'እባክዎ የይለፍ ቃሉን ያረጋግጡ' : 'Please confirm password';
+  static String get enterValidNumber => isAmharic ? 'ትክክለኛ ቁጥር ያስገቡ' : 'Enter a valid number';
+  static String get insufficientBalance => isAmharic ? 'በቂ ቀሪ ሂሳብ የለም' : 'Insufficient balance';
+  static String get referenceRequired => isAmharic ? 'ማጣቀሻ ቁጥር (Reference) ያስፈልጋል' : 'Reference required';
+  static String get accountRequired => isAmharic ? 'የባንክ ሂሳብ ቁጥር ያስፈልጋል' : 'Account required';
 
   // ── Dashboard ────────────────────────────────────────────────────────────
-  static const playNow          = 'ሕጂ ተጻወት';               // PLAY NOW
-  static const wallet           = 'ገንዘብ';              // Wallet
-  static const logout           = 'ውጺእ';                    // Logout
-  static const signInBtn        = 'እቶ';                     // SIGN IN
-  static const signUpBtn        = 'ተመዝገብ';                  // SIGN UP
+  static String get playNow => isAmharic ? 'አሁኑኑ ይጫወቱ' : 'PLAY NOW';
+  static String get wallet => isAmharic ? 'ሂሳብ (ቦርሳ)' : 'Wallet';
+  static String get logout => isAmharic ? 'ውጣ' : 'Logout';
+  static String get signInBtn => isAmharic ? 'ግባ' : 'SIGN IN';
+  static String get signUpBtn => isAmharic ? 'ተመዝገብ' : 'SIGN UP';
 
   // ── Bottom Nav ───────────────────────────────────────────────────────────
-  static const play             = 'ተጻወት';                   // Play
-  static const profile          = 'ፕሮፋይል';                 // Profile
+  static String get play => isAmharic ? 'ይጫወቱ' : 'Play';
+  static String get profile => isAmharic ? 'መገለጫ' : 'Profile';
 
   // ── Game Page ────────────────────────────────────────────────────────────
-  static const winners          = 'ተዓወትቲ';                   // WINNERS
-  static const pending          = 'ዝጽበ';                    // PENDING
-  static const claims           = 'ጠለባት';                   // CLAIMS
-  static const blocked          = 'ዝተዓጽወ';                  // BLOCKED
-  static const autoDaub         = 'AUTO ምልክት';            // AUTO-DAUB
-  static const compact          = 'ሓጺር';                    // COMPACT
-  static const fullBoard        = 'ምሉእ ሰሌዳ';               // FULL BOARD
-  static const claimWindow      = 'ናይ ጠለብ ሰዓት: ';          // CLAIM WINDOW:
-  static const buyCards         = 'ካርታ ዕዘዝ';               // BUY CARDS
-  static const buyCartelas      = 'ካርታ ዕዘዝ';               // BUY CARTELAS
-  static const maxCardsMsg      = 'Max 25 ካርታ ይፍቀድ — '; // Max 25 cards per session —
-  static const ownedSuffix      = ' ዝተዓደጉ';                 // owned
-  static const card             = 'ካርቴላ';                    // CARD
-  static const cards            = 'ካርቴላታት';                  // CARDS
-  static const youWon           = '🎉 ተዓዊትካ!';               // 🎉 YOU WON!
+  static String get winners => isAmharic ? 'አሸናፊዎች' : 'WINNERS';
+  static String get pending => isAmharic ? 'በመጠባበቅ ላይ' : 'PENDING';
+  static String get claims => isAmharic ? 'የቢንጎ ጥያቄዎች' : 'CLAIMS';
+  static String get blocked => isAmharic ? 'የታገደ' : 'BLOCKED';
+  static String get autoDaub => isAmharic ? 'አውቶማቲክ ምልክት' : 'AUTO-DAUB';
+  static String get compact => isAmharic ? 'አጭር ሰሌዳ' : 'COMPACT';
+  static String get fullBoard => isAmharic ? 'ሙሉ ሰሌዳ' : 'FULL BOARD';
+  static String get claimWindow => isAmharic ? 'የጥያቄ ሰዓት: ' : 'CLAIM WINDOW:';
+  static String get buyCards => isAmharic ? 'ካርታዎችን ይግዙ' : 'BUY CARDS';
+  static String get buyCartelas => isAmharic ? 'ካርቴላዎችን ይግዙ' : 'BUY CARTELAS';
+  static String get maxCardsMsg => isAmharic ? 'በአንድ ጊዜ ቢበዛ 25 ካርታዎች ይፈቀዳሉ — ' : 'Max 25 cards per session —';
+  static String get ownedSuffix => isAmharic ? ' የተገዙ' : 'owned';
+  static String get card => isAmharic ? 'ካርቴላ' : 'CARD';
+  static String get cards => isAmharic ? 'ካርቴላዎች' : 'CARDS';
+  static String get youWon => isAmharic ? '🎉 አሸንፈዋል!' : '🎉 YOU WON!';
 
   // ── Bingo Card ───────────────────────────────────────────────────────────
-  static const invalidCardData  = 'ዘይቅኑዕ ናይ ቢንጎ ካርታ';     // Invalid Bingo Card Data
-  static const notStartedYet    = 'ቁጽሪ ምስሳብ ገና ኣይጀመረን!';  // Game hasn't started drawing numbers yet!
-  static const buyingPhaseOnly  = 'ምምዝጋብ ኣብ ናይ ምዕዳግ ሰዓት ጥራይ ይፍቀድ!'; // Registration is only allowed during the Buying Phase!
+  static String get invalidCardData => isAmharic ? 'ልክ ያልሆነ የቢንጎ ካርታ መረጃ' : 'Invalid Bingo Card Data';
+  static String get notStartedYet => isAmharic ? 'ጨዋታው እስካሁን ቁጥሮችን መሳብ አልጀመረም!' : 'Game hasn\'t started drawing numbers yet!';
+  static String get buyingPhaseOnly => isAmharic ? 'መመዝገብ የሚቻለው በካርታ መግዣ ሰዓት ላይ ብቻ ነው!' : 'Registration is only allowed during the Buying Phase!';
 
   // ── Live Board / Recent Numbers ──────────────────────────────────────────
-  static const last             = 'ዳሕረዋይ: ';               // LAST:
+  static String get last => isAmharic ? 'የመጨረሻው: ' : 'LAST:';
 
   // ── Session Card ─────────────────────────────────────────────────────────
-  static const session          = 'ሴሽን';                    // Session
-  static const cardPrice        = 'ዋጋ ካርቴላ';                // CARD PRICE
-  static const yourCards        = 'ካርቴላታትካ';                // YOUR CARDS
-  static const prizePool        = 'ሽልማት';              // PRIZE POOL
-  static const buyingEndsIn     = 'ምዕዳግ ዝወዳእ ኣብ';          // BUYING ENDS IN
-  static const claimWindowLabel = 'ናይ ቢንጎ ሰዓት';            // CLAIM WINDOW
+  static String get session => isAmharic ? 'ሴሽን' : 'Session';
+  static String get cardPrice => isAmharic ? 'የካርታ ዋጋ' : 'CARD PRICE';
+  static String get yourCards => isAmharic ? 'የእርስዎ ካርታዎች' : 'YOUR CARDS';
+  static String get prizePool => isAmharic ? 'የሽልማት ፈንድ' : 'PRIZE POOL';
+  static String get buyingEndsIn => isAmharic ? 'መግዣው የሚያበቃው በ' : 'BUYING ENDS IN';
+  static String get claimWindowLabel => isAmharic ? 'የቢንጎ ጥያቄ ሰዓት' : 'CLAIM WINDOW';
 
   // ── Wallet / Payment Page ────────────────────────────────────────────────
-  static const walletTitle      = 'ገንዘብ';              // WALLET
-  static const availableBalance = 'ዝርከብ ገንዘብ';              // Available Balance
-  static const deposit          = 'ኣእቱ';                    // DEPOSIT
-  static const withdraw         = 'ውሰድ';                    // WITHDRAW
-  static const retry            = 'ደጋጊምካ ፈትን';             // RETRY
-  static const depositSubmitted = 'ምእታው ይረጋገፅ ኣሎ…'; // Deposit submitted — auto-matching in progress…
-  static const withdrawalSubmitted = 'ገንዘብ ወፃኢ ጠይቅካ!';     // Withdrawal request submitted!
-  static const rejected         = 'ተነፊጉ';                  // Rejected
-  static const yourTxRejected   = 'ናትካ ';                   // Your
-  static const ofAmountEtb      = ' ETB ተነፊጉ።';            // of X ETB was rejected.
-  static const reason           = 'ምኽንያት: ';               // Reason:
-  static const dismiss          = 'ኣይተሳክዐን';                     // DISMISS
-  static const depositRange     = 'ናይ ምእታው ዓቐን: ';         // Deposit range:
-  static const copyAccountDetails = 'ናይ ሕሳብ ዝርዝር ቅዳሕ';    // Copy Account Details
-  static const noPaymentAccounts = 'ናይ ክፍሊያን ሕሳብ ኣይቀረበን'; // No payment accounts configured
-  static const submitReference  = 'ማጣቀሻ ኣቕርብ';             // Submit Reference
-  static const bankPaidTo       = 'ዝተኸፈለሉ ባንክ';            // Bank Paid To
-  static const amountSent       = 'ዝተኸፈለ ብዝሒ (ETB)';       // Amount sent (ETB)
-  static const transactionRef   = 'ናይ ክፍሊያን ማጣቀሻ / FT ቁጽሪ'; // Transaction reference / FT number
-  static const submitDeposit    = 'ምእታው ኣቕርብ';             // SUBMIT DEPOSIT
-  static const depositHistory   = 'ናይ ምእታው ታሪኽ';          // Deposit History
-  static const withdrawalRange  = 'ናይ ምውሳድ ዓቐን: ';         // Withdrawal range:
-  static const withdrawalDetails = 'ናይ ምውሳድ ዝርዝር';         // Withdrawal Details
-  static const withdrawalBank   = 'ናይ ምውሳድ ባንክ';           // Withdrawal Bank
-  static const amount           = 'ብዝሒ (ETB)';              // Amount (ETB)
-  static const accountPhone     = 'ናይ ሕሳብ / ቁጽሪ ተሌፎን';    // Your account / phone number
-  static const requestWithdrawal = 'ምውሳድ ሕተት';             // REQUEST WITHDRAWAL
-  static const withdrawalHistory = 'ናይ ምውሳድ ታሪኽ';         // Withdrawal History
-  static const copied           = ' ተቐዲሑ';                  // copied
-  static const unknown          = 'ዘይፍለጥ';                  // Unknown
+  static String get walletTitle => isAmharic ? 'ሂሳብ (ቦርሳ)' : 'WALLET';
+  static String get availableBalance => isAmharic ? 'የሚገኝ ቀሪ ሂሳብ' : 'Available Balance';
+  static String get deposit => isAmharic ? 'ገንዘብ ያስገቡ' : 'DEPOSIT';
+  static String get withdraw => isAmharic ? 'ገንዘብ ያውጡ' : 'WITHDRAW';
+  static String get retry => isAmharic ? 'በድጋሚ ይሞክሩ' : 'RETRY';
+  static String get depositSubmitted => isAmharic ? 'ሂሳብ ማስገባትዎ በመረጋገጥ ላይ ነው…' : 'Deposit submitted — auto-matching in progress…';
+  static String get withdrawalSubmitted => isAmharic ? 'ገንዘብ ማውጣት ጥያቄዎ ተልኳል!' : 'Withdrawal request submitted!';
+  static String get rejected => isAmharic ? 'ተቀባይነት አላገኘም' : 'Rejected';
+  static String get yourTxRejected => isAmharic ? 'የእርስዎ ' : 'Your';
+  static String get ofAmountEtb => isAmharic ? ' ETB ውድቅ ተደርጓል።' : 'of X ETB was rejected.';
+  static String get reason => isAmharic ? 'ምክንያት: ' : 'Reason:';
+  static String get dismiss => isAmharic ? 'ዝጋ' : 'DISMISS';
+  static String get depositRange => isAmharic ? 'የማስገቢያ መጠን: ' : 'Deposit range:';
+  static String get copyAccountDetails => isAmharic ? 'የሂሳብ መረጃን ኮፒ ያድርጉ' : 'Copy Account Details';
+  static String get noPaymentAccounts => isAmharic ? 'ምንም የክፍያ አማራጮች አልተዘጋጁም' : 'No payment accounts configured';
+  static String get submitReference => isAmharic ? 'የማጣቀሻ ቁጥር ያስገቡ' : 'Submit Reference';
+  static String get bankPaidTo => isAmharic ? 'የተከፈለበት ባንክ' : 'Bank Paid To';
+  static String get amountSent => isAmharic ? 'የተላከው መጠን (ETB)' : 'Amount sent (ETB)';
+  static String get transactionRef => isAmharic ? 'የግብይት ማጣቀሻ / FT ቁጥር' : 'Transaction reference / FT number';
+  static String get submitDeposit => isAmharic ? 'ማስገቢያውን ላክ' : 'SUBMIT DEPOSIT';
+  static String get depositHistory => isAmharic ? 'የማስገቢያ ታሪክ' : 'Deposit History';
+  static String get withdrawalRange => isAmharic ? 'የማውጫ መጠን: ' : 'Withdrawal range:';
+  static String get withdrawalDetails => isAmharic ? 'የማውጫ መረጃ' : 'Withdrawal Details';
+  static String get withdrawalBank => isAmharic ? 'ማውጫ ባንክ' : 'Withdrawal Bank';
+  static String get amount => isAmharic ? 'መጠን (ETB)' : 'Amount (ETB)';
+  static String get accountPhone => isAmharic ? 'የሂሳብ / ስልክ ቁጥርዎ' : 'Your account / phone number';
+  static String get requestWithdrawal => isAmharic ? 'ገንዘብ ማውጣትን ይጠይቁ' : 'REQUEST WITHDRAWAL';
+  static String get withdrawalHistory => isAmharic ? 'የማውጫ ታሪክ' : 'Withdrawal History';
+  static String get copied => isAmharic ? ' ኮፒ ተደርጓል' : 'copied';
+  static String get unknown => isAmharic ? 'ያልታወቀ' : 'Unknown';
 
   // ── Profile ───────────────────────────────────────────────────────────────
-  static const balance          = 'ቀሪ ገንዘብ';                    // BALANCE
-  static const account          = 'ሕሳብ';                    // ACCOUNT
-  static const phoneNumberLabel = 'ቁጽሪ ተሌፎን';             // PHONE NUMBER
-  static const signOut          = 'ውጺእ';                    // SIGN OUT
+  static String get balance => isAmharic ? 'ቀሪ ሂሳብ' : 'BALANCE';
+  static String get account => isAmharic ? 'አካውንት' : 'ACCOUNT';
+  static String get phoneNumberLabel => isAmharic ? 'ስልክ ቁጥር' : 'PHONE NUMBER';
+  static String get signOut => isAmharic ? 'ውጣ' : 'SIGN OUT';
 
   // ── Settings Drawer ───────────────────────────────────────────────────────
-  static const settings         = 'መቐያዪ';                   // Settings
-  static const preferences      = 'ምርጫታት';                  // PREFERENCES
-  static const soundEffects     = 'ናይ ድምጺ ጸለዋ';            // Sound Effects
-  static const autoDaubSetting  = 'Auto ምልክት';            // Auto-Daub
-  static const support          = 'ደገፍ';                    // SUPPORT
-  static const contactSupport   = 'ደገፍ ርኸብ';               // Contact Support
-  static const callSupport      = 'ደዉል: +251978187178';      // Call: +251978187178
-  static const appVersion       = 'v1.0.0 · ቢንጎ መቐለ ብ Toti Tech'; // v1.0.0 · Bingo Mekele by Toti Tech
+  static String get settings => isAmharic ? 'ቅንብሮች' : 'Settings';
+  static String get preferences => isAmharic ? 'ምርጫዎች' : 'PREFERENCES';
+  static String get soundEffects => isAmharic ? 'የድምፅ ውጤቶች' : 'Sound Effects';
+  static String get autoDaubSetting => isAmharic ? 'አውቶማቲክ ምልክት ማድረግ' : 'Auto-Daub';
+  static String get support => isAmharic ? 'ድጋፍ' : 'SUPPORT';
+  static String get contactSupport => isAmharic ? 'ድጋፍ ለማግኘት' : 'Contact Support';
+  static String get callSupport => isAmharic ? 'ይደውሉ: +251978187178' : 'Call: +251978187178';
+  static String get appVersion => isAmharic ? 'v1.1.0 · ቢንጎ MK' : 'App version';
 
   // ── Loading ───────────────────────────────────────────────────────────────
-  static const loading          = 'ይጽዓን…';                  // Loading…
+  static String get loading => isAmharic ? 'በመጫን ላይ…' : 'Loading…';
 
   // ── Winning Card Dialog ───────────────────────────────────────────────────
-  static const winningCard      = 'ዝዓወተ ካርቴላ';              // WINNING CARD
+  static String get winningCard => isAmharic ? 'አሸናፊ ካርቴላ' : 'WINNING CARD';
 
   // ── Card Transparency Dialog ──────────────────────────────────────────────
-  static const close            = 'ዕፀ';                     // Close
+  static String get close => isAmharic ? 'ዝጋ' : 'Close';
 
-  // ── Game Patterns (Tigrinya names & descriptions) ────────────────────────
+  // ── Game Patterns (Amharic names & descriptions) ────────────────────────
   // Pattern display names
-  static const patternFullHouse    = 'ምሉእ ቤት';         // Full House
-  static const patternSingleLine   = 'ሓደ መስመር';        // Single Line
-  static const patternTwoLines     = 'ክልተ መስመር';       // Two Lines
-  static const patternTShape       = 'T ቅርጺ';           // T Shape
-  static const patternLShape       = 'L ቅርጺ';           // L Shape
-  static const patternXShape       = 'X ቅርጺ';           // X Shape (diagonal cross)
-  static const patternPlus         = '+ ቅርጺ';           // Plus / Cross
-  static const patternCorners      = 'ኣርባዕቲኡ ኩርናዓት';  // Four Corners
-  static const patternFrame        = 'ዙሪያ ዳርጋ';        // Frame / Border
+  static String get patternFullHouse => isAmharic ? 'ሙሉ ቤት' : 'Full House';
+  static String get patternSingleLine => isAmharic ? 'አንድ መስመር' : 'Single Line';
+  static String get patternTwoLines => isAmharic ? 'ሁለት መስመር' : 'Two Lines';
+  static String get patternTShape => isAmharic ? 'የ T ቅርፅ' : 'T Shape';
+  static String get patternLShape => isAmharic ? 'የ L ቅርፅ' : 'L Shape';
+  static String get patternXShape => isAmharic ? 'የ X ቅርፅ' : 'X Shape (diagonal cross)';
+  static String get patternPlus => isAmharic ? 'የ + ቅርፅ' : 'Plus / Cross';
+  static String get patternCorners => isAmharic ? 'አራቱ ማዕዘኖች' : 'Four Corners';
+  static String get patternFrame => isAmharic ? 'ዙሪያ (ፍሬም)' : 'Frame / Border';
 
   // Pattern descriptions (shown in the help dialog)
-  static const patternFullHouseDesc  = 'ንምዕዋት ኩሎም 25 ቁጽሪታት ናይ ካርታኻ ምልክት ግበር።';
+  static const patternFullHouseDesc  = 'ለማሸነፍ ሁሉንም 25 የካርታዎን ቁጥሮች ምልክት ያድርጉ።';
   // Mark ALL 25 numbers on your card to win.
-  static const patternSingleLineDesc = 'ንምዕዋት ዝኾነ 1 ምሉእ ሓቢጥ ሎሚ ምልክት ግበር። (ዝኾነ ሓቢጥ ይሓሽ!)';
+  static const patternSingleLineDesc = 'ለማሸነፍ ማንኛውንም 1 ሙሉ አግድም መስመር ምልክት ያድርጉ።';
   // Mark any 1 complete horizontal row to win. (Any row counts!)
-  static const patternTwoLinesDesc   = 'ንምዕዋት ዝኾነ 2 ምሉኣት ሓቢጥ ሎምታት ምልክት ግበር።';
+  static const patternTwoLinesDesc   = 'ለማሸነፍ ማናቸውንም 2 ሙሉ አግድም መስመሮች ምልክት ያድርጉ።';
   // Mark any 2 complete horizontal rows to win.
-  static const patternTShapeDesc     = 'ናይ T ቅርጺ ንምፍጣር ናይ ላዕሊ ሓቢጥ + ማእከላይ ዓምዲ ምልክት ግበር።';
+  static const patternTShapeDesc     = 'የ T ቅርፅ ለመስራት የላይኛውን መስመር + መካከለኛውን አምድ ምልክት ያድርጉ።';
   // Mark the top row + middle column to form a T shape.
-  static const patternLShapeDesc     = 'ናይ L ቅርጺ ንምፍጣር ጸጋማይ ዓምዲ + ታሕቲ ሓቢጥ ምልክት ግበር።';
+  static const patternLShapeDesc     = 'የ L ቅርፅ ለመስራት የግራውን አምድ + የታችኛውን መስመር ምልክት ያድርጉ።';
   // Mark the left column + bottom row to form an L shape.
-  static const patternXShapeDesc     = 'ናይ X ቅርጺ ንምፍጣር ክልቲኡ ሰዋሰዋዊ መስመራት (ካብ ኩርናዕ ናብ ኩርናዕ) ምልክት ግበር።';
+  static const patternXShapeDesc     = 'የ X ቅርፅ ለመስራት ሁለቱንም ሰያፍ መስመሮች ምልክት ያድርጉ።';
   // Mark both diagonals (corner to corner) to form an X.
-  static const patternPlusDesc       = 'ናይ + ቅርጺ ንምፍጣር ማእከላይ ሓቢጥ + ማእከላይ ዓምዲ ምልክት ግበር።';
+  static const patternPlusDesc       = 'የ + ቅርፅ ለመስራት መካከለኛውን መስመር + መካከለኛውን አምድ ምልክት ያድርጉ።';
   // Mark the middle row + middle column to form a Plus (+).
-  static const patternCornersDesc    = 'ንምዕዋት ኩሎም 4 ኩርናዓት ናይ ካርታኻ ምልክት ግበር።';
+  static const patternCornersDesc    = 'ለማሸነፍ 4ቱንም የካርታዎን ማዕዘኖች ምልክት ያድርጉ።';
   // Mark all 4 corner cells of your card to win.
-  static const patternFrameDesc      = 'ናይ ካርታኻ ዙሪያ ዳርጋ ኩሉ ምልክት ግበር።';
+  static const patternFrameDesc      = 'ለማሸነፍ የካርታዎን ውጫዊ ዙሪያዎች በሙሉ ምልክት ያድርጉ።';
   // Mark all cells on the outer edge of your card.
-  static const patternDefaultDesc    = 'ንምዕዋት ዝተጸብጸቡ ሴሎ ምልክት ግበር።';
+  static const patternDefaultDesc    = 'ለማሸነፍ ጎልተው የሚታዩትን ሳጥኖች ምልክት ያድርጉ።';
   // Mark the highlighted cells on your card to win.
 
   /// Translates a raw [pattern] string (English, from Firestore/admin) into
-  /// its Tigrinya display name.
+  /// its Amharic display name.
   static String patternName(String rawPattern) {
     final p = rawPattern.toLowerCase().replaceAll(' ', '_');
     if (p.contains('full') || p.contains('house')) return patternFullHouse;
@@ -208,7 +210,7 @@ abstract class S {
     return rawPattern.toUpperCase().replaceAll('_', ' '); // unknown: show as-is
   }
 
-  /// Translates a raw [pattern] string into its Tigrinya description.
+  /// Translates a raw [pattern] string into its Amharic description.
   static String patternDesc(String rawPattern) {
     final p = rawPattern.toLowerCase().replaceAll(' ', '_');
     if (p.contains('full') || p.contains('house')) return patternFullHouseDesc;
@@ -225,11 +227,12 @@ abstract class S {
 
   // ── Terms of Service (full text) ─────────────────────────────────────────
   static const termsBody =
-      'ቢንጎ መቐለ ብምጥቃምካ ምስ ዝስዕቡ ትሰማማዕ:\n\n'
-      '1. ንምጽዋት ቢያንስ ዕድሜኻ 18 ዓመት ክኸውን ኣለዎ።\n\n'
-      '2. እዚ ብሓቂ ዝካየድ ጸወታ ገንዘብ እዩ። ናይ ምስዓር ተኽእሎ ዘለዎ ገንዘብ ጥራይ ኣቑም።\n\n'
-      '3. ቅድሚ ክፍሊያን ናይ ዓወት ካርታ ምርግጋጽ ይሓትት።\n\n'
-      '4. ሓሶት ዝሓዘ ጠለብ ሕሳብካ ምቁራጽ ይብጽሕ።\n\n'
-      '5. ቴክኒካዊ ጌጋ እንተጋጠመ ኦፐሬተር ሴሽን ናይ ምስረዛን ኣቐዲሙ ዝተኸፈለ ክምለስ ይኽእል።\n\n'
-      '6. ምፍልላያት ብፍሉይ ስልጣን ናይ ኦፐሬተር ይፍታሕ።';
+      'ይህንን የቢንጎ መጫወቻ በመጠቀም በሚከተሉት ደንቦች ተስማምተዋል:\n\n'
+      '1. ለመጫወት ቢያንስ የዕድሜ ገደብ 18 ዓመት እና ከዚያ በላይ መሆን አለበት።\n\n'
+      '2. ይህ ጨዋታ በእውነተኛ ገንዘብ የሚካሄድ ነው። ማጣት የሚችሉትን ያህል መጠን ብቻ ያስይዙ።\n\n'
+      '3. ማናቸውም ሽልማቶች ከመከፈላቸው በፊት የአሸናፊነቱ ካርታ መረጋገጥ ይኖርበታል።\n\n'
+      '4. የተጭበረበረ ጥያቄ ማቅረብ ሂሳብዎ እስከመጨረሻው እንዲታገድ ያደርጋል።\n\n'
+      '5. ቴክኒካዊ ብልሽቶች ካጋጠሙ ኦፕሬተሩ ጨዋታውን የመሰረዝ እና ክፍያዎችን የመመለስ መብቱ የተጠበቀ ነው።\n\n'
+      '6. አለመግባባቶች በሙሉ በኦፕሬተሩ የመጨረሻ ውሳኔ ይፈታሉ።';
 }
+

@@ -366,271 +366,138 @@ class _SessionCardWidgetState extends State<SessionCardWidget> {
     final isPaused = s.status == GameStatus.paused;
     final isBuying = s.status == GameStatus.buying;
     final statusColor = isPaused ? _C.danger : (isBuying ? _C.warning : _C.success);
-    final statusLabel = s.statusStr.toUpperCase();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _C.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // Header bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: _C.surfaceHigh,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border(
-              bottom: BorderSide(color: Colors.white.withOpacity(0.06)),
-            ),
-          ),
-          child: Row(children: [
-            // Pattern icon
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _C.goldFill,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _C.goldBorder),
-              ),
-              child: const Icon(Icons.grid_view_rounded, color: _C.gold, size: 16),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
-                  s.gamePattern.toUpperCase().replaceAll('_', ' '),
-                  style: _T.label(size: 13, color: _C.goldLight, spacing: 1.0,
-                      weight: FontWeight.w900),
-                ),
-                Text('Session · ${s.sessionId.substring(0, s.sessionId.length.clamp(0, 8)).toUpperCase()}',
-                    style: _T.label(size: 10, color: _C.textLow, spacing: 0.3)),
-              ]),
-            ),
-            // Help / pattern button
-            GestureDetector(
-              onTap: () => _showPatternHelpDialog(context, s.gamePattern),
-              child: Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _C.goldFill,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _C.goldBorder),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.help_outline_rounded, color: _C.gold, size: 13),
-                  const SizedBox(width: 4),
-                  Text('HOW TO WIN',
-                      style: _T.label(size: 9, color: _C.gold, spacing: 0.5)),
-                ]),
-              ),
-            ),
-            // Status badge
-            _StatusBadge(label: statusLabel, color: statusColor),
-          ]),
+    // Calculate countdowns if active
+    int? secs;
+    String timerLabel = "";
+    if (isBuying) {
+      secs = s.buyingCountdown > 0
+          ? s.buyingCountdown
+          : (s.startTime != null
+              ? s.startTime!.toLocal().add(const Duration(minutes: 2)).difference(DateTime.now()).inSeconds.clamp(0, 999)
+              : null);
+      timerLabel = "Ends";
+    } else if (isPaused && s.claimDeadline != null) {
+      secs = s.claimDeadline!.difference(DateTime.now()).inSeconds.clamp(0, 999);
+      timerLabel = "Claim";
+    }
+
+    return GestureDetector(
+      onTap: () => _showPatternHelpDialog(context, s.gamePattern),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _C.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
-
-        // Stats grid
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            Row(children: [
-              Expanded(
-                child: _StatTile(
-                  icon: Icons.attach_money_rounded,
-                  iconColor: _C.success,
-                  label: S.cardPrice,
-                  value: '${s.gamePrice.toInt()} ETB',
-                  valueColor: _C.success,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _StatTile(
-                  icon: Icons.style_rounded,
-                  iconColor: _C.blueLight,
-                  label: S.yourCards,
-                  value: '${s.userCards.length}',
-                  valueColor: _C.blueLight,
-                ),
-              ),
-            ]),
-            const SizedBox(height: 10),
-            // Prize pool highlight
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    _C.gold.withOpacity(0.08),
-                    _C.gold.withOpacity(0.03),
+        child: Row(
+          children: [
+            // Status Dot + Text
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: statusColor,
+                        boxShadow: [BoxShadow(color: statusColor.withOpacity(0.4), blurRadius: 4)],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      s.status.name.toUpperCase(),
+                      style: _T.label(size: 9, color: statusColor, spacing: 0.5, weight: FontWeight.w900),
+                    ),
                   ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.goldBorder),
+              ],
+            ),
+            const SizedBox(width: 12),
+
+            // Pattern & Session Name
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    s.gamePattern.toUpperCase().replaceAll('_', ' '),
+                    style: _T.label(size: 13, color: _C.goldLight, spacing: 0.5, weight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    'Card: ${s.gamePrice.toInt()} ETB  ·  Owned: ${s.userCards.length}',
+                    style: _T.label(size: 9, color: _C.textLow, spacing: 0.2),
+                  ),
+                ],
               ),
-              child: Row(children: [
-                const Icon(Icons.emoji_events_rounded, color: _C.gold, size: 20),
-                const SizedBox(width: 10),
-                Text(S.prizePool,
-                    style: _T.label(size: 11, color: _C.gold.withOpacity(0.7), spacing: 1.0)),
-                const Spacer(),
+            ),
+
+            // Prize Pool
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'PRIZE',
+                  style: _T.label(size: 8, color: _C.gold.withOpacity(0.6), spacing: 0.5),
+                ),
                 Text(
                   '${s.prizePool.toInt()} ETB',
                   style: _T.display.copyWith(
-                    fontSize: 18,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: _C.gold,
                   ),
                 ),
-              ]),
+              ],
             ),
 
-            // Countdown banners
-            if (isBuying && s.startTime != null) ...[
-              const SizedBox(height: 10),
-              _CountdownBanner(
-                deadline: s.startTime!.toLocal().add(const Duration(minutes: 2)),
-                icon: Icons.shopping_bag_outlined,
-                label: S.buyingEndsIn,
-                dangerThreshold: 15,
-              ),
-            ],
-            if (isPaused && s.claimDeadline != null) ...[
-              const SizedBox(height: 10),
-              _CountdownBanner(
-                deadline: s.claimDeadline!,
-                icon: Icons.timer_outlined,
-                label: S.claimWindowLabel,
-                dangerThreshold: 5,
-              ),
-            ],
-
-            // Status message
-            if (s.statusMessage != null && s.statusMessage!.isNotEmpty) ...[
-              const SizedBox(height: 10),
+            // Countdown Timer (if active)
+            if (secs != null) ...[
+              const SizedBox(width: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _C.blueFill,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  color: (secs > 15 ? _C.success : _C.danger).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: (secs > 15 ? _C.success : _C.danger).withOpacity(0.3)),
                 ),
-                child: Text(
-                  s.statusMessage!,
-                  textAlign: TextAlign.center,
-                  style: _T.body(size: 12, color: _C.blueLight),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      timerLabel,
+                      style: _T.label(
+                        size: 7,
+                        color: (secs > 15 ? _C.success : _C.danger).withOpacity(0.8),
+                        spacing: 0.2,
+                      ),
+                    ),
+                    Text(
+                      '${secs}s',
+                      style: TextStyle(
+                        fontFamily: 'Orbitron',
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: secs > 15 ? _C.success : _C.danger,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ]),
+          ],
         ),
-      ]),
+      ),
     );
   }
 }
 
-class _StatTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor, valueColor;
-  final String label, value;
-  const _StatTile({
-    required this.icon, required this.iconColor,
-    required this.label, required this.value, required this.valueColor,
-  });
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    decoration: BoxDecoration(
-      color: _C.surfaceHigh,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withOpacity(0.06)),
-    ),
-    child: Row(children: [
-      Icon(icon, color: iconColor, size: 16),
-      const SizedBox(width: 8),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: _T.label(size: 9, color: _C.textLow, spacing: 0.8)),
-        const SizedBox(height: 2),
-        Text(value, style: _T.body(size: 14, weight: FontWeight.w800, color: valueColor)),
-      ]),
-    ]),
-  );
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _StatusBadge({required this.label, required this.color});
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.4)),
-      boxShadow: [BoxShadow(color: color.withOpacity(0.15), blurRadius: 8)],
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        width: 6,
-        height: 6,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-          boxShadow: [BoxShadow(color: color.withOpacity(0.6), blurRadius: 4)],
-        ),
-      ),
-      const SizedBox(width: 6),
-      Text(label, style: _T.label(size: 10, color: color, spacing: 0.5)),
-    ]),
-  );
-}
-
-class _CountdownBanner extends StatelessWidget {
-  final DateTime deadline;
-  final IconData icon;
-  final String label;
-  final int dangerThreshold;
-  const _CountdownBanner({
-    required this.deadline, required this.icon,
-    required this.label, required this.dangerThreshold,
-  });
-  @override
-  Widget build(BuildContext context) {
-    final secs = deadline.difference(DateTime.now()).inSeconds.clamp(0, 999);
-    final color = secs > dangerThreshold ? _C.success : _C.danger;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.07),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon, color: color, size: 14),
-        const SizedBox(width: 8),
-        Text('$label:  ',
-            style: _T.label(size: 11, color: color.withOpacity(0.8), spacing: 0.8)),
-        Text('${secs}s',
-            style: TextStyle(
-              fontFamily: 'Orbitron',
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            )),
-      ]),
-    );
-  }
-}

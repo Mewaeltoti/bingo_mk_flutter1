@@ -333,6 +333,7 @@ Future<List<int>> fetchDrawnNumbers(String sessionId) async {
             'id': d.id,
             'userId': userId,
             'amount': (d.data()['amount'] as num?)?.toDouble() ?? 0.0,
+            'bank': d.data()['bank'] ?? '',
             'reference': d.data()['reference'] ?? '',
             'status': d.data()['status'] ?? 'pending',
             'createdAt': (d.data()['createdAt'] as Timestamp?)?.toDate(),

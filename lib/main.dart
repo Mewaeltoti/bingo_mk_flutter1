@@ -17,21 +17,56 @@ import 'domain/repositories/bingo_repository.dart';
 import 'presentation/blocs/auth_cubit.dart';
 import 'presentation/blocs/game_cubit.dart';
 import 'presentation/blocs/wallet_cubit.dart';
+import 'presentation/blocs/settings_cubit.dart';
 
 import 'presentation/pages/login_page.dart';
 import 'presentation/pages/main_container.dart';
 import 'presentation/pages/splash_page.dart';
+import 'presentation/pages/pin_lock_page.dart';
 import 'core/services/connectivity_service.dart';
 import 'presentation/widgets/connectivity_banner.dart';
 
 /// ======================================================
 /// BACKGROUND HANDLER
 /// ======================================================
+Future<void> _showLocalNotification(RemoteMessage message) async {
+  if (kIsWeb) return;
+
+  String? title = message.notification?.title;
+  String? body = message.notification?.body;
+
+  // Fallback to data payload keys if notification block is empty
+  if (title == null && body == null && message.data.isNotEmpty) {
+    title = message.data['title'] ?? message.data['notification_title'];
+    body = message.data['body'] ?? message.data['notification_body'];
+  }
+
+  if (title != null && body != null) {
+    final flnp = FlutterLocalNotificationsPlugin();
+    await flnp.show(
+      message.hashCode,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'wallet_notifications',
+          'Wallet Notifications',
+          channelDescription: 'Deposit and withdrawal updates',
+          importance: Importance.max,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+      ),
+    );
+  }
+}
+
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await _showLocalNotification(message);
 }
 
 /// ======================================================
@@ -82,6 +117,11 @@ void _initExtras() {
           );
 
       FirebaseMessaging.instance.requestPermission();
+
+      // Foreground message listener
+      FirebaseMessaging.onMessage.listen((message) {
+        _showLocalNotification(message);
+      });
     }
   } catch (e) {
     debugPrint('Non-critical init error: $e');
@@ -96,14 +136,21 @@ class BootstrapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Bingo MK',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
-      builder: (context, child) => ConnectivityBanner(child: child ?? const SizedBox.shrink()),
-      home: const AppRouter(),
+    return BlocProvider(
+      create: (_) => SettingsCubit(),
+      child: BlocBuilder<SettingsCubit, SettingsState>(
+        builder: (context, settings) {
+          return MaterialApp(
+            title: 'Bingo MK',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: settings.isLightMode ? ThemeMode.light : ThemeMode.dark,
+            builder: (context, child) => ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+            home: const AppRouter(),
+          );
+        },
+      ),
     );
   }
 }
@@ -120,6 +167,8 @@ class AppRouter extends StatefulWidget {
 
 class _AppRouterState extends State<AppRouter> {
   bool _showSplash = true;
+  bool _isPinVerified = false;
+  bool _wasUnauthenticated = false;
 
   late final AuthCubit _authCubit;
   GameCubit? _gameCubit;
@@ -162,20 +211,40 @@ class _AppRouterState extends State<AppRouter> {
 
   @override
   Widget build(BuildContext context) {
-    // ---- SPLASH ----
-    if (_showSplash) {
-      return SplashPage(
-        onFinish: () => setState(() => _showSplash = false),
-      );
-    }
-
-    // ---- AUTH ROUTING ----
-    return BlocProvider<AuthCubit>.value(
+    // We build the actual app structure underneath the splash screen.
+    // This allows AuthCubit, GameCubit, and WalletCubit to initialize,
+    // fetch user data, and connect to Firestore while the splash animation plays.
+    final Widget appBody = BlocProvider<AuthCubit>.value(
       value: _authCubit,
-      child: BlocBuilder<AuthCubit, AuthState>(
+      child: BlocConsumer<AuthCubit, AuthState>(
+        listener: (context, state) {
+          if (state is AuthUnauthenticated) {
+            setState(() {
+              _wasUnauthenticated = true;
+              _isPinVerified = false;
+            });
+          } else if (state is AuthAuthenticated) {
+            if (_wasUnauthenticated) {
+              setState(() {
+                _isPinVerified = true;
+                _wasUnauthenticated = false;
+              });
+            }
+          }
+        },
         builder: (context, state) {
           if (state is AuthAuthenticated) {
             _ensureCubits(state.userId);
+
+            if (!_isPinVerified) {
+              return PinLockPage(
+                userId: state.userId,
+                onVerified: () {
+                  setState(() => _isPinVerified = true);
+                },
+              );
+            }
+
             return MultiBlocProvider(
               providers: [
                 BlocProvider<GameCubit>.value(value: _gameCubit!),
@@ -199,6 +268,18 @@ class _AppRouterState extends State<AppRouter> {
           );
         },
       ),
+    );
+
+    return Stack(
+      children: [
+        appBody,
+        if (_showSplash)
+          Positioned.fill(
+            child: SplashPage(
+              onFinish: () => setState(() => _showSplash = false),
+            ),
+          ),
+      ],
     );
   }
 }

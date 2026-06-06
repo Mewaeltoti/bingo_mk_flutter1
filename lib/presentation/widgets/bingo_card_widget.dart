@@ -53,9 +53,9 @@ class BingoCardWidget extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.danger),
         ),
-        child: const Text(
+        child: Text(
           S.invalidCardData,
-          style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
         ),
       );
     }
@@ -248,7 +248,7 @@ class BingoCardWidget extends StatelessWidget {
                                                 onRegister!();
                                               } else {
                                                 ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(
+                                                  SnackBar(
                                                     content: Text(S.buyingPhaseOnly),
                                                     behavior: SnackBarBehavior.floating,
                                                   ),
@@ -340,19 +340,19 @@ class BingoCardWidget extends StatelessWidget {
       children: List.generate(5, (i) {
         return Container(
           width: cellSize,
-          height: cellSize * 0.8,
+          height: cellSize * 0.6,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: colors[i].withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: colors[i].withOpacity(0.5), width: 1.5),
+            color: colors[i].withOpacity(0.06),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: colors[i].withOpacity(0.3), width: 1.0),
           ),
           child: Text(
             letters[i],
             style: TextStyle(
               color: colors[i],
               fontWeight: FontWeight.w900,
-              fontSize: cellSize * 0.5,
+              fontSize: cellSize * 0.35,
             ),
           ),
         );
@@ -370,18 +370,16 @@ class BingoCardWidget extends StatelessWidget {
             final isFree = row == 2 && col == 2;
             final isMarked = isFree || markedCells.contains('$row-$col');
 
-            Color bgColor = Colors.white.withOpacity(0.05);
+            Color bgColor = Colors.white.withOpacity(0.04);
             Color textColor = Colors.white70;
-            Color borderColor = Colors.white10;
+            Color borderColor = Colors.white.withOpacity(0.05);
 
             if (isFree) {
-              // F cell is always red
-              bgColor = AppColors.danger;
+              bgColor = AppColors.danger.withOpacity(0.9);
               textColor = Colors.white;
               borderColor = AppColors.danger;
             } else if (isWinner && drawnNumbers.contains(number)) {
-              // Winning card: highlight all matched numbers with gold
-              bgColor = const Color(0xFFF1C100).withOpacity(0.85);
+              bgColor = const Color(0xFFF1C100);
               textColor = Colors.black;
               borderColor = const Color(0xFFF1C100);
             } else if (isMarked) {
@@ -398,28 +396,28 @@ class BingoCardWidget extends StatelessWidget {
                 }
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
+                duration: const Duration(milliseconds: 200),
                 width: cellSize,
                 height: cellSize,
-                margin: const EdgeInsets.symmetric(vertical: 1.5),
+                margin: const EdgeInsets.symmetric(vertical: 2.0),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(8),
                   color: bgColor,
-                  border: Border.all(color: borderColor, width: 1.5),
+                  border: Border.all(color: borderColor, width: 1.0),
                   boxShadow: [
                     if (isMarked && !isFree)
                       BoxShadow(
-                        color: bgColor.withOpacity(0.4),
-                        blurRadius: 8,
+                        color: bgColor.withOpacity(0.3),
+                        blurRadius: 6,
                         spreadRadius: 1,
                       ),
                   ],
                 ),
                 child: Text(
-                  isFree ? 'F' : '$number',
+                  isFree ? '★' : '$number',
                   style: TextStyle(
-                    fontSize: cellSize * 0.45,
+                    fontSize: cellSize * 0.40,
                     fontWeight: FontWeight.w900,
                     color: textColor,
                   ),

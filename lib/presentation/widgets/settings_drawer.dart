@@ -4,6 +4,7 @@ import '../blocs/auth_cubit.dart';
 import '../blocs/game_cubit.dart';
 import '../../core/services/audio_service.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
+import '../blocs/settings_cubit.dart';
 
 class _C {
   static const bg          = Color(0xFF090E1C);
@@ -34,8 +35,11 @@ class _T {
 class SettingsDrawer extends StatefulWidget {
   final VoidCallback onClose;
   const SettingsDrawer({super.key, required this.onClose});
+
   @override State<SettingsDrawer> createState() => _SettingsDrawerState();
 }
+
+
 
 class _SettingsDrawerState extends State<SettingsDrawer> {
   late bool _soundEnabled;
@@ -49,6 +53,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameCubit>().state;
+    final settingsState = context.watch<SettingsCubit>().state;
     final isAutoDaub = gameState is GameLoaded ? gameState.isAutoDaubEnabled : false;
 
     return Drawer(
@@ -59,27 +64,17 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
           child: Column(children: [
             // ── Header ───────────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 12, 20),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: _C.divider)),
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
               child: Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _C.goldFill,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _C.goldBorder),
-                  ),
-                  child: const Icon(Icons.tune_rounded, color: _C.gold, size: 18),
-                ),
-                const SizedBox(width: 12),
+                const Icon(Icons.tune_rounded, color: _C.gold, size: 18),
+                const SizedBox(width: 10),
                 Text(S.settings,
                     style: const TextStyle(
-                      fontFamily: 'Orbitron',
-                      fontSize: 16,
+                      fontFamily: 'Outfit',
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: _C.textHigh,
+                      letterSpacing: 0.5,
                     )),
                 const Spacer(),
                 IconButton(
@@ -88,6 +83,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                 ),
               ]),
             ),
+            Container(height: 0.5, color: _C.divider, margin: const EdgeInsets.symmetric(horizontal: 16)),
 
             // ── Body ─────────────────────────────────────────────────────
             Expanded(
@@ -105,6 +101,22 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                       setState(() => _soundEnabled = v);
                       AudioService().toggleMute();
                     },
+                  ),
+                  const SizedBox(height: 8),
+
+                  _ToggleTile(
+                    icon: Icons.language_rounded,
+                    label: S.isAmharic ? 'English' : 'አማርኛ',
+                    value: settingsState.isAmharic,
+                    onChanged: (v) => context.read<SettingsCubit>().toggleLanguage(),
+                  ),
+                  const SizedBox(height: 8),
+
+                  _ToggleTile(
+                    icon: settingsState.isLightMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    label: settingsState.isLightMode ? 'Dark Mode' : 'Light Mode',
+                    value: settingsState.isLightMode,
+                    onChanged: (v) => context.read<SettingsCubit>().toggleTheme(),
                   ),
 
                   if (gameState is GameLoaded) ...[

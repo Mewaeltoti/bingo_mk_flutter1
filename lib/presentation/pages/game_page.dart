@@ -19,15 +19,18 @@ import '../widgets/game/winning_card_dialog.dart';
 import '../widgets/game/card_transparency_dialog.dart';
 import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
+import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 class _C {
-  static const bg          = Color(0xFF0E1321);
-  static const bgDeep      = Color(0xFF090E1C);
-  static const surface     = Color(0xFF161B2A);
-  static const surfaceHigh = Color(0xFF1A1F2E);
-  static const surfaceTop  = Color(0xFF252A39);
-  static const divider     = Color(0xFF303444);
+  static bool get _l => SettingsCubit.isLightModeGlobal;
+
+  static Color get bg          => _l ? const Color(0xFFF2F4F7) : const Color(0xFF0E1321);
+  static Color get bgDeep      => _l ? const Color(0xFFE4E7EC) : const Color(0xFF090E1C);
+  static Color get surface     => _l ? const Color(0xFFFFFFFF) : const Color(0xFF161B2A);
+  static Color get surfaceHigh => _l ? const Color(0xFFF9FAFB) : const Color(0xFF1A1F2E);
+  static Color get surfaceTop  => _l ? const Color(0xFFF0F2F5) : const Color(0xFF252A39);
+  static Color get divider     => _l ? const Color(0xFFEAECF0) : const Color(0xFF303444);
 
   static const gold        = Color(0xFFF1C100);
   static const goldLight   = Color(0xFFFFE8AE);
@@ -44,9 +47,9 @@ class _C {
   static const warning     = Color(0xFFF59E0B);
   static const pink        = Color(0xFFFFB2B8);
 
-  static const textHigh    = Color(0xFFDEE2F6);
-  static const textMid     = Color(0xFFD1C5AB);
-  static const textLow     = Color(0xFF9A9078);
+  static Color get textHigh    => _l ? const Color(0xFF101828) : const Color(0xFFDEE2F6);
+  static Color get textMid     => _l ? const Color(0xFF475467) : const Color(0xFFD1C5AB);
+  static Color get textLow     => _l ? const Color(0xFF667085) : const Color(0xFF9A9078);
 }
 
 class _T {
@@ -108,7 +111,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   late ConfettiController _confettiController;
 
-  bool _expanded = true;
+  bool _expanded = false; // Default to compact mode to fit 4 cartelas
   bool _shownWinSnack = false;
   bool _shownDialog = false;
   String? _lastShownStatusMessage;
@@ -159,11 +162,6 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
             _lastShownStatusMessage = null;
           }
 
-          // BUG-FIX: Check statusMessage contains the sentinel (not just equals),
-          // because errors from registerAllPending arrive prefixed, e.g.
-          // "Activation failed: __INSUFFICIENT_BALANCE__". Previously the strict
-          // == check meant those prefixed messages fell through silently and the
-          // user never saw any feedback when they had insufficient balance.
           final statusMsg = state.statusMessage;
           if (statusMsg != null && statusMsg.contains('__INSUFFICIENT_BALANCE__')) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -172,9 +170,6 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
           } else if (statusMsg != null &&
               statusMsg.isNotEmpty &&
               statusMsg != _lastShownStatusMessage) {
-            // Show all other non-empty statusMessages as a snackbar so users
-            // always get visible feedback (e.g. "Activation failed", network
-            // errors, etc.) rather than a silent inline text nobody notices.
             _lastShownStatusMessage = statusMsg;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ScaffoldMessenger.of(context).clearSnackBars();
@@ -252,6 +247,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context, GameState state) {
+    final bool autoDaub = state is GameLoaded && state.isAutoDaubEnabled;
+
     return AppBar(
       backgroundColor: _C.bgDeep,
       surfaceTintColor: Colors.transparent,
@@ -276,23 +273,41 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
       title: BlocBuilder<WalletCubit, WalletState>(
         builder: (context, ws) {
           final balance = ws is WalletLoaded ? ws.balance : 0.0;
-          return _WalletBadge(
-            balance: balance,
-            onTap: () {
-              if (widget.onTabChanged != null) {
-                widget.onTabChanged!(1);
-              } else {
-                final walletCubit = context.read<WalletCubit>();
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => BlocProvider.value(
-                    value: walletCubit, child: const PaymentPage()),
-                ));
-              }
-            },
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _WalletBadge(
+                balance: balance,
+                onTap: () {
+                  if (widget.onTabChanged != null) {
+                    widget.onTabChanged!(1);
+                  } else {
+                    final walletCubit = context.read<WalletCubit>();
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => BlocProvider.value(
+                        value: walletCubit, child: const PaymentPage()),
+                    ));
+                  }
+                },
+              ),
+              if (!_expanded && state is GameLoaded) ...[
+                const SizedBox(width: 8),
+                _AppBarTimerWidget(state: state),
+              ],
+            ],
           );
         },
       ),
       actions: [
+        IconButton(
+          icon: Icon(
+            _expanded ? Icons.grid_view_rounded : Icons.view_headline_rounded,
+            color: _expanded ? _C.blueLight : _C.textMid,
+            size: 20,
+          ),
+          onPressed: () => setState(() => _expanded = !_expanded),
+          tooltip: _expanded ? "Compact View" : "Full Board View",
+        ),
         IconButton(
           icon: const Icon(Icons.tune_rounded, color: _C.textMid, size: 22),
           onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
@@ -303,52 +318,62 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   }
 
   Widget _buildBody(BuildContext context, GameLoaded state) {
-    return RefreshIndicator(
-      onRefresh: () => context.read<GameCubit>().refreshCards(),
-      color: _C.gold,
-      backgroundColor: _C.surface,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Session info card
-            if (_expanded)
-            FadeInDown(
-              duration: const Duration(milliseconds: 400),
-              child: SessionCardWidget(state: state),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Fixed Top Section
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Session info card
+              if (_expanded)
+                FadeInDown(
+                  duration: const Duration(milliseconds: 400),
+                  child: SessionCardWidget(state: state),
+                ),
 
-            // Claim timer if paused
-            if (state.claimDeadline != null && state.status == GameStatus.paused) ...[
-              const SizedBox(height: 12),
-              _ClaimTimerWidget(deadline: state.claimDeadline!),
+              // Claim timer if paused
+              if (state.claimDeadline != null && state.status == GameStatus.paused) ...[
+                const SizedBox(height: 8),
+                _ClaimTimerWidget(deadline: state.claimDeadline!),
+              ],
+
+              const SizedBox(height: 8),
+
+              // Number board
+              AnimatedCrossFade(
+                duration: const Duration(milliseconds: 200),
+                crossFadeState: _expanded
+                    ? CrossFadeState.showFirst
+                    : CrossFadeState.showSecond,
+                firstChild: Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: LiveBoardWidget(drawnNumbers: state.drawnNumbers),
+                ),
+                secondChild: Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: RecentNumbersWidget(numbers: state.drawnNumbers),
+                ),
+              ),
+              const SizedBox(height: 14),
             ],
+          ),
+        ),
 
-            const SizedBox(height: 14),
-
-            // Controls row: auto-daub toggle + expand toggle
-            _ControlsRow(
-              autoDaub: state.isAutoDaubEnabled,
-              expanded: _expanded,
-              onAutoDaubToggle: (v) => context.read<GameCubit>().toggleAutoDaub(v),
-              onExpandToggle: () => setState(() => _expanded = !_expanded),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Number board
-            AnimatedCrossFade(
-              duration: const Duration(milliseconds: 300),
-              crossFadeState: _expanded
-                  ? CrossFadeState.showFirst
-                  : CrossFadeState.showSecond,
-              firstChild: LiveBoardWidget(drawnNumbers: state.drawnNumbers),
-              secondChild: RecentNumbersWidget(numbers: state.drawnNumbers),
-            ),
-
-            const SizedBox(height: 14),
+        // Scrollable Bottom Section
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () => context.read<GameCubit>().refreshCards(),
+            color: _C.gold,
+            backgroundColor: _C.surface,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 80),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
 
             // Badge lists
             // In the won state, game_history may not yet be written by the CF,
@@ -429,9 +454,12 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
               claimDeadline: state.claimDeadline,
               claimedCardIds: state.claimedCardIds,
             ),
-          ],
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -614,6 +642,84 @@ class _AppBarAvatar extends StatelessWidget {
   );
 }
 
+// ─── AppBar Timer ─────────────────────────────────────────────────────────────
+class _AppBarTimerWidget extends StatefulWidget {
+  final GameLoaded state;
+  const _AppBarTimerWidget({required this.state});
+
+  @override
+  State<_AppBarTimerWidget> createState() => _AppBarTimerWidgetState();
+}
+
+class _AppBarTimerWidgetState extends State<_AppBarTimerWidget> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.state;
+    final isPaused = s.status == GameStatus.paused;
+    final isBuying = s.status == GameStatus.buying;
+
+    int? secs;
+    String timerLabel = "";
+    if (isBuying) {
+      secs = s.buyingCountdown > 0
+          ? s.buyingCountdown
+          : (s.startTime != null
+              ? s.startTime!.toLocal().add(const Duration(minutes: 2)).difference(DateTime.now()).inSeconds.clamp(0, 999)
+              : null);
+      timerLabel = "Ends";
+    } else if (isPaused && s.claimDeadline != null) {
+      secs = s.claimDeadline!.difference(DateTime.now()).inSeconds.clamp(0, 999);
+      timerLabel = "Claim";
+    }
+
+    if (secs == null || secs <= 0) return const SizedBox.shrink();
+
+    final isUrgent = secs <= 15;
+    final color = isUrgent ? _C.danger : _C.success;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_outlined, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            '${secs}s',
+            style: TextStyle(
+              fontFamily: 'Orbitron',
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Wallet badge in AppBar ───────────────────────────────────────────────────
 class _WalletBadge extends StatelessWidget {
   final double balance;
@@ -653,97 +759,7 @@ class _WalletBadge extends StatelessWidget {
   );
 }
 
-// ─── Controls row ─────────────────────────────────────────────────────────────
-class _ControlsRow extends StatelessWidget {
-  final bool autoDaub, expanded;
-  final ValueChanged<bool> onAutoDaubToggle;
-  final VoidCallback onExpandToggle;
-  const _ControlsRow({
-    required this.autoDaub,
-    required this.expanded,
-    required this.onAutoDaubToggle,
-    required this.onExpandToggle,
-  });
 
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-    decoration: _glassDeco(bg: _C.surfaceHigh, radius: 12),
-    child: Row(children: [
-      // Auto daub
-      const Icon(Icons.brightness_auto_rounded, color: _C.gold, size: 16),
-      const SizedBox(width: 8),
-      Text(S.autoDaub, style: _T.label(size: 10, color: _C.textMid, spacing: 1.2)),
-      const SizedBox(width: 10),
-      _GlowToggle(
-        value: autoDaub,
-        onChanged: onAutoDaubToggle,
-      ),
-      const Spacer(),
-      // Expand toggle
-      GestureDetector(
-        onTap: onExpandToggle,
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-            expanded ? S.compact : S.fullBoard,
-            style: _T.label(size: 10, color: _C.blueLight, spacing: 1.0),
-          ),
-          const SizedBox(width: 4),
-          Icon(
-            expanded ? Icons.keyboard_arrow_up_rounded
-                : Icons.keyboard_arrow_down_rounded,
-            color: _C.blueLight,
-            size: 18,
-          ),
-        ]),
-      ),
-    ]),
-  );
-}
-
-// ─── Glow toggle switch ───────────────────────────────────────────────────────
-class _GlowToggle extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  const _GlowToggle({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: () => onChanged(!value),
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: 44,
-      height: 22,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(11),
-        color: value ? _C.goldFill : Colors.white.withOpacity(0.05),
-        border: Border.all(
-          color: value ? _C.gold : Colors.white.withOpacity(0.15),
-          width: 1.2,
-        ),
-        boxShadow: value
-            ? [BoxShadow(color: _C.gold.withOpacity(0.25), blurRadius: 8)]
-            : [],
-      ),
-      child: AnimatedAlign(
-        duration: const Duration(milliseconds: 180),
-        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          width: 14,
-          height: 14,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: value ? _C.gold : Colors.white.withOpacity(0.4),
-            boxShadow: value
-                ? [BoxShadow(color: _C.gold.withOpacity(0.5), blurRadius: 4)]
-                : [],
-          ),
-        ),
-      ),
-    ),
-  );
-}
 
 // ─── Claim timer ──────────────────────────────────────────────────────────────
 class _ClaimTimerWidget extends StatefulWidget {

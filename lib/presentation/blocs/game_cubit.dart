@@ -377,7 +377,7 @@ class GameCubit extends Cubit<GameState> {
           // actually changes (to discard cards from the old session); on normal
           // in-session snapshots we leave userCards untouched.
           userCards: sessionChanged
-              ? current.userCards.where((c) => c.sessionId == newSessionId).toList()
+              ? current.userCards.where((c) => c.sessionId == newSessionId || c.status == 'pending').toList()
               : null, // null → copyWith keeps the existing userCards
           // Use the resolved value (suppressed when session just changed/ended).
           allBlockedCardNos: resolvedBlockedCardNos,
@@ -449,11 +449,9 @@ class GameCubit extends Cubit<GameState> {
 
       final activeDbCards = dbCards.where((c) => c.sessionId == current.sessionId).toList();
       final localPendingCards = current.userCards
-          .where((c) => c.status == 'pending' && c.sessionId == current.sessionId)
+          .where((c) => c.status == 'pending')
           .toList();
-      final combinedCards = [...activeDbCards, ...localPendingCards]
-          .where((c) => c.sessionId == current.sessionId)  // ← add this
-          .toList();
+      final combinedCards = [...activeDbCards, ...localPendingCards].toList();
       // Only carry blocked state for cards that belong to the CURRENT session —
       // prevents last-session blocked badges from reappearing after refreshCards()
       // races with the async deleteCardsForSession call on session change.
