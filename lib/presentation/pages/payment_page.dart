@@ -158,7 +158,8 @@ class _PaymentPageState extends State<PaymentPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocBuilder<SettingsCubit, SettingsState>(
+      builder: (context, _) => Scaffold(
       backgroundColor: _C.bg,
       body: BlocConsumer<WalletCubit, WalletState>(
         listener: (context, state) {
@@ -293,6 +294,7 @@ class _PaymentPageState extends State<PaymentPage>
           return const SizedBox.shrink();
         },
       ),
+    ),
     );
   }
 

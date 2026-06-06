@@ -138,7 +138,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<GameCubit, GameState>(
+    return BlocBuilder<SettingsCubit, SettingsState>(
+      builder: (context, _) => BlocConsumer<GameCubit, GameState>(
       listener: (context, state) {
         if (state is GameLoaded) {
           final message = state.broadcastMessage;
@@ -242,6 +243,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
           ],
         );
       },
+    ),
     );
   }
 

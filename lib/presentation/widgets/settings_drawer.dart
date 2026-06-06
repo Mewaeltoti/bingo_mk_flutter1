@@ -112,15 +112,6 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                     value: settingsState.isAmharic,
                     onChanged: (v) => context.read<SettingsCubit>().toggleLanguage(),
                   ),
-                  const SizedBox(height: 8),
-
-                  _ToggleTile(
-                    icon: settingsState.isLightMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                    label: settingsState.isLightMode ? 'Dark Mode' : 'Light Mode',
-                    value: settingsState.isLightMode,
-                    onChanged: (v) => context.read<SettingsCubit>().toggleTheme(),
-                  ),
-
                   if (gameState is GameLoaded) ...[
                     const SizedBox(height: 8),
                     _ToggleTile(

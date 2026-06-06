@@ -50,7 +50,8 @@ class _ProfilePageState extends State<ProfilePage> {
         ? email.split('@').first
         : (user?.phoneNumber ?? 'Unknown');
 
-    return Scaffold(
+    return BlocBuilder<SettingsCubit, SettingsState>(
+      builder: (context, _) => Scaffold(
       backgroundColor: _C.bg,
       body: SafeArea(
         child: Padding(
@@ -160,6 +161,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
       ),
+    ),
     );
   }
 }
