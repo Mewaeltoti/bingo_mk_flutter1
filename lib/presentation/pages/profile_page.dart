@@ -4,11 +4,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../blocs/auth_cubit.dart';
 import '../blocs/wallet_cubit.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
+import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
 
 class _C {
-  static const bg          = Color(0xFF050D1A);
-  static const card        = Color(0xFF0D1B2A);
-  static const divider     = Color(0xFF1C2E40);
+  static bool get _l => SettingsCubit.isLightModeGlobal;
+
+  static Color get bg          => _l ? const Color(0xFFF2F4F7) : const Color(0xFF050D1A);
+  static Color get card        => _l ? const Color(0xFFFFFFFF) : const Color(0xFF0D1B2A);
+  static Color get divider     => _l ? const Color(0xFFEAECF0) : const Color(0xFF1C2E40);
   static const gold        = Color(0xFFD4AF37);
   static const goldLight   = Color(0xFFFFE8AE);
   static const goldFill    = Color(0x1AD4AF37);
@@ -16,8 +19,8 @@ class _C {
   static const danger      = Color(0xFFE63946);
   static const dangerFill  = Color(0x1AE63946);
   static const dangerBorder= Color(0x40E63946);
-  static const textHigh    = Colors.white;
-  static const textLow     = Color(0xFF607D8B);
+  static Color get textHigh => _l ? const Color(0xFF101828) : Colors.white;
+  static Color get textLow  => _l ? const Color(0xFF667085) : const Color(0xFF607D8B);
 }
 
 class _T {
@@ -75,7 +78,7 @@ class _ProfilePageState extends State<ProfilePage> {
               // Phone
               Text(
                 phone,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize: 22,
                   fontWeight: FontWeight.bold,

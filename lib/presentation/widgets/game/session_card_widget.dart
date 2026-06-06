@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
 import '../../blocs/game_cubit.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 // ─── Design tokens (local, matches game_page) ─────────────────────────────────
 class _C {
-  static const bg          = Color(0xFF0E1321);
-  static const surface     = Color(0xFF161B2A);
-  static const surfaceHigh = Color(0xFF1A1F2E);
-  static const surfaceTop  = Color(0xFF252A39);
-  static const divider     = Color(0xFF303444);
+  static bool get _l => SettingsCubit.isLightModeGlobal;
+
+  static Color get bg          => _l ? const Color(0xFFF2F4F7) : const Color(0xFF0E1321);
+  static Color get surface     => _l ? const Color(0xFFFFFFFF) : const Color(0xFF161B2A);
+  static Color get surfaceHigh => _l ? const Color(0xFFF9FAFB) : const Color(0xFF1A1F2E);
+  static Color get surfaceTop  => _l ? const Color(0xFFF0F2F5) : const Color(0xFF252A39);
+  static Color get divider     => _l ? const Color(0xFFEAECF0) : const Color(0xFF303444);
 
   static const gold        = Color(0xFFF1C100);
   static const goldLight   = Color(0xFFFFE8AE);
@@ -23,13 +26,13 @@ class _C {
   static const danger      = Color(0xFFE63946);
   static const warning     = Color(0xFFF59E0B);
 
-  static const textHigh    = Color(0xFFDEE2F6);
-  static const textMid     = Color(0xFFD1C5AB);
-  static const textLow     = Color(0xFF9A9078);
+  static Color get textHigh => _l ? const Color(0xFF101828) : const Color(0xFFDEE2F6);
+  static Color get textMid  => _l ? const Color(0xFF475467) : const Color(0xFFD1C5AB);
+  static Color get textLow  => _l ? const Color(0xFF667085) : const Color(0xFF9A9078);
 }
 
 class _T {
-  static const display = TextStyle(fontFamily: 'Orbitron', color: _C.textHigh);
+  static TextStyle get display => const TextStyle(fontFamily: 'Orbitron').copyWith(color: _C.textHigh);
   static TextStyle label({double size = 11, Color? color, double spacing = 0.8, FontWeight weight = FontWeight.w700}) =>
       TextStyle(fontFamily: 'Outfit', fontSize: size, fontWeight: weight, letterSpacing: spacing, color: color ?? _C.textMid);
   static TextStyle body({double size = 13, Color? color, FontWeight weight = FontWeight.w400}) =>
@@ -168,7 +171,7 @@ void _showPatternHelpDialog(BuildContext context, String gamePattern) {
               ])),
               IconButton(
                 onPressed: () => Navigator.pop(ctx),
-                icon: const Icon(Icons.close_rounded, color: _C.textLow, size: 20),
+                icon: Icon(Icons.close_rounded, color: _C.textLow, size: 20),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),

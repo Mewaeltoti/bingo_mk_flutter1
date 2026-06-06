@@ -6,33 +6,36 @@ import '../blocs/wallet_cubit.dart';
 import '../../core/theme/app_theme.dart';
 import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
+import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 class _C {
+  static bool get _l => SettingsCubit.isLightModeGlobal;
+
   // Base surfaces
-  static const bg        = Color(0xFF050D1A);
-  static const card      = Color(0xFF0D1B2A);
-  static const cardHigh  = Color(0xFF112236);
-  static const divider   = Color(0xFF1C2E40);
+  static Color get bg        => _l ? const Color(0xFFF2F4F7) : const Color(0xFF050D1A);
+  static Color get card      => _l ? const Color(0xFFFFFFFF) : const Color(0xFF0D1B2A);
+  static Color get cardHigh  => _l ? const Color(0xFFF9FAFB) : const Color(0xFF112236);
+  static Color get divider   => _l ? const Color(0xFFEAECF0) : const Color(0xFF1C2E40);
 
   // Brand
-  static const gold      = Color(0xFFD4AF37);
-  static const goldDim   = Color(0xFFA07C1E);
-  static const goldFill  = Color(0x1AD4AF37);  // 10%
-  static const goldBorder= Color(0x40D4AF37);  // 25%
-  static const blue      = Color(0xFF1A237E);
-  static const blueMid   = Color(0xFF283593);
-  static const accent    = Color(0xFF42A5F5);
+  static const gold       = Color(0xFFD4AF37);
+  static const goldDim    = Color(0xFFA07C1E);
+  static const goldFill   = Color(0x1AD4AF37);
+  static const goldBorder = Color(0x40D4AF37);
+  static const blue       = Color(0xFF1A237E);
+  static const blueMid    = Color(0xFF283593);
+  static const accent     = Color(0xFF42A5F5);
 
   // Semantic
-  static const success   = Color(0xFF2A9D8F);
-  static const danger    = Color(0xFFE63946);
-  static const warning   = Color(0xFFF59E0B);
+  static const success    = Color(0xFF2A9D8F);
+  static const danger     = Color(0xFFE63946);
+  static const warning    = Color(0xFFF59E0B);
 
   // Text
-  static const textHigh  = Colors.white;
-  static const textMid   = Color(0xFFB0BEC5);
-  static const textLow   = Color(0xFF607D8B);
+  static Color get textHigh => _l ? const Color(0xFF101828) : Colors.white;
+  static Color get textMid  => _l ? const Color(0xFF475467) : const Color(0xFFB0BEC5);
+  static Color get textLow  => _l ? const Color(0xFF667085) : const Color(0xFF607D8B);
 }
 
 // ─── Shared text styles ───────────────────────────────────────────────────────
@@ -276,7 +279,7 @@ class _PaymentPageState extends State<PaymentPage>
           if (state is WalletError) {
             return Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.wifi_off_rounded, color: _C.textLow, size: 52),
+                Icon(Icons.wifi_off_rounded, color: _C.textLow, size: 52),
                 const SizedBox(height: 16),
                 Text(state.message, style: _T.body(color: _C.textMid), textAlign: TextAlign.center),
                 const SizedBox(height: 24),
@@ -1155,7 +1158,7 @@ class _HistoryTile extends StatelessWidget {
             ),
           ]),
           const SizedBox(width: 4),
-          const Icon(Icons.chevron_right, color: _C.textLow, size: 16),
+          Icon(Icons.chevron_right, color: _C.textLow, size: 16),
         ]),
       ),
     );

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
 
 class _C {
-  static const surface     = Color(0xFF161B2A);
-  static const surfaceHigh = Color(0xFF1A1F2E);
-  static const divider     = Color(0xFF303444);
+  static bool get _l => SettingsCubit.isLightModeGlobal;
+
+  static Color get surface     => _l ? const Color(0xFFFFFFFF) : const Color(0xFF161B2A);
+  static Color get surfaceHigh => _l ? const Color(0xFFF9FAFB) : const Color(0xFF1A1F2E);
+  static Color get divider     => _l ? const Color(0xFFEAECF0) : const Color(0xFF303444);
   static const gold        = Color(0xFFF1C100);
-  static const textHigh    = Color(0xFFDEE2F6);
-  static const textLow     = Color(0xFF9A9078);
+  static Color get textHigh => _l ? const Color(0xFF101828) : const Color(0xFFDEE2F6);
+  static Color get textLow  => _l ? const Color(0xFF667085) : const Color(0xFF9A9078);
 
   static const b = Color(0xFF4FC3F7); // Blue
   static const i = Color(0xFFE57373); // Red-pink
@@ -46,11 +49,11 @@ class LiveBoardWidget extends StatelessWidget {
       child: Column(children: [
         // Header
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.grid_3x3_rounded, size: 14, color: _C.textLow),
+          Icon(Icons.grid_3x3_rounded, size: 14, color: _C.textLow),
           const SizedBox(width: 6),
           Text(
             'DRAWN: ${drawnNumbers.length} / 75',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Outfit',
               color: _C.textLow,
               fontWeight: FontWeight.w700,
@@ -60,10 +63,10 @@ class LiveBoardWidget extends StatelessWidget {
           ),
           if (lastDrawn != null) ...[
             const SizedBox(width: 12),
-            const Text('·', style: TextStyle(color: _C.textLow)),
+            Text('·', style: TextStyle(color: _C.textLow)),
             const SizedBox(width: 12),
             Text(S.last,
-                style: const TextStyle(
+                style: TextStyle(
                     fontFamily: 'Outfit', color: _C.textLow, fontSize: 11,
                     fontWeight: FontWeight.w700, letterSpacing: 1.0)),
             Pulse(

@@ -7,10 +7,12 @@ import 'package:bingo_mk/core/l10n/app_strings.dart';
 import '../blocs/settings_cubit.dart';
 
 class _C {
-  static const bg          = Color(0xFF090E1C);
-  static const surface     = Color(0xFF161B2A);
-  static const surfaceHigh = Color(0xFF1A1F2E);
-  static const divider     = Color(0xFF303444);
+  static bool get _l => SettingsCubit.isLightModeGlobal;
+
+  static Color get bg          => _l ? const Color(0xFFF2F4F7) : const Color(0xFF090E1C);
+  static Color get surface     => _l ? const Color(0xFFFFFFFF) : const Color(0xFF161B2A);
+  static Color get surfaceHigh => _l ? const Color(0xFFF9FAFB) : const Color(0xFF1A1F2E);
+  static Color get divider     => _l ? const Color(0xFFEAECF0) : const Color(0xFF303444);
 
   static const gold        = Color(0xFFF1C100);
   static const goldFill    = Color(0x1AF1C100);
@@ -20,9 +22,9 @@ class _C {
   static const dangerFill  = Color(0x1AE63946);
   static const dangerBorder= Color(0x40E63946);
 
-  static const textHigh    = Color(0xFFDEE2F6);
-  static const textMid     = Color(0xFFD1C5AB);
-  static const textLow     = Color(0xFF9A9078);
+  static Color get textHigh => _l ? const Color(0xFF101828) : const Color(0xFFDEE2F6);
+  static Color get textMid  => _l ? const Color(0xFF475467) : const Color(0xFFD1C5AB);
+  static Color get textLow  => _l ? const Color(0xFF667085) : const Color(0xFF9A9078);
 }
 
 class _T {
@@ -69,7 +71,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                 const Icon(Icons.tune_rounded, color: _C.gold, size: 18),
                 const SizedBox(width: 10),
                 Text(S.settings,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -79,7 +81,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                 const Spacer(),
                 IconButton(
                   onPressed: widget.onClose,
-                  icon: const Icon(Icons.close_rounded, color: _C.textLow, size: 20),
+                  icon: Icon(Icons.close_rounded, color: _C.textLow, size: 20),
                 ),
               ]),
             ),
@@ -200,7 +202,7 @@ class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: TextStyle(
         fontFamily: 'Outfit',
         fontSize: 10,
         fontWeight: FontWeight.w700,
@@ -271,14 +273,14 @@ class _ActionTile extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Text(label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: _C.textHigh,
               )),
         ),
-        const Icon(Icons.chevron_right_rounded, color: _C.textLow, size: 18),
+        Icon(Icons.chevron_right_rounded, color: _C.textLow, size: 18),
       ]),
     ),
   );

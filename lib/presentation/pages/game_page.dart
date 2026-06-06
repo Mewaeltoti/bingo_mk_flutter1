@@ -53,11 +53,10 @@ class _C {
 }
 
 class _T {
-  static const display = TextStyle(
+  static TextStyle get display => const TextStyle(
     fontFamily: 'Orbitron',
     letterSpacing: 0.05,
-    color: _C.textHigh,
-  );
+  ).copyWith(color: _C.textHigh);
   static TextStyle label({
     double size = 11,
     Color? color,
@@ -309,7 +308,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
           tooltip: _expanded ? "Compact View" : "Full Board View",
         ),
         IconButton(
-          icon: const Icon(Icons.tune_rounded, color: _C.textMid, size: 22),
+          icon: Icon(Icons.tune_rounded, color: _C.textMid, size: 22),
           onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
         ),
         const SizedBox(width: 4),
@@ -636,7 +635,7 @@ class _AppBarAvatar extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: _C.divider),
         ),
-        child: const Icon(Icons.person_rounded, color: _C.textMid, size: 20),
+        child: Icon(Icons.person_rounded, color: _C.textMid, size: 20),
       ),
     ),
   );
