@@ -130,68 +130,78 @@ class BingoCardWidget extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Top bar
+                        // Top bar — uses spaceBetween instead of Spacer() because
+                        // Spacer breaks inside FittedBox (unbounded width measurement).
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                "CARD #${card.cardNo}",
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 10,
-                                  letterSpacing: 0.5,
-                                ),
+                              // Left: card number + status badge
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "CARD #${card.cardNo}",
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  if (badgeText != null) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: isWinner
+                                            ? const Color(0xFFF1C100)
+                                            : badgeColor,
+                                        borderRadius: BorderRadius.circular(6),
+                                        boxShadow: isWinner
+                                            ? [BoxShadow(color: const Color(0xFFF1C100).withOpacity(0.6), blurRadius: 10, spreadRadius: 1)]
+                                            : [],
+                                      ),
+                                      child: Text(
+                                        isWinner ? '🏆 WINNER!' : badgeText.toUpperCase(),
+                                        style: TextStyle(
+                                          color: isWinner ? Colors.black : Colors.white,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                              if (badgeText != null) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: isWinner
-                                        ? const Color(0xFFF1C100)
-                                        : badgeColor,
-                                    borderRadius: BorderRadius.circular(6),
-                                    boxShadow: isWinner
-                                        ? [BoxShadow(color: const Color(0xFFF1C100).withOpacity(0.6), blurRadius: 10, spreadRadius: 1)]
-                                        : [],
-                                  ),
-                                  child: Text(
-                                    isWinner ? '🏆 WINNER!' : badgeText.toUpperCase(),
-                                    style: TextStyle(
-                                      color: isWinner ? Colors.black : Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w900,
+                              // Right: star + remove — always rendered, no null guard.
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GestureDetector(
+                                    onTap: onToggleFavourite,
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      child: Icon(
+                                        isFavourite ? Icons.star_rounded : Icons.star_outline_rounded,
+                                        size: 16,
+                                        color: isFavourite
+                                            ? const Color(0xFFF1C100)
+                                            : Colors.white38,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                              const Spacer(),
-                              // Favourite star — shown whenever onToggleFavourite
-                              // is provided (i.e. card has a valid cardNo).
-                              if (onToggleFavourite != null)
-                                GestureDetector(
-                                  onTap: onToggleFavourite,
-                                  behavior: HitTestBehavior.opaque,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                    child: Icon(
-                                      isFavourite ? Icons.star_rounded : Icons.star_outline_rounded,
-                                      size: 16,
-                                      color: isFavourite
-                                          ? const Color(0xFFF1C100)  // gold
-                                          : Colors.white38,
+                                  if (onRemove != null)
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: const Icon(Icons.cancel, size: 16, color: Colors.white70),
+                                      onPressed: onRemove,
                                     ),
-                                  ),
-                                ),
-                              if (onRemove != null)
-                                IconButton(
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(Icons.cancel, size: 16, color: Colors.white70),
-                                  onPressed: onRemove,
-                                ),
+                                ],
+                              ),
                             ],
                           ),
                         ),
