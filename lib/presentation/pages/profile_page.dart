@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../blocs/auth_cubit.dart';
@@ -113,6 +114,62 @@ class _ProfilePageState extends State<ProfilePage> {
                 },
               ),
               const SizedBox(height: 24),
+
+              // Branding card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1B2A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTokens.goldAlt.withOpacity(0.15), width: 0.75),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'POWERED BY',
+                      style: AppText.label(size: 8, color: AppTokens.textLow, spacing: 2.5),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'TOTI TECH PLC',
+                      style: const TextStyle(
+                        fontFamily: 'Orbitron',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppTokens.goldAlt,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: () {
+                        Clipboard.setData(const ClipboardData(text: '+251978187178'));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Phone number copied!'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.phone_outlined, size: 12, color: AppTokens.textLow),
+                          const SizedBox(width: 6),
+                          Text(
+                            '+251 978 187 178',
+                            style: AppText.label(size: 11, color: AppTokens.textLow, spacing: 0.5),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(Icons.copy_rounded, size: 10, color: AppTokens.textLow),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
 
               // Sign out button
               GestureDetector(

@@ -86,9 +86,53 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
               animation: _barController,
               builder: (_, __) => _buildLoadingBar(_barProgress.value),
             ),
+            const SizedBox(height: 48),
+            AnimatedBuilder(
+              animation: _logoController,
+              builder: (_, __) => Opacity(
+                opacity: _logoFade.value,
+                child: _buildBrandTag(),
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBrandTag() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'POWERED BY',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.25),
+            fontSize: 7,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 3,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'TOTI TECH PLC',
+          style: const TextStyle(
+            color: _goldPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.5,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '+251 978 187 178',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.35),
+            fontSize: 9,
+            letterSpacing: 1.5,
+          ),
+        ),
+      ],
     );
   }
 
