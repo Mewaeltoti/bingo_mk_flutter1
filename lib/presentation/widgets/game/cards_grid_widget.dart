@@ -18,7 +18,7 @@ class CardsGridWidget extends StatelessWidget {
   final List<String> claimedCardIds;
   /// Card IDs the user has starred as lucky/favourite.
   /// During the buying phase these cards float to the top of the grid.
-  final Set<String> favouriteCardIds;
+  final List<String> favouriteCardIds;
 
   const CardsGridWidget({
     super.key,
@@ -30,7 +30,7 @@ class CardsGridWidget extends StatelessWidget {
     this.winningCardNo,
     this.claimDeadline,
     this.claimedCardIds = const [],
-    this.favouriteCardIds = const {},
+    this.favouriteCardIds = const [],
   });
 
   @override

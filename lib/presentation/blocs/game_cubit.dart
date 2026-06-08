@@ -178,7 +178,11 @@ class GameUIState extends Equatable {
   /// FavouritesService). Favourited cards float to the top of the grid
   /// during the buying phase so the user can buy their lucky card faster.
   /// Uses card.id (Firestore doc ID) because pending cards have no cardNo yet.
-  final Set<String> favouriteCardIds;
+  ///
+  /// Stored as a sorted List (not Set) so Equatable compares by value —
+  /// two Sets with identical contents are equal in Dart, which would cause
+  /// Bloc to suppress the emit and the UI would never rebuild on toggle.
+  final List<String> favouriteCardIds;
 
   const GameUIState({
     this.markedCells = const {},
@@ -186,7 +190,7 @@ class GameUIState extends Equatable {
     this.claimedCardIds = const [],
     this.isActionLoading = false,
     this.isAutoDaubEnabled = true,
-    this.favouriteCardIds = const {},
+    this.favouriteCardIds = const [],
   });
 
   @override
@@ -201,7 +205,7 @@ class GameUIState extends Equatable {
     List<String>? claimedCardIds,
     bool? isActionLoading,
     bool? isAutoDaubEnabled,
-    Set<String>? favouriteCardIds,
+    List<String>? favouriteCardIds,
   }) {
     return GameUIState(
       markedCells: markedCells ?? this.markedCells,
@@ -286,7 +290,7 @@ class GameLoaded extends GameState {
   List<String>             get claimedCardIds   => ui.claimedCardIds;
   bool                     get isActionLoading  => ui.isActionLoading;
   bool                     get isAutoDaubEnabled => ui.isAutoDaubEnabled;
-  Set<String>                 get favouriteCardIds => ui.favouriteCardIds;
+  List<String>                get favouriteCardIds => ui.favouriteCardIds;
 
   @override
   List<Object?> get props => [session, ui];
@@ -336,7 +340,7 @@ class GameLoaded extends GameState {
     List<String>? claimedCardIds,
     bool? isActionLoading,
     bool? isAutoDaubEnabled,
-    Set<String>? favouriteCardIds,
+    List<String>? favouriteCardIds,
   }) {
     return GameLoaded(
       session: session.copyWith(
@@ -441,8 +445,9 @@ class GameCubit extends Cubit<GameState> {
       ));
 
       // Load persisted favourite card IDs and reflect them in UI state.
-      final favourites = await sl<FavouritesService>().load(userId);
-      if (!isClosed && state is GameLoaded && favourites.isNotEmpty) {
+      final favouritesSet = await sl<FavouritesService>().load(userId);
+      if (!isClosed && state is GameLoaded && favouritesSet.isNotEmpty) {
+        final favourites = favouritesSet.toList()..sort();
         emit((state as GameLoaded).copyWithUI(
           (state as GameLoaded).ui.copyWith(favouriteCardIds: favourites),
         ));
@@ -1076,12 +1081,15 @@ class GameCubit extends Cubit<GameState> {
     final current = state as GameLoaded;
 
     // Optimistic emit — update UI before the disk write completes.
-    final updated = Set<String>.from(current.favouriteCardIds);
-    if (updated.contains(cardId)) {
-      updated.remove(cardId);
+    // Use a sorted List so Equatable detects the change (two Sets with the
+    // same contents are == in Dart, which silences the Bloc emit).
+    final updatedSet = Set<String>.from(current.favouriteCardIds);
+    if (updatedSet.contains(cardId)) {
+      updatedSet.remove(cardId);
     } else {
-      updated.add(cardId);
+      updatedSet.add(cardId);
     }
+    final updated = updatedSet.toList()..sort();
     emit(current.copyWithUI(current.ui.copyWith(favouriteCardIds: updated)));
 
     // Persist in the background; errors are non-fatal (preference only).
