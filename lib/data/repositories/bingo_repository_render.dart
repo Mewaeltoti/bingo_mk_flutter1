@@ -504,6 +504,7 @@ class BingoRepositoryRender implements BingoRepository {
       sessionId: cardSessionId,
       createdAt: createdAt,
       isBlocked: isBlocked,
+      price: (row['price'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
