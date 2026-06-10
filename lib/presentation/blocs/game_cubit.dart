@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bingo_mk/main.dart' show showGameNotification;
 import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
@@ -9,7 +10,6 @@ import '../../core/services/logger_service.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/card_generator_service.dart';
 import '../../core/services/connectivity_service.dart';
-import '../../core/services/favourites_service.dart';
 
 const Object _sentinel = Object();
 
@@ -174,15 +174,6 @@ class GameUIState extends Equatable {
   final List<String> claimedCardIds;
   final bool isActionLoading;
   final bool isAutoDaubEnabled;
-  /// Card IDs the user has starred as favourites (persisted locally via
-  /// FavouritesService). Favourited cards float to the top of the grid
-  /// during the buying phase so the user can buy their lucky card faster.
-  /// Uses card.id (Firestore doc ID) because pending cards have no cardNo yet.
-  ///
-  /// Stored as a sorted List (not Set) so Equatable compares by value —
-  /// two Sets with identical contents are equal in Dart, which would cause
-  /// Bloc to suppress the emit and the UI would never rebuild on toggle.
-  final List<String> favouriteCardIds;
 
   const GameUIState({
     this.markedCells = const {},
@@ -190,13 +181,12 @@ class GameUIState extends Equatable {
     this.claimedCardIds = const [],
     this.isActionLoading = false,
     this.isAutoDaubEnabled = true,
-    this.favouriteCardIds = const [],
   });
 
   @override
   List<Object?> get props => [
     markedCells, blockedCardIds, claimedCardIds,
-    isActionLoading, isAutoDaubEnabled, favouriteCardIds,
+    isActionLoading, isAutoDaubEnabled,
   ];
 
   GameUIState copyWith({
@@ -205,7 +195,6 @@ class GameUIState extends Equatable {
     List<String>? claimedCardIds,
     bool? isActionLoading,
     bool? isAutoDaubEnabled,
-    List<String>? favouriteCardIds,
   }) {
     return GameUIState(
       markedCells: markedCells ?? this.markedCells,
@@ -213,7 +202,6 @@ class GameUIState extends Equatable {
       claimedCardIds: claimedCardIds ?? this.claimedCardIds,
       isActionLoading: isActionLoading ?? this.isActionLoading,
       isAutoDaubEnabled: isAutoDaubEnabled ?? this.isAutoDaubEnabled,
-      favouriteCardIds: favouriteCardIds ?? this.favouriteCardIds,
     );
   }
 }
@@ -290,7 +278,6 @@ class GameLoaded extends GameState {
   List<String>             get claimedCardIds   => ui.claimedCardIds;
   bool                     get isActionLoading  => ui.isActionLoading;
   bool                     get isAutoDaubEnabled => ui.isAutoDaubEnabled;
-  List<String>                get favouriteCardIds => ui.favouriteCardIds;
 
   @override
   List<Object?> get props => [session, ui];
@@ -340,7 +327,6 @@ class GameLoaded extends GameState {
     List<String>? claimedCardIds,
     bool? isActionLoading,
     bool? isAutoDaubEnabled,
-    List<String>? favouriteCardIds,
   }) {
     return GameLoaded(
       session: session.copyWith(
@@ -376,7 +362,6 @@ class GameLoaded extends GameState {
         claimedCardIds: claimedCardIds,
         isActionLoading: isActionLoading,
         isAutoDaubEnabled: isAutoDaubEnabled,
-        favouriteCardIds: favouriteCardIds,
       ),
     );
   }
@@ -444,19 +429,13 @@ class GameCubit extends Cubit<GameState> {
         ),
       ));
 
-      // Load persisted favourite card IDs and reflect them in UI state.
-      final favouritesSet = await sl<FavouritesService>().load(userId);
-      if (!isClosed && state is GameLoaded && favouritesSet.isNotEmpty) {
-        final favourites = favouritesSet.toList()..sort();
-        emit((state as GameLoaded).copyWithUI(
-          (state as GameLoaded).ui.copyWith(favouriteCardIds: favourites),
-        ));
-      }
-
       if (initialSessionId.isNotEmpty) {
         _resubscribeDraws(initialSessionId);
         _resubscribeWinners(initialSessionId);
       }
+
+      // Fetch pending cards immediately and set up periodic refresh
+      await fetchPendingCards();
 
       _gameSub = _bingoRepository.streamGame(kLiveGameId).listen((gameData) async {
         if (state is! GameLoaded) return;
@@ -480,12 +459,22 @@ class GameCubit extends Cubit<GameState> {
 
         if (newStatus == GameStatus.won && !current.hasWon && gameData['winnerId'] == userId) {
           AudioService().playWin();
+          // OS notification — visible even if app is minimized
+          showGameNotification(
+            title: '🏆 You Won!',
+            body: 'Congratulations! Your Bingo card won the prize!',
+          );
         }
 
         if (sessionChanged && newSessionId.isNotEmpty) {
           _drawsSub?.cancel();
           _resubscribeDraws(newSessionId);
           _resubscribeWinners(newSessionId);
+          // Notify user a new game is starting even if they left the screen
+          showGameNotification(
+            title: '🎰 New Bingo Game Starting!',
+            body: 'A new session has started. Register your cards now!',
+          );
         }
 
         if (isClosed) return;
@@ -596,11 +585,13 @@ class GameCubit extends Cubit<GameState> {
         }
 
         if ((gameEnded && current.status != newStatus) || sessionChanged) {
-          final sessionToDelete = current.sessionId;
-          if (sessionToDelete.isNotEmpty) {
+          final sessionToReset = current.sessionId;
+          if (sessionToReset.isNotEmpty) {
+            // Reset registered cards back to pending so users keep their
+            // lucky cards for the next game — do NOT delete them.
             await _bingoRepository
-                .deleteCardsForSession(userId, sessionToDelete)
-                .catchError((e) => Log.e('deleteCardsForSession error', e));
+                .resetCardsForSession(userId, sessionToReset)
+                .catchError((e) => Log.e('resetCardsForSession error', e));
           }
         }
 
@@ -940,6 +931,10 @@ class GameCubit extends Cubit<GameState> {
             isActionLoading: false,
             blockedCardIds: blocked,
             statusMessage: "Invalid claim! Card blocked."));
+          showGameNotification(
+            title: '⛔ Card Blocked',
+            body: 'One of your cards was blocked due to an invalid Bingo claim.',
+          );
       } else if (success == true) {
         final alreadyClaimed = List<String>.from(
             (state as GameLoaded).claimedCardIds)
@@ -1068,37 +1063,39 @@ class GameCubit extends Cubit<GameState> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // FAVOURITES
+  // FETCH PENDING CARDS
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Toggles [cardId] in or out of the user's local favourites list.
-  ///
-  /// Persisted via [FavouritesService] (SharedPreferences) so the list
-  /// survives app restarts. The UI reflects the change immediately via
-  /// an optimistic emit; the async persist runs in the background.
-  Future<void> toggleFavourite(String cardId) async {
+  /// Fetches pending cards for the user in the background.
+  /// Pending cards are cards with status='pending' that are available for
+  /// activation in the current or upcoming game sessions.
+  /// Fetches from users/{userId}/cards collection.
+  /// Fetches the user's pending cards from Firestore (status='pending') and
+  /// merges them into the current userCards list without duplicates.
+  /// Pending cards are the user's personal lucky cards — they persist across
+  /// sessions and are always shown at the top of the grid.
+  Future<void> fetchPendingCards() async {
     if (state is! GameLoaded) return;
     final current = state as GameLoaded;
 
-    // Optimistic emit — update UI before the disk write completes.
-    // Use a sorted List so Equatable detects the change (two Sets with the
-    // same contents are == in Dart, which silences the Bloc emit).
-    final updatedSet = Set<String>.from(current.favouriteCardIds);
-    if (updatedSet.contains(cardId)) {
-      updatedSet.remove(cardId);
-    } else {
-      updatedSet.add(cardId);
-    }
-    final updated = updatedSet.toList()..sort();
-    emit(current.copyWithUI(current.ui.copyWith(favouriteCardIds: updated)));
-
-    // Persist in the background; errors are non-fatal (preference only).
     try {
-      await sl<FavouritesService>().toggle(userId, cardId);
-    } catch (e) {
-      Log.e('toggleFavourite persist failed', e);
+      final pendingCards = await _bingoRepository.getPendingCards(userId);
+      if (isClosed) return;
+
+      if (pendingCards.isEmpty) return;
+
+      // Merge: keep all existing cards, add any pending ones not already present.
+      final existingIds = current.userCards.map((c) => c.id).toSet();
+      final newOnes = pendingCards.where((c) => !existingIds.contains(c.id)).toList();
+
+      if (newOnes.isNotEmpty) {
+        emit(current.copyWith(userCards: [...current.userCards, ...newOnes]));
+      }
+    } catch (e, stack) {
+      Log.e('fetchPendingCards failed', e, stack);
     }
   }
+
   // ─────────────────────────────────────────────────────────────────────────
 
   void _subscribeConnectivity() {

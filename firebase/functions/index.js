@@ -7,20 +7,32 @@ if (!admin.apps.length) {
 const { onCall, onRequest } = require("firebase-functions/v2/https");
 const functions = require("firebase-functions/v1");
 
+// ─── CORS origin list ─────────────────────────────────────────────────────────
+// v2 onCall with an explicit origins array correctly handles OPTIONS preflight.
+// "cors: true" on firebase-functions@7.x does NOT — it fails to set the
+// Access-Control-Allow-Origin header on preflight responses from browsers.
+const ALLOWED_ORIGINS = [
+    "https://bingo-admin-web.vercel.app",
+    "http://localhost:5173",   // local dev
+    "http://localhost:4173",   // vite preview
+];
+
+const corsOpts = { cors: ALLOWED_ORIGINS };
+
 // ─── Game / Bingo logic ───────────────────────────────────────────────────────
-exports.claimBingo         = onCall({ cors: true }, (req) => require("./validationService").claimBingo(req));
-exports.confirmBingoClaim  = onCall({ cors: true }, (req) => require("./validationService").confirmBingoClaim(req));
-exports.rejectBingoClaim   = onCall({ cors: true }, (req) => require("./validationService").rejectBingoClaim(req));
-exports.finalizeGameAndPayout = onCall({ cors: true }, (req) => require("./validationService").finalizeGameAndPayout(req));
+exports.claimBingo            = onCall(corsOpts, (req) => require("./validationService").claimBingo(req));
+exports.confirmBingoClaim     = onCall(corsOpts, (req) => require("./validationService").confirmBingoClaim(req));
+exports.rejectBingoClaim      = onCall(corsOpts, (req) => require("./validationService").rejectBingoClaim(req));
+exports.finalizeGameAndPayout = onCall(corsOpts, (req) => require("./validationService").finalizeGameAndPayout(req));
 
-exports.buyCard    = onCall({ cors: true }, (req) => require("./cartelaService").buyCard(req));
-exports.registerCard = onCall({ cors: true }, (req) => require("./cartelaService").registerCard(req));
-exports.startNewGame = onCall({ cors: true }, (req) => require("./cartelaService").startNewGame(req));
-exports.seedPool   = onCall({ cors: true, timeoutSeconds: 540 }, (req) => require("./cartelaService").seedPool(req));
-exports.cancelGame = onCall({ cors: true }, (req) => require("./cartelaService").cancelGame(req));
-exports.removeCard = onCall({ cors: true }, (req) => require("./cartelaService").removeCard(req));
+exports.buyCard      = onCall(corsOpts, (req) => require("./cartelaService").buyCard(req));
+exports.registerCard = onCall(corsOpts, (req) => require("./cartelaService").registerCard(req));
+exports.startNewGame = onCall(corsOpts, (req) => require("./cartelaService").startNewGame(req));
+exports.seedPool     = onCall({ ...corsOpts, timeoutSeconds: 540 }, (req) => require("./cartelaService").seedPool(req));
+exports.cancelGame   = onCall(corsOpts, (req) => require("./cartelaService").cancelGame(req));
+exports.removeCard   = onCall(corsOpts, (req) => require("./cartelaService").removeCard(req));
 
-exports.blockCard = onCall({ cors: true }, async (request) => {
+exports.blockCard = onCall(corsOpts, async (request) => {
     if (!request.auth) throw new Error("unauthenticated");
     const { userId, cardId } = request.data;
     if (request.auth.uid !== userId) throw new Error("permission-denied");
@@ -36,12 +48,7 @@ exports.blockCard = onCall({ cors: true }, async (request) => {
 });
 
 // ─── Withdrawal approval (admin only) ────────────────────────────────────────
-// The old createWithdrawal CF has been removed.
-// Withdrawals are written directly to Firestore by the Flutter client (pending).
-// The admin calls this function to approve — it atomically deducts the balance
-// and marks the withdrawal approved. There is no reject flow; the admin either
-// approves or deletes the record from the admin panel.
-exports.approveWithdrawal = onCall({ cors: true }, (req) =>
+exports.approveWithdrawal = onCall(corsOpts, (req) =>
     require("./reconciliationService").approveWithdrawalHandler(req)
 );
 
@@ -64,7 +71,7 @@ exports.onGameUpdated = functions.runWith({
     );
 
 // ─── Deposit auto-reconciliation ──────────────────────────────────────────────
-exports.smsWebhook = onRequest({ cors: true }, (req, res) =>
+exports.smsWebhook = onRequest({ cors: ALLOWED_ORIGINS }, (req, res) =>
     require("./reconciliationService").smsWebhook(req, res)
 );
 
@@ -74,15 +81,8 @@ exports.onDepositCreated = functions.firestore
         require("./reconciliationService").onDepositCreatedHandler(snap, context)
     );
 
-// ─── Withdrawal trigger (no-op — balance is NOT reserved on submit) ───────────
-// Kept as a stub so Firestore trigger infrastructure remains in place,
-// but it does nothing. Balance deduction only happens in approveWithdrawal().
 exports.onWithdrawalCreated = functions.firestore
     .document("users/{userId}/withdrawals/{withdrawId}")
     .onCreate((snap, context) =>
         require("./reconciliationService").onWithdrawalCreatedHandler(snap, context)
     );
-
-// onWithdrawalUpdated has been intentionally REMOVED.
-// Previously it refunded balance on rejection — that caused the double-credit bug.
-// There is no rejection flow anymore, so there is nothing to refund.

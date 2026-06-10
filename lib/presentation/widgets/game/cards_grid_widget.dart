@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../../domain/entities/bingo_card.dart';
 import '../bingo_card_widget.dart';
@@ -16,9 +16,6 @@ class CardsGridWidget extends StatelessWidget {
   final int? winningCardNo;
   final DateTime? claimDeadline;
   final List<String> claimedCardIds;
-  /// Card IDs the user has starred as lucky/favourite.
-  /// During the buying phase these cards float to the top of the grid.
-  final List<String> favouriteCardIds;
 
   const CardsGridWidget({
     super.key,
@@ -30,7 +27,6 @@ class CardsGridWidget extends StatelessWidget {
     this.winningCardNo,
     this.claimDeadline,
     this.claimedCardIds = const [],
-    this.favouriteCardIds = const [],
   });
 
   @override
@@ -69,17 +65,13 @@ class CardsGridWidget extends StatelessWidget {
 
     final drawnSet = Set<int>.from(drawnNumbers);
 
-    // During the buying phase, favourite cards float to the top so the user
-    // can tap "Register" on their lucky card before others grab it.
-    // In all other phases the order stays stable (server order).
-    final List<BingoCard> sortedCards = List.from(cards);
-    if (status == GameStatus.buying && favouriteCardIds.isNotEmpty) {
-      sortedCards.sort((a, b) {
-        final aFav = favouriteCardIds.contains(a.id) ? 0 : 1;
-        final bFav = favouriteCardIds.contains(b.id) ? 0 : 1;
-        return aFav.compareTo(bFav);
-      });
-    }
+    // Pending (unregistered) cards always float to the top so the user can
+    // see and activate their lucky cards immediately.
+    final sortedCards = [...cards]..sort((a, b) {
+      final aP = a.status == 'pending' ? 0 : 1;
+      final bP = b.status == 'pending' ? 0 : 1;
+      return aP.compareTo(bP);
+    });
 
     return GridView.builder(
       shrinkWrap: true,
@@ -99,8 +91,7 @@ class CardsGridWidget extends StatelessWidget {
         final isBuyingPhase = status == GameStatus.buying;
         final isUnregistered = (isPending && !isBuyingPhase) || status == GameStatus.waiting;
         final isAlreadyClaimed = claimedCardIds.contains(card.id);
-        final isFavourite = favouriteCardIds.contains(card.id);
-        final isWinner = winningCardNo != null && card.cardNo == winningCardNo;
+                final isWinner = winningCardNo != null && card.cardNo == winningCardNo;
 
         final cardWidget = BingoCardWidget(
           key: ValueKey('card_${card.id}'),
@@ -111,11 +102,9 @@ class CardsGridWidget extends StatelessWidget {
           isUnregistered: isUnregistered,
           isWinner: isWinner,
           isAlreadyClaimed: isAlreadyClaimed,
-          isFavourite: isFavourite,
-          // Star is always shown — pending cards have no cardNo yet but the
+                    // Star is always shown â€” pending cards have no cardNo yet but the
           // user still wants to mark their lucky card before registering it.
-          onToggleFavourite: () => context.read<GameCubit>().toggleFavourite(card.id),
-          onMarkCell: (!isPending && !isBlocked && !isWinner)
+                    onMarkCell: (!isPending && !isBlocked && !isWinner)
               ? (r, c) => context.read<GameCubit>().markCell(card.id, r, c)
               : null,
           onRegister: (status == GameStatus.buying && !isBlocked)
@@ -141,3 +130,4 @@ class CardsGridWidget extends StatelessWidget {
     );
   }
 }
+

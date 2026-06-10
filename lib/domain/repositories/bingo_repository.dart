@@ -44,6 +44,11 @@ abstract class BingoRepository {
   /// can see blocked badges in real-time.
   Future<void> broadcastBlockedCard(int cardNo);
 
+  /// Fetches only the user's cards with status 'pending' (not yet registered
+  /// to any session). These are the user's personal lucky cards that persist
+  /// across games and should always be shown on the game page.
+  Future<List<BingoCard>> getPendingCards(String userId);
+
   /// Permanently deletes ALL cards belonging to [userId] for [sessionId]
   /// from Firestore. Called when a session finishes (won / waiting / canceled)
   /// so that stale cards are never shown in a future game.

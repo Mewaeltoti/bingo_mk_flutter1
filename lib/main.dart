@@ -101,30 +101,87 @@ void _initExtras() {
       flnp.initialize(
         const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          iOS: DarwinInitializationSettings(),
         ),
       );
 
-      flnp
+      final androidPlugin = flnp
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(
-            const AndroidNotificationChannel(
-              'wallet_notifications',
-              'Wallet Notifications',
-              description: 'Deposit and withdrawal updates',
-              importance: Importance.high,
-            ),
-          );
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      // Wallet channel — deposits and withdrawals
+      androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'wallet_notifications',
+          'Wallet Notifications',
+          description: 'Deposit and withdrawal updates',
+          importance: Importance.high,
+        ),
+      );
+
+      // Game channel — important game events (win, new session, blocked card)
+      androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'game_notifications',
+          'Game Notifications',
+          description: 'Bingo game events: win, new session, blocked card',
+          importance: Importance.high,
+          playSound: true,
+        ),
+      );
 
       FirebaseMessaging.instance.requestPermission();
 
-      // Foreground message listener
+      // Foreground FCM message listener (wallet / server-push)
       FirebaseMessaging.onMessage.listen((message) {
         _showLocalNotification(message);
       });
     }
   } catch (e) {
-    debugPrint('Non-critical init error: $e');
+    debugPrint('Non-critical init error: \$e');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GAME NOTIFICATION SERVICE
+// Called by GameCubit when an important game event happens while the user
+// may have minimized the app. Uses flutter_local_notifications directly
+// (no FCM round-trip needed — the event is already known client-side).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Show an OS-level notification for a game event.
+/// Safe to call whether the app is foregrounded or backgrounded.
+Future<void> showGameNotification({
+  required String title,
+  required String body,
+}) async {
+  if (kIsWeb) return;
+  try {
+    final flnp = FlutterLocalNotificationsPlugin();
+    await flnp.show(
+      // Use a stable ID per title so repeat events replace rather than stack.
+      title.hashCode & 0x7fffffff,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'game_notifications',
+          'Game Notifications',
+          channelDescription: 'Bingo game events',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          playSound: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('showGameNotification error: \$e');
   }
 }
 

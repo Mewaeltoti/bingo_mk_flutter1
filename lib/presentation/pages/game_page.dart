@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,7 +21,7 @@ import 'package:bingo_mk/presentation/widgets/loading_widgets.dart';
 import 'package:bingo_mk/core/l10n/app_strings.dart';
 import 'package:bingo_mk/presentation/blocs/settings_cubit.dart';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _C {
   static bool get _l => SettingsCubit.isLightModeGlobal;
 
@@ -99,7 +99,7 @@ BoxDecoration _glassDeco({
   boxShadow: shadows,
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class GamePage extends StatefulWidget {
   final Function(int index)? onTabChanged;
   const GamePage({super.key, this.onTabChanged});
@@ -175,7 +175,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
             });
           } else if (statusMsg != null &&
               statusMsg.isNotEmpty &&
-              statusMsg != _lastShownStatusMessage) {
+              statusMsg != _lastShownStatusMessage &&
+              _isImportantStatus(statusMsg)) {
             _lastShownStatusMessage = statusMsg;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ScaffoldMessenger.of(context).clearSnackBars();
@@ -326,7 +327,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
     );
   }
 
-  /// Shown when [GameStreamError] is emitted — i.e. the Firestore stream died
+  /// Shown when [GameStreamError] is emitted â€” i.e. the Firestore stream died
   /// mid-game and connectivity resubscription could not recover it.
   /// Gives the player a clear explanation and a one-tap retry instead of
   /// leaving them staring at a frozen board indefinitely.
@@ -467,14 +468,14 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                   // Broadcast card numbers visible to all players
                   ...state.allBlockedCardNos.map((n) => '#$n'),
                   // User's own blocked card IDs not already shown by cardNo.
-                  // Only show if the card belongs to the current session —
+                  // Only show if the card belongs to the current session â€”
                   // guards against stale IDs during the session-change race.
                   ...state.blockedCardIds.where((id) {
                     final card = state.userCards
                         .where((c) => c.id == id)
                         .firstOrNull;
-                    if (card == null) return false; // unknown card → skip
-                    if (card.sessionId != state.sessionId) return false; // wrong session → skip
+                    if (card == null) return false; // unknown card â†’ skip
+                    if (card.sessionId != state.sessionId) return false; // wrong session â†’ skip
                     return !state.allBlockedCardNos.contains(card.cardNo);
                   }).map((id) {
                     final card = state.userCards
@@ -506,8 +507,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                   : state.winningCardNo,
               claimDeadline: state.claimDeadline,
               claimedCardIds: state.claimedCardIds,
-              favouriteCardIds: state.favouriteCardIds,
-            ),
+                          ),
                 ],
               ),
             ),
@@ -515,6 +515,19 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
         ),
       ],
     );
+  }
+
+  /// Returns true only for messages the user actually needs to see as a popup.
+  /// Filters out high-frequency draw-loop noise like "Numbers are being drawn..."
+  /// which fires on every single number and would spam the screen.
+  bool _isImportantStatus(String msg) {
+    final lower = msg.toLowerCase();
+    // Draw-loop noise — shown on the live board widget already, no snackbar needed
+    if (lower.contains('numbers are being drawn')) return false;
+    if (lower.contains('drawing numbers')) return false;
+    if (lower.contains('waiting for players')) return false;
+    // Everything else (register, claim, error, win, session) is important
+    return true;
   }
 
   SnackBar _styledSnack(String msg, Color color) => SnackBar(
@@ -534,8 +547,9 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
     backgroundColor: _C.surfaceHigh,
     behavior: SnackBarBehavior.floating,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-    duration: const Duration(seconds: 4),
+    // Show at the TOP of the screen, below the status bar
+    margin: const EdgeInsets.fromLTRB(16, 48, 16, 0),
+    duration: const Duration(seconds: 3),
   );
 
   void _showInsufficientBalanceDialog(BuildContext context) {
@@ -675,7 +689,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   }
 }
 
-// ─── AppBar avatar ────────────────────────────────────────────────────────────
+// â”€â”€â”€ AppBar avatar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _AppBarAvatar extends StatelessWidget {
   final VoidCallback onTap;
   const _AppBarAvatar({required this.onTap});
@@ -696,7 +710,7 @@ class _AppBarAvatar extends StatelessWidget {
   );
 }
 
-// ─── AppBar Timer ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ AppBar Timer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _AppBarTimerWidget extends StatefulWidget {
   final GameLoaded state;
   const _AppBarTimerWidget({required this.state});
@@ -774,7 +788,7 @@ class _AppBarTimerWidgetState extends State<_AppBarTimerWidget> {
   }
 }
 
-// ─── Wallet badge in AppBar ───────────────────────────────────────────────────
+// â”€â”€â”€ Wallet badge in AppBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _WalletBadge extends StatelessWidget {
   final double balance;
   final VoidCallback onTap;
@@ -815,7 +829,7 @@ class _WalletBadge extends StatelessWidget {
 
 
 
-// ─── Claim timer ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Claim timer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ClaimTimerWidget extends StatefulWidget {
   final DateTime deadline;
   const _ClaimTimerWidget({required this.deadline});
@@ -873,7 +887,7 @@ class _ClaimTimerWidgetState extends State<_ClaimTimerWidget> {
   }
 }
 
-// ─── BUY CARDS button ─────────────────────────────────────────────────────────
+// â”€â”€â”€ BUY CARDS button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _BuyCardsButton extends StatelessWidget {
   final VoidCallback onTap;
   const _BuyCardsButton({required this.onTap});
@@ -918,7 +932,7 @@ class _BuyCardsButton extends StatelessWidget {
   );
 }
 
-// ─── Buy sheet ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Buy sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _BuySheet extends StatelessWidget {
   final GameLoaded state;
   final GameCubit gameCubit;
@@ -956,7 +970,7 @@ class _BuySheet extends StatelessWidget {
                 color: _C.goldLight)),
         const SizedBox(height: 6),
         Text(
-          'Max 25 cards per session — ${state.userCards.length} owned',
+          'Max 25 cards per session â€” ${state.userCards.length} owned',
           style: _T.label(size: 11, color: _C.textLow, spacing: 0.3),
         ),
 

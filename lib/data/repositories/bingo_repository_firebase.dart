@@ -782,4 +782,54 @@ Future<List<int>> fetchDrawnNumbers(String sessionId) async {
         return 'Something went wrong. Please try again.';
     }
   }
+  /// Returns only the user's cards with status 'pending'.
+  /// Queries Firestore directly with a status filter — no full scan.
+  @override
+  Future<List<BingoCard>> getPendingCards(String userId) async {
+    try {
+      final snap = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('cards')
+          .where('game_id', isEqualTo: 'live')
+          .where('status', isEqualTo: 'pending')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snap.docs.map((doc) {
+        final row = doc.data();
+        final flatNumbers = List<int>.from(row['numbers'] ?? []);
+        final createdAt = (row['createdAt'] as Timestamp?)?.toDate();
+
+        List<List<int>> grid = [];
+        if (flatNumbers.length == 25) {
+          for (var i = 0; i < 5; i++) {
+            grid.add(flatNumbers.sublist(i * 5, (i + 1) * 5));
+          }
+        } else if (flatNumbers.length == 24) {
+          final full = List<int>.from(flatNumbers)..insert(12, 0);
+          for (var i = 0; i < 5; i++) {
+            grid.add(full.sublist(i * 5, (i + 1) * 5));
+          }
+        } else {
+          grid = List.generate(5, (_) => List.filled(5, 0));
+        }
+
+        return BingoCard(
+          id: doc.id,
+          numbers: grid,
+          price: 10.0,
+          status: 'pending',
+          cardNo: 0,
+          sessionId: '',
+          createdAt: createdAt,
+          isBlocked: false,
+        );
+      }).toList();
+    } catch (e) {
+      Log.e('getPendingCards failed', e);
+      throw Exception('Failed to get pending cards: \$e');
+    }
+  }
+
 }
